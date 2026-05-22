@@ -4,7 +4,7 @@
   "description": "Deepwork - long running agent pipeline for old AI models",
   "main": "dist/index.js",
   "scripts": {
-    "test": "npm run build",
+    "test": "npm run build && node --test ./test/**/*.test.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },

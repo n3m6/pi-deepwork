@@ -5,6 +5,7 @@ Deepwork - long running agent pipeline for old AI models
 
 ```bash
 npm install
+npm test
 npm run build
 npm start
 ```
