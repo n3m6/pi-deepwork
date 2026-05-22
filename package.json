@@ -1,0 +1,27 @@
+{
+  "name": "pi-deepwork",
+  "version": "1.0.0",
+  "description": "Deepwork - long running agent pipeline for old AI models",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "npm run build && node --test ./test/**/*.test.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/n3m6/pi-deepwork.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/n3m6/pi-deepwork/issues"
+  },
+  "homepage": "https://github.com/n3m6/pi-deepwork#readme",
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3"
+  }
+}
