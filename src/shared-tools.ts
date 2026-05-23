@@ -9,6 +9,8 @@ import type {
 // ──────────────────────────────────────────────
 /** Reference to the ExtensionAPI; set by activate() before any tools register. */
 export let _pi: ExtensionAPI | null = null;
+
+export function setPi(pi: ExtensionAPI | null): void { _pi = pi; }
 /** Reference to the activation context; set by activate(). */
 export let _ctx: ExtensionContext | undefined;
 

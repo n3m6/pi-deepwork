@@ -39,13 +39,13 @@ test('package.json has test:watch script with correct value', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
   assert.equal(
     pkg.scripts['test:watch'],
-    'npm run build && node --test --watch ./test/**/*.test.js'
+    'npm run build && node --test --watch ./dist/test/**/*.test.js'
   );
 });
 
-test('package.json main entry is dist/index.js', () => {
+test('package.json main entry is dist/src/index.js', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
-  assert.equal(pkg.main, 'dist/index.js');
+  assert.equal(pkg.main, 'dist/src/index.js');
 });
 
 test('package.json repository.url contains deepwork-pi', () => {
@@ -71,7 +71,7 @@ test('tsconfig.json is valid strict JSON with no comments or trailing commas', (
   assert.ok(typeof parsed === 'object');
   assert.equal(parsed.compilerOptions.module, 'commonjs');
   assert.equal(parsed.compilerOptions.target, 'es2020');
-  assert.equal(parsed.compilerOptions.rootDir, 'src');
+  assert.equal(parsed.compilerOptions.rootDir, '.');
   assert.equal(parsed.compilerOptions.outDir, 'dist');
   assert.equal(parsed.compilerOptions.strict, true);
   assert.equal(parsed.compilerOptions.esModuleInterop, true);
@@ -100,8 +100,8 @@ test('.gitignore contains .pipeline/ entry on its own line', () => {
 
 // --- Build output preservation ---
 
-test('dist/index.js exists after TypeScript compilation', () => {
-  assert.ok(fs.existsSync(path.join(projectRoot, 'dist', 'index.js')));
+test('dist/src/index.js exists after TypeScript compilation', () => {
+  assert.ok(fs.existsSync(path.join(projectRoot, 'dist', 'src', 'index.js')));
 });
 
 // --- Manifest validity ---

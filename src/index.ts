@@ -10,7 +10,7 @@ import {
   makeInitialState,
 } from "./pipeline";
 import type { PipelineState } from "./pipeline";
-import { createDispatchTool, createQuestionTool, _pi } from "./shared-tools";
+import { createDispatchTool, createQuestionTool, setPi } from "./shared-tools";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -218,11 +218,11 @@ const deepworkResumeHandler: CommandHandler = async (
 };
 
 export default function activate(pi: ExtensionAPI): void {
-  (_pi as ExtensionAPI | null) = pi;
+  setPi(pi);
 
   pi.registerCommand("deepwork", {
     description:
-      "Start a full QRSPI deepwork pipeline through all 10 stages (Goals → Questions → Research → Design → Structure → Plan → Implement → Accept-Test → Replan → Verify → Report)",
+      "Start a full QRSPI deepwork pipeline through all 11 stages (Goals → Questions → Research → Design → Structure → Plan → Implement → Accept-Test → Replan → Verify → Report)",
     getArgumentCompletions: async () => ({ task: [] }),
     handler: deepworkHandler,
   });
