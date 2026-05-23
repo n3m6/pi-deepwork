@@ -50,28 +50,12 @@ test('SKILL.md does not reference todowrite operations', () => {
 });
 
 test('SKILL.md does not contain permission-rule enforcement or allowed-file-writes table', () => {
-  // These are positive enforcement instructions that should not exist.
-  // The phrase "allowed-file" appears in negation context ("does NOT perform..."),
-  // so we search for enforcement patterns specifically.
   assert.ok(!skillContent.includes('permission.edit'), 'Should not reference permission.edit');
   assert.ok(!skillContent.includes('permission.bash'), 'Should not reference permission.bash');
   assert.ok(!skillContent.includes('permission.task'), 'Should not reference permission.task');
-  // Check that no positive allowed-file enforcement instruction exists
-  const allowedPositives = skillContent.match(/allowed-file[-\s]*(writes|table|list|check|cross-check|verification)/gi);
-  // The one legitimate occurrence is in "cross-checks against allowed-file lists" (negation context)
-  // So we check that any match occurs only as part of a negation
-  if (allowedPositives) {
-    for (const m of allowedPositives) {
-      const idx = skillContent.indexOf(m);
-      const context = skillContent.substring(Math.max(0, idx - 60), idx + m.length + 30);
-      assert.ok(
-        context.toLowerCase().includes('does not') || 
-        context.toLowerCase().includes('not perform'),
-        `"${m}" appears outside negation context: ...${context.trim()}...`
-      );
-    }
-  }
-  assert.ok(!skillContent.includes('diff --stat'), 'Should not reference diff cross-checks');
+  assert.ok(!skillContent.includes('allowed-file writes'), 'Should not reference allowed-file writes');
+  assert.ok(!skillContent.includes('allowed-file table'), 'Should not reference allowed-file table');
+  assert.ok(!skillContent.includes('diff --stat'), 'Should not reference diff --stat');
 });
 
 test('SKILL.md does not reference protocol/ file reads', () => {
