@@ -1,10 +1,10 @@
 ---
 run_id: qrspi-20260523-024715
 route: full
-current_phase: 1
+current_phase: 2
 total_phases: 4
-last_completed_stage: implement
-next_stage: accept
+last_completed_stage: replan
+next_stage: implement
 stages_completed:
   - goals
   - questions
@@ -13,6 +13,8 @@ stages_completed:
   - structure
   - plan
   - implement
+  - accept
+  - replan
 phase_history:
   - phase: 1
     completed_stages:
@@ -23,6 +25,8 @@ phase_history:
       - structure
       - plan
       - implement
+      - accept
+      - replan
 backward_loops: 0
-resume_source: fresh
+resume_source: state
 ---
