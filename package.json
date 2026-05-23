@@ -1,25 +1,29 @@
 {
-  "name": "pi-deepwork",
+  "name": "deepwork-pi",
   "version": "1.0.0",
-  "description": "Deepwork - long running agent pipeline for old AI models",
+  "description": "QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents",
   "main": "dist/index.js",
   "scripts": {
     "test": "npm run build && node --test ./test/**/*.test.js",
+    "test:watch": "npm run build && node --test --watch ./test/**/*.test.js",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/n3m6/pi-deepwork.git"
+    "url": "git+https://github.com/n3m6/deepwork-pi.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/n3m6/pi-deepwork/issues"
+    "url": "https://github.com/n3m6/deepwork-pi/issues"
   },
-  "homepage": "https://github.com/n3m6/pi-deepwork#readme",
+      "homepage": "https://github.com/n3m6/deepwork-pi#readme",
+  "peerDependencies": {
+    "@tintinweb/pi-subagents": "*"
+  },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "typescript": "^6.0.3"

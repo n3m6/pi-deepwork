@@ -1,5 +1,5 @@
 export function getReadyMessage(): string {
-  return 'pi-deepwork TypeScript project ready';
+  return 'deepwork-pi TypeScript project ready';
 }
 
 function main(): void {
