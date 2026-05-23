@@ -5,7 +5,7 @@ import * as path from "node:path";
 import activate from "../src/index";
 import type { ExtensionAPI, CommandDefinition, ToolDefinition } from "../src/types/pi-extensions";
 
-const projectRoot = path.resolve(__dirname, "..", "..");
+const projectRoot = process.cwd();
 
 // ---------------------------------------------------------------------------
 // Mock ExtensionAPI with instrumentation
