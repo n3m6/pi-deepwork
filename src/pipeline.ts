@@ -144,11 +144,12 @@ export function makeTelemetryEvent(
   eventType: string,
   overrides: Partial<TelemetryEvent>
 ): TelemetryEvent {
+  const ts = new Date().toISOString();
   const defaults = {
     schema_version: "1.0" as const,
-    event_id: `${runId}-${eventType}-${new Date().toISOString()}`,
+    event_id: `${runId}-${eventType}-${ts}`,
     sequence: 0,
-    ts: new Date().toISOString(),
+    ts,
     run_id: runId,
     writer_agent: "orchestrator" as const,
     writer_scope: "pipeline" as const,
