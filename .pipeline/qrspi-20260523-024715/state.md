@@ -3,16 +3,18 @@ run_id: qrspi-20260523-024715
 route: full
 current_phase: 1
 total_phases: 0
-last_completed_stage: questions
-next_stage: research
+last_completed_stage: research
+next_stage: design
 stages_completed:
   - goals
   - questions
+  - research
 phase_history:
   - phase: 1
     completed_stages:
       - goals
       - questions
+      - research
 backward_loops: 0
 resume_source: fresh
 ---
