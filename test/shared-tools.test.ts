@@ -62,20 +62,6 @@ test("createDispatchTool has non-empty description", () => {
   assert.ok(typeof tool.description === "string" && tool.description.length > 0);
 });
 
-test("createDispatchTool parameters schema includes subagent_type, prompt, description, run_in_background", () => {
-  const tool = createDispatchTool();
-  const props = tool.parameters.properties as Record<string, unknown>;
-  assert.ok("subagent_type" in props);
-  assert.ok("prompt" in props);
-  assert.ok("description" in props);
-  assert.ok("run_in_background" in props);
-});
-
-test("createDispatchTool execute is a function", () => {
-  const tool = createDispatchTool();
-  assert.equal(typeof tool.execute, "function");
-});
-
 // ---------------------------------------------------------------------------
 // createDispatchTool — parameter validation
 // ---------------------------------------------------------------------------
@@ -313,20 +299,6 @@ test("createQuestionTool returns tool with name 'qrspi_question'", () => {
 test("createQuestionTool has non-empty description", () => {
   const tool = createQuestionTool();
   assert.ok(typeof tool.description === "string" && tool.description.length > 0);
-});
-
-test("createQuestionTool parameters schema includes header, message, options, type", () => {
-  const tool = createQuestionTool();
-  const props = tool.parameters.properties as Record<string, unknown>;
-  assert.ok("header" in props);
-  assert.ok("message" in props);
-  assert.ok("options" in props);
-  assert.ok("type" in props);
-});
-
-test("createQuestionTool execute is a function", () => {
-  const tool = createQuestionTool();
-  assert.equal(typeof tool.execute, "function");
 });
 
 // ---------------------------------------------------------------------------

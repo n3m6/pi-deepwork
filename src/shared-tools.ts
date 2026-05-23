@@ -11,8 +11,6 @@ import type {
 export let _pi: ExtensionAPI | null = null;
 
 export function setPi(pi: ExtensionAPI | null): void { _pi = pi; }
-/** Reference to the activation context; set by activate(). */
-export let _ctx: ExtensionContext | undefined;
 
 // ═══════════════════════════════════════════
 // Public types
@@ -118,6 +116,49 @@ function buildSpawnOptions(params: Record<string, unknown>): SpawnOptions {
   return opts;
 }
 
+interface ToolResult {
+  content: string;
+  details: Record<string, unknown>;
+}
+
+function dispatchFailResponse(reason: string): ToolResult {
+  return {
+    content: `### Status — FAIL\n**Error:** ${reason}`,
+    details: {
+      agentId: "qrspi_dispatch",
+      status: "failed",
+      error: reason,
+      startedAt: new Date().toISOString(),
+    } as Record<string, unknown>,
+  };
+}
+
+function questionErrorResponse(reason: string, qtype?: string): ToolResult {
+  return {
+    content: `Error: ${reason}`,
+    details: {
+      type: qtype || "confirm",
+      header: "qrspi_question",
+      answer: "",
+      cancelled: false,
+      uiUnavailable: false,
+    } as Record<string, unknown>,
+  };
+}
+
+function dispatchErrorResponse(error: unknown): ToolResult {
+  const msg = error instanceof Error ? error.message : String(error);
+  return {
+    content: `### Status — FAIL\n**Error:** dispatch failed: ${msg}`,
+    details: {
+      agentId: "qrspi_dispatch",
+      status: "failed",
+      error: msg,
+      startedAt: new Date().toISOString(),
+    } as Record<string, unknown>,
+  };
+}
+
 // ═══════════════════════════════════════════
 // createDispatchTool
 // ═══════════════════════════════════════════
@@ -174,15 +215,7 @@ export function createDispatchTool(): ToolDefinition {
   ) => {
     // 1. Validate required params
     if (!isRecord(params)) {
-      return {
-        content: "### Status — FAIL\n**Error:** Invalid parameters — expected an object.",
-        details: {
-          agentId: "qrspi_dispatch",
-          status: "failed",
-          error: "Invalid parameters — expected an object.",
-          startedAt: new Date().toISOString(),
-        } as Record<string, unknown>,
-      };
+      return dispatchFailResponse("Invalid parameters — expected an object.");
     }
 
     const subagentType = params.subagent_type;
@@ -198,15 +231,7 @@ export function createDispatchTool(): ToolDefinition {
       if (!isNonEmptyString(subagentType)) missing.push("subagent_type");
       if (!isNonEmptyString(prompt)) missing.push("prompt");
       if (!isNonEmptyString(description)) missing.push("description");
-      return {
-        content: `### Status — FAIL\n**Error:** Missing or empty required parameters: ${missing.join(", ")}`,
-        details: {
-          agentId: "qrspi_dispatch",
-          status: "failed",
-          error: `Missing or empty required parameters: ${missing.join(", ")}`,
-          startedAt: new Date().toISOString(),
-        } as Record<string, unknown>,
-      };
+      return dispatchFailResponse(`Missing or empty required parameters: ${missing.join(", ")}`);
     }
 
     // 2. Resolve pi-subagents manager
@@ -216,59 +241,34 @@ export function createDispatchTool(): ToolDefinition {
       ] as AgentManagerFacade | undefined;
 
     if (manager == null) {
-      return {
-        content: `### Status — FAIL
-**Agent:** qrspi_dispatch
-**Error:** \`@tintinweb/pi-subagents\` is not installed. Install it with:
-  pi install npm:@tintinweb/pi-subagents`,
-        details: {
-          agentId: "qrspi_dispatch",
-          status: "failed",
-          error:
-            "`@tintinweb/pi-subagents` is not installed. Install it with: pi install npm:@tintinweb/pi-subagents",
-          startedAt: new Date().toISOString(),
-        } as Record<string, unknown>,
-      };
+      return dispatchFailResponse(
+        "`@tintinweb/pi-subagents` is not installed. Install it with:\n  pi install npm:@tintinweb/pi-subagents"
+      );
     }
 
     // 3. Build options bag
     const spawnOpts = buildSpawnOptions(params);
 
-    // 4. Background path
+    // 4. Guard: extension must be activated
+    if (_pi === null) {
+      return dispatchFailResponse("Extension not activated.");
+    }
+
+    // 5. Background path
     const runInBg = params.run_in_background === true;
     if (runInBg) {
-      if (_pi === null) {
-        return {
-          content: "### Status — FAIL\n**Error:** Extension not activated.",
-          details: {
-            agentId: "qrspi_dispatch",
-            status: "failed",
-            error: "Extension not activated.",
-            startedAt: new Date().toISOString(),
-          } as Record<string, unknown>,
-        };
-      }
-
       let agentId: string;
       try {
         agentId = manager.spawn(
           _pi,
           ctx,
-          subagentType as string,
-          prompt as string,
+          subagentType,
+          prompt,
           spawnOpts
         );
       } catch (e: unknown) {
         console.error("qrspi_dispatch: spawn failed", e);
-        return {
-          content: `### Status — FAIL\n**Error:** dispatch failed: ${e instanceof Error ? e.message : String(e)}`,
-          details: {
-            agentId: "qrspi_dispatch",
-            status: "failed",
-            error: e instanceof Error ? e.message : String(e),
-            startedAt: new Date().toISOString(),
-          } as Record<string, unknown>,
-        };
+        return dispatchErrorResponse(e);
       }
 
       const result: DispatchResult = {
@@ -286,39 +286,19 @@ export function createDispatchTool(): ToolDefinition {
       };
     }
 
-    // 5. Foreground path
-    if (_pi === null) {
-      return {
-        content: "### Status — FAIL\n**Error:** Extension not activated.",
-        details: {
-          agentId: "qrspi_dispatch",
-          status: "failed",
-          error: "Extension not activated.",
-          startedAt: new Date().toISOString(),
-        } as Record<string, unknown>,
-      };
-    }
-
+    // 6. Foreground path
     let dispatched: DispatchResult;
     try {
       dispatched = await manager.spawnAndWait(
         _pi,
         ctx,
-        subagentType as string,
-        prompt as string,
+        subagentType,
+        prompt,
         spawnOpts
       );
     } catch (e: unknown) {
       console.error("qrspi_dispatch: spawnAndWait failed", e);
-      return {
-        content: `### Status — FAIL\n**Error:** dispatch failed: ${e instanceof Error ? e.message : String(e)}`,
-        details: {
-          agentId: "qrspi_dispatch",
-          status: "failed",
-          error: e instanceof Error ? e.message : String(e),
-          startedAt: new Date().toISOString(),
-        } as Record<string, unknown>,
-      };
+      return dispatchErrorResponse(e);
     }
 
     if (dispatched.status === "failed") {
@@ -395,16 +375,7 @@ export function createQuestionTool(): ToolDefinition {
   ) => {
     // 1. Validate required params
     if (!isRecord(params)) {
-      return {
-        content: "Error: Invalid parameters — expected an object.",
-        details: {
-          type: "confirm",
-          header: "qrspi_question",
-          answer: "",
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
+      return questionErrorResponse("Invalid parameters — expected an object.");
     }
 
     const header = params.header;
@@ -413,16 +384,7 @@ export function createQuestionTool(): ToolDefinition {
     const qtype = params.type;
 
     if (!isNonEmptyString(header)) {
-      return {
-        content: "Error: Missing or empty required parameter: header",
-        details: {
-          type: (qtype as QuestionResult["type"]) ?? "confirm",
-          header: "qrspi_question",
-          answer: "",
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
+      return questionErrorResponse("Missing or empty required parameter: header", qtype as string | undefined);
     }
 
     if (!isNonEmptyString(message)) {
@@ -430,7 +392,7 @@ export function createQuestionTool(): ToolDefinition {
         content: "Error: Missing or empty required parameter: message",
         details: {
           type: (qtype as QuestionResult["type"]) ?? "confirm",
-          header: header as string,
+          header: header,
           answer: "",
           cancelled: false,
           uiUnavailable: false,
@@ -443,7 +405,7 @@ export function createQuestionTool(): ToolDefinition {
         content: "Error: Missing or empty required parameter: options (must be a non-empty array)",
         details: {
           type: (qtype as QuestionResult["type"]) ?? "confirm",
-          header: header as string,
+          header: header,
           answer: "",
           cancelled: false,
           uiUnavailable: false,
@@ -452,17 +414,7 @@ export function createQuestionTool(): ToolDefinition {
     }
 
     if (qtype !== "confirm" && qtype !== "select") {
-      return {
-        content:
-          'Error: Invalid type parameter — must be "confirm" or "select".',
-        details: {
-          type: "confirm",
-          header: header as string,
-          answer: "",
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
+      return questionErrorResponse('Invalid type parameter — must be "confirm" or "select".', qtype as string | undefined);
     }
 
     const optsArr = options as string[];
@@ -475,7 +427,7 @@ export function createQuestionTool(): ToolDefinition {
           content: "[NO UI — DEFAULT] User confirmed: Yes",
           details: {
             type: "confirm",
-            header: header as string,
+            header: header,
             answer: "Yes",
             cancelled: false,
             uiUnavailable: true,
@@ -488,7 +440,7 @@ export function createQuestionTool(): ToolDefinition {
         content: `[NO UI — DEFAULT] User selected: ${fallback}`,
         details: {
           type: "select",
-          header: header as string,
+          header: header,
           answer: fallback,
           cancelled: false,
           uiUnavailable: true,
@@ -500,7 +452,7 @@ export function createQuestionTool(): ToolDefinition {
     if (qtype === "confirm") {
       let confirmed: boolean;
       try {
-        confirmed = await ctx.ui.confirm(header as string, message as string);
+        confirmed = await ctx.ui.confirm(header, message);
       } catch (e) {
         console.error("qrspi_question: UI confirm failed", e);
         const errMsg = e instanceof Error ? e.message : String(e);
@@ -508,7 +460,7 @@ export function createQuestionTool(): ToolDefinition {
           content: `### Status — FAIL\n**Error:** UI confirm dialog failed: ${errMsg}`,
           details: {
             type: "confirm",
-            header: header as string,
+            header: header,
             answer: "",
             cancelled: false,
             uiUnavailable: true,
@@ -520,7 +472,7 @@ export function createQuestionTool(): ToolDefinition {
           content: "User confirmed: Yes",
           details: {
             type: "confirm",
-            header: header as string,
+            header: header,
             answer: "Yes",
             cancelled: false,
             uiUnavailable: false,
@@ -531,7 +483,7 @@ export function createQuestionTool(): ToolDefinition {
         content: "User confirmed: No",
         details: {
           type: "confirm",
-          header: header as string,
+          header: header,
           answer: "No",
           cancelled: true,
           uiUnavailable: false,
@@ -542,7 +494,7 @@ export function createQuestionTool(): ToolDefinition {
     // qtype === "select"
     let selection: string | undefined;
     try {
-      selection = await ctx.ui.select(header as string, optsArr);
+      selection = await ctx.ui.select(header, optsArr);
       } catch (e) {
         console.error("qrspi_question: UI select failed", e);
         const errMsg = e instanceof Error ? e.message : String(e);
@@ -550,7 +502,7 @@ export function createQuestionTool(): ToolDefinition {
           content: `### Status — FAIL\n**Error:** UI select dialog failed: ${errMsg}`,
           details: {
             type: "select",
-            header: header as string,
+            header: header,
             answer: "",
             cancelled: true,
             uiUnavailable: true,
@@ -562,7 +514,7 @@ export function createQuestionTool(): ToolDefinition {
         content: `User selected: ${selection}`,
         details: {
           type: "select",
-          header: header as string,
+          header: header,
           answer: selection,
           cancelled: false,
           uiUnavailable: false,
@@ -573,7 +525,7 @@ export function createQuestionTool(): ToolDefinition {
       content: "User cancelled selection",
       details: {
         type: "select",
-        header: header as string,
+        header: header,
         answer: "",
         cancelled: true,
         uiUnavailable: false,
