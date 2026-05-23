@@ -25,8 +25,8 @@ current_phase: ${state.current_phase}
 total_phases: ${state.total_phases}
 last_completed_stage: "${state.last_completed_stage}"
 next_stage: "${state.next_stage}"
-stages_completed: []
-phase_history: []
+stages_completed: ${JSON.stringify(state.stages_completed)}
+phase_history: ${JSON.stringify(state.phase_history)}
 backward_loops: ${state.backward_loops}
 resume_source: "${state.resume_source}"
 ---
