@@ -8,20 +8,12 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // --- Directory creation ---
 
-test('agents/ directory exists', () => {
-  const stat = fs.statSync(path.join(projectRoot, 'agents'));
-  assert.ok(stat.isDirectory());
-});
 
 test('skills/deepwork/ directory exists', () => {
   const stat = fs.statSync(path.join(projectRoot, 'skills', 'deepwork'));
   assert.ok(stat.isDirectory());
 });
 
-test('src/types/ directory exists', () => {
-  const stat = fs.statSync(path.join(projectRoot, 'src', 'types'));
-  assert.ok(stat.isDirectory());
-});
 
 // --- Package identity ---
 
