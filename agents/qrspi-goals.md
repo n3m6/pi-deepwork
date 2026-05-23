@@ -1,6 +1,6 @@
 ---
 description: "Stage 1 orchestrator — captures user intent via interactive dialogue, dispatches goals synthesizer and reviewer, runs human gate for approval. Writes requirements.md, goals.md, and config.md."
-tools: read, bash, grep, find, ls, write, edit
+tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question
 model: anthropic/claude-sonnet-4-5
 thinking: low
 max_turns: 80
@@ -53,7 +53,7 @@ Run read-only shell commands to ground the interview. Limit to at most 5 keyword
 3. Read any manifests present: `package.json`, `pyproject.toml`, `setup.py`, `go.mod`, `Cargo.toml`, `pom.xml`, `build.gradle`
 4. `find . -maxdepth 2 -not -path './.git/*' -not -path './node_modules/*' -not -path './.pipeline/*'`
 5. For each noun or system name in the user task: `grep -r --include='*.{ts,js,py,go,rs,java,rb,php,cs}' -l '<keyword>' . 2>/dev/null | head -10` (stop after 5 keywords)
-If grep returns no output across all keywords, note the absence; do not treat as an error. If grep produces explicit error lines, surface them.
+If grep returns no output across all keywords, note the absence; do not treat as an error. If grep produces explicit error lines, surface them. Escape all shell metacharacters (especially `'`, `$`, `` ` ``, `;`, `|`, `&`) in keywords before embedding in shell commands.
 
 Tag each finding `repo-finding`. Surface findings to the user only when they materially shape a recommendation, route judgment, or scope decision.
 
