@@ -158,3 +158,24 @@ test("skills/deepwork/SKILL.md exists on disk", () => {
     `SKILL.md must exist at: ${skillFilePath}`
   );
 });
+
+test("package.json matches expected manifest shape", () => {
+  const pkgPath = path.join(projectRoot, "package.json");
+  const raw = fs.readFileSync(pkgPath, "utf-8");
+  const pkg = JSON.parse(raw) as Record<string, unknown>;
+
+  assert.equal(pkg.name, "deepwork-pi");
+  assert.equal(pkg.main, "dist/src/index.js");
+
+  const peers = pkg.peerDependencies as Record<string, unknown> | undefined;
+  assert.ok(peers !== undefined, "peerDependencies must be defined");
+  assert.ok("@tintinweb/pi-subagents" in peers, "@tintinweb/pi-subagents must be in peerDependencies");
+
+  const scripts = pkg.scripts as Record<string, unknown> | undefined;
+  assert.equal(typeof scripts?.test, "string", "scripts.test must be a string");
+
+  const version = pkg.version as string;
+  assert.ok(/^\d+\.\d+\.\d+/.test(version), `version "${version}" must match semver-like pattern`);
+
+  assert.equal(pkg.type, "commonjs");
+});
