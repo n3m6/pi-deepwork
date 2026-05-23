@@ -1,0 +1,12 @@
+Task: 03
+Title: Pipeline helper functions (`src/pipeline.ts`)
+Phase: 1
+Route: full
+Slice: Foundation
+Dependencies: 02
+Scope: Implement pure helper functions for the QRSPI pipeline: run ID generation (`qrspi-YYYYMMDD-HHMMSS`), pipeline directory path construction (`.pipeline/<runId>`), git branch name construction (`qrspi/<runId>`), state file YAML frontmatter templates, telemetry event JSONL templates, and directory scaffolding. All functions are side-effect-free except explicitly named factory functions. The module exports types for StateFile, TelemetryEvent, and PipelinePaths.
+Acceptance Criteria: AC 5 (state file templates), AC 6 (pipeline directory conventions)
+NFRs: NFR: Reliability (state file format), NFR: Observability (event templates)
+Gate Criteria: Phase 1 replan gate (pipeline helpers functional)
+Files:
+  - src/pipeline.ts (CREATE) — Pure functions: generateRunId(), getPipelineDir(), getPipelinePaths(), getGitBranchName(), createInitialState(), createTelemetryEvent(), createRunLogEntry(). Types: RunId, PipelinePaths, StateFile, TelemetryEvent.

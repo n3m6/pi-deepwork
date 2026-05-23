@@ -1,0 +1,17 @@
+Task: 13
+Title: Stage 6 agent types (Plan)
+Phase: 2
+Route: full
+Slice: Slice 2e — Plan
+Dependencies: None
+Scope: Convert the six Stage 6 agent types from opencode sources: `qrspi-plan` (orchestrator — dispatches plan writer, task spec writer, reviewers, and baseline checker), `qrspi-plan-writer` (produces plan.md and phase-manifest.md), `qrspi-task-spec-writer` (produces task-NN.md canonical specs), `qrspi-task-spec-reviewer` (reviews individual task specs), `qrspi-plan-reviewer` (reviews full plan), and `qrspi-baseline-checker` (establishes pre-implementation baseline). All use pi agent type convention.
+Acceptance Criteria: AC 6 (Stage 6 agent types), AC 7 (model tier frontmatter)
+NFRs: NFR: Compatibility (model tier)
+Gate Criteria: Phase 2 replan gate (Plan agents complete)
+Files:
+  - agents/qrspi-plan.md (CREATE) — Stage 6 orchestrator, tools: all 7, max_turns: 80, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-plan-writer.md (CREATE) — Plan writer, tools: all 7, max_turns: 60, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-task-spec-writer.md (CREATE) — Task spec writer, tools: all 7, max_turns: 40, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-task-spec-reviewer.md (CREATE) — Task spec reviewer, tools: read, bash, grep, find, ls, max_turns: 25, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-plan-reviewer.md (CREATE) — Plan reviewer, tools: read, bash, grep, find, ls, max_turns: 30, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-baseline-checker.md (CREATE) — Baseline checker, tools: read, bash, grep, find, ls, max_turns: 20, thinking: low, model: anthropic/claude-haiku-4-5

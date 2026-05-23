@@ -1,0 +1,12 @@
+Task: 25
+Title: Model-tier verification (haiku reviewers, sonnet orchestrators)
+Phase: 4
+Route: full
+Slice: Slice 4b — Integration
+Dependencies: 24
+Scope: Validate that the agent type frontmatter correctly distinguishes model tiers: all stage orchestrator agents (11 agents) use sonnet-tier model (`anthropic/claude-sonnet-4-5`), all reviewer and leaf agents use haiku-tier model (`anthropic/claude-haiku-4-5`), and code-writing/verification agents use the tier specified in the design (medium-thinking agents use sonnet, low-thinking leaf agents use haiku). Write a validation script or test that verifies the `model` and `thinking` fields across all 55 agent `.md` files match the tier assignments documented in DEEPWORK.md and the agent type tables. Also verify that `qrspi_dispatch` gracefully handles absence of pi-subagents (fallback message test).
+Acceptance Criteria: AC 7 (model tier assignment verified)
+NFRs: NFR: Compatibility (model tier verification)
+Gate Criteria: Phase 4 replan gate (Model tiers verified)
+Files:
+  - test/model-tier-verification.test.ts (CREATE) — Programmatic validation: parse YAML frontmatter from all 55 agents/*.md files, verify model field matches expected tier per agent category table, verify thinking field matches design spec (low for reviewers, medium for code writers/verifiers)

@@ -1,0 +1,16 @@
+Task: 08
+Title: Foundation and Stage 1 tests
+Phase: 1
+Route: full
+Slice: Foundation
+Dependencies: 05, 06, 07
+Scope: Create TypeScript test files for the foundation layer and Stage 1. Convert the existing `test/index.test.js` to `test/index.test.ts` with expanded coverage of extension activation, command registration, and tool registration. Add `test/shared-tools.test.ts` covering qrspi_dispatch with mock AgentManager (foreground/background modes, graceful fallback) and qrspi_question with mock ctx.ui (confirm/select paths). Add `test/pipeline-helpers.test.ts` covering run ID format, directory paths, state template shape, and event template structure. Add `test/agents/qrspi-goals.test.ts` verifying the three Stage 1 agent files have valid YAML frontmatter with required fields and non-empty system prompt bodies. Delete the old `test/index.test.js`.
+Acceptance Criteria: AC 5 (error handling test coverage), AC 6 (Stage 1 test evidence)
+NFRs: NFR: Reliability (test coverage)
+Gate Criteria: Phase 1 replan gate (tests pass)
+Files:
+  - test/index.test.ts (CREATE) — Extension activation, command/tool registration tests using mock ExtensionContext
+  - test/shared-tools.test.ts (CREATE) — qrspi_dispatch unit tests with mock AgentManager, qrspi_question unit tests with mock ctx.ui
+  - test/pipeline-helpers.test.ts (CREATE) — generateRunId format, getPipelineDir path, state/event template validation
+  - test/agents/qrspi-goals.test.ts (CREATE) — Frontmatter validation: required fields present, model field set, system prompt non-empty
+  - test/index.test.js (DELETE) — Replaced by test/index.test.ts

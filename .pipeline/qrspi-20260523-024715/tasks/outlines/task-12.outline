@@ -1,0 +1,14 @@
+Task: 12
+Title: Stage 5 agent types (Structure)
+Phase: 2
+Route: full
+Slice: Slice 2d — Structure
+Dependencies: None
+Scope: Convert the three Stage 5 agent types from opencode sources: `qrspi-structure` (orchestrator — dispatches mapper and reviewer, runs review loop), `qrspi-structure-mapper` (produces structure.md with file maps and interfaces), and `qrspi-structure-reviewer` (reviews structure mapping for completeness). All use pi agent type convention.
+Acceptance Criteria: AC 6 (Stage 5 agent types), AC 7 (model tier frontmatter)
+NFRs: NFR: Compatibility (model tier)
+Gate Criteria: Phase 2 replan gate (Structure agents complete)
+Files:
+  - agents/qrspi-structure.md (CREATE) — Stage 5 orchestrator, tools: all 7, max_turns: 40, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-structure-mapper.md (CREATE) — Structure mapper, tools: read, bash, grep, find, ls, max_turns: 30, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-structure-reviewer.md (CREATE) — Structure reviewer, tools: read, bash, grep, find, ls, max_turns: 20, thinking: low, model: anthropic/claude-haiku-4-5
