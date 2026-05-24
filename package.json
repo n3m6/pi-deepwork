@@ -23,9 +23,9 @@
     "type": "git",
     "url": "git+https://github.com/n3m6/pi-deepwork.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["pi", "multi-stage", "orchestration", "agents", "qrspi", "deepwork"],
+  "author": "Abdulla Faraz <abdulla.faraz@gmail.com>",
+  "license": "MIT",
   "type": "commonjs",
   "bugs": {
     "url": "https://github.com/n3m6/pi-deepwork/issues"
