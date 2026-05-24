@@ -40,6 +40,8 @@ test('README documents flat pi-subagents agent discovery paths', () => {
   const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
   assert.ok(readme.includes('~/.pi/agent/agents/'));
   assert.ok(readme.includes('.pi/agents/'));
+  assert.ok(readme.includes('unknown agent type'));
+  assert.ok(readme.includes('falls back to `general-purpose`'));
   assert.ok(
     readme.includes(
       'for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done',

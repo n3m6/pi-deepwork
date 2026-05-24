@@ -50,11 +50,11 @@ test('SKILL.md is valid markdown (contains markdown headers)', () => {
 
 // --- Forbidden content checks ---
 
-test('SKILL.md does not reference "task" tool (uses "Agent" tool instead)', () => {
+test('SKILL.md does not reference "task" tool (uses "qrspi_dispatch" instead)', () => {
   const taskToolPattern = /`task` tool|invoke.*`task`|use the `task`/i;
   assert.ok(
     !taskToolPattern.test(skillContent),
-    'Should not reference task tool — use Agent tool instead',
+    'Should not reference task tool — use qrspi_dispatch instead',
   );
 });
 
@@ -114,15 +114,18 @@ test('SKILL.md does not reference protocol/ file reads', () => {
 
 // --- Required tool references ---
 
-test('SKILL.md uses Agent tool dispatch with subagent_type parameter', () => {
-  assert.ok(skillContent.includes('Agent'), 'Should mention Agent tool');
+test('SKILL.md uses qrspi_dispatch with subagent_type parameter', () => {
+  assert.ok(
+    skillContent.includes('qrspi_dispatch'),
+    'Should mention qrspi_dispatch',
+  );
   assert.ok(
     skillContent.includes('subagent_type'),
     'Should include subagent_type parameter',
   );
   assert.ok(
-    skillContent.includes('Use the Agent tool'),
-    'Should contain Agent tool usage instructions',
+    skillContent.includes('Use qrspi_dispatch with'),
+    'Should contain qrspi_dispatch usage instructions',
   );
 });
 

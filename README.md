@@ -5,7 +5,7 @@ pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Research
 ## Prerequisites
 
 - **pi** — the AI coding-agent runtime that loads the extension, exposes the ExtensionAPI and ExtensionContext interfaces, provides `ctx.ui` for interactive prompts, and emits `resources_discover` for skill injection.
-- **`@tintinweb/pi-subagents` 0.7.3+** — install separately with `pi install npm:@tintinweb/pi-subagents`. This provides the `Agent` tool for subagent dispatch and the `AgentManager` used by `qrspi_dispatch`.
+- **`@tintinweb/pi-subagents` 0.7.3+** — install separately with `pi install npm:@tintinweb/pi-subagents`. This provides the shared agent manager that `qrspi_dispatch` uses to spawn subagents.
 - **Node.js 18+** — required to build and run the TypeScript extension.
 - **git** (optional) — used for per-run branches (`qrspi/<run-id>`) and stage checkpoints. If `git` is unavailable, the extension continues and tracks state only in `.pipeline/`.
 - **Model availability** — at least one sonnet-tier and one haiku-tier model. Orchestrators use sonnet-tier models; reviewers and many leaf agents use haiku-tier models.
@@ -36,7 +36,7 @@ for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done
 
 What each step does:
 
-- Step 1 installs `pi-subagents`, which provides the `Agent` tool and the shared agent manager used by `qrspi_dispatch`.
+- Step 1 installs `pi-subagents`, which provides the shared agent manager used by `qrspi_dispatch`.
 - Step 2 clones the repository and compiles the TypeScript source to CommonJS output in `dist/`.
 - Step 3 makes pi discover this extension from `~/.pi/agent/extensions/pi-deepwork`.
 - Step 4 makes pi-subagents discover the 55 agent definitions from the flat `~/.pi/agent/agents/*.md` directory.
@@ -200,6 +200,8 @@ Check agent discovery first:
 - confirm the agent `.md` files are present directly under `~/.pi/agent/agents/`
 - or confirm the current project has the agent `.md` files directly under `.pi/agents/`
 - verify that the directory contains the expected `.md` agent definitions
+
+If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent type and pi-subagents falls back to `general-purpose`, the stage-agent markdown files were not discovered. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
 
 ### The first `deepwork` skill expansion shows `ENOENT`
 
