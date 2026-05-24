@@ -48,7 +48,7 @@ What each step does:
 pi install npm:@tintinweb/pi-subagents
 
 # 2. Install the extension with pi's package manager
-pi install git:github.com/n3m6/deepwork-pi@main
+pi install git:github.com/n3m6/pi-deepwork@main
 ```
 
 `pi install git:` performs the repository clone, runs `npm install --omit=dev` when a `package.json` is present, and places the extension in pi's managed extension directory. Agent type discovery still needs to be configured separately through either the global symlink path or a project-local `.pi/agents/` directory.
