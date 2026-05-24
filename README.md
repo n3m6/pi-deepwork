@@ -62,6 +62,7 @@ The GitHub repository and `package.json` now both use `pi-deepwork`.
 
 pi currently clones that install into a git-managed directory such as `~/.pi/agent/git/github.com/n3m6/pi-deepwork/`.
 Some pi builds still try to open the skill source from an npm-style path first, for example `~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/skills/deepwork/SKILL.md`, before the extension's `resources_discover` result is applied. When that happens, the first skill expansion can show `ENOENT` even though the installed extension later exposes the skill correctly.
+If deterministic skill loading matters in your environment, prefer the clone-plus-symlink workflow from Method A over `pi install git:` until pi's probe order is fixed upstream.
 
 ## Agent Type Discovery
 
@@ -109,10 +110,12 @@ Optional run policy arguments:
 Current live-mode behavior:
 
 - create a new run ID in `qrspi-YYYYMMDD-HHMMSS` format
-- scaffold `.pipeline/<run-id>/`
+- scaffold `.pipeline/<run-id>/` under the active workspace root from `ctx.cwd`
 - write initial `state.md` and telemetry files
 - inject the `deepwork` skill through `resources_discover`
 - send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
+- instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, and must stop with a configuration error if the Deepwork skill or `qrspi_dispatch` / `qrspi_question` tools are unavailable
+- if `pi.sendUserMessage()` fails, keep the scaffolded run on disk and report that no Deepwork orchestrator is active yet; recovery is to fix the runtime configuration and rerun `/deepwork-resume run-id:"<run-id>"`
 
 The extension does not mutate `ctx.sessionManager` directly. pi documents that surface as read-only; runtime handoff happens through the documented message APIs.
 
@@ -150,7 +153,7 @@ Dry-run mode will:
 
 The extension reads `.pipeline/<run-id>/state.md` and resumes from the recorded `next_stage`. If the run is already complete, including a completed dry-run, the UI reports that clearly instead of presenting it as resumable work.
 
-For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`.
+For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`. That resume prompt uses the same fail-closed contract as live startup: no direct coding, no silent fallback, and an explicit configuration error if the required Deepwork skill or QRSPI tools are unavailable.
 
 ### Background subagent orchestration
 
@@ -209,6 +212,8 @@ If you installed with `pi install git:github.com/n3m6/pi-deepwork@main`, pi may 
 
 If you need a stable on-disk extension path today, prefer the clone-plus-symlink flow from Method A.
 
+If you see that initial `ENOENT` and the session then behaves like a generic coding assistant instead of Deepwork orchestration, treat that as a failed handoff rather than a completed pipeline start. The run scaffold may still exist under `.pipeline/<run-id>/`; after fixing the install or tool-discovery issue, resume it with `/deepwork-resume run-id:"<run-id>"`.
+
 ### `git` is not installed
 
 The extension still runs. Branch creation and checkpoint commits are skipped, but `.pipeline/<run-id>/state.md` remains the source of truth for recovery and resume.
@@ -243,18 +248,20 @@ Use this checklist in a real pi environment after installation. It is the operat
 2. Start pi in a disposable repository with git initialized, Node 18+, and access to the sonnet and haiku model tiers used by the agents.
 3. Confirm `/deepwork` and `/deepwork-resume` are present, and verify the `deepwork` skill is available in the session.
 4. Run `/deepwork task:"Smoke test dry run" dry-run:"true" route:"quick-fix"` and verify `.pipeline/<run-id>/state.md` records `mode: "dry-run"` and `next_stage: "done"`.
-5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/`, writes telemetry, then hands off to Deepwork through `pi.sendUserMessage()`.
+5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/` under the active workspace, writes telemetry, then hands off to Deepwork through `pi.sendUserMessage()`.
 6. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
-7. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
-8. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
+7. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
+8. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
+9. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
 
 Expected operator flow:
 
 1. Install and discover the extension plus flat agent files.
 2. Start a dry-run to confirm artifact generation and route simulation.
 3. Start a live run to confirm scaffold plus `pi.sendUserMessage()` handoff.
-4. Resume a live run to confirm `state.md`-driven re-entry.
-5. Optionally verify background child-agent launch plus join using `qrspi_dispatch` and `qrspi_get_subagent_result`.
+4. If handoff fails, confirm the run is reported as scaffolded but inactive, then recover it through `/deepwork-resume` after fixing the runtime issue.
+5. Resume a live run to confirm `state.md`-driven re-entry.
+6. Optionally verify background child-agent launch plus join using `qrspi_dispatch` and `qrspi_get_subagent_result`.
 
 ## Development Notes
 

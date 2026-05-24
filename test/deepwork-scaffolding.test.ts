@@ -29,7 +29,11 @@ interface ConfirmCall {
   message: string;
 }
 
-function createMockPi(): {
+function createMockPi(
+  options: {
+    sendUserMessageImpl?: (content: unknown) => void | Promise<void>;
+  } = {},
+): {
   pi: ExtensionAPI;
   commands: RecordedCommand[];
   sentUserMessages: string[];
@@ -44,6 +48,10 @@ function createMockPi(): {
     on(): void {},
     sendMessage: async () => {},
     sendUserMessage: async (content) => {
+      if (options.sendUserMessageImpl) {
+        await options.sendUserMessageImpl(content);
+        return;
+      }
       sentUserMessages.push(
         typeof content === "string" ? content : JSON.stringify(content),
       );
@@ -212,6 +220,62 @@ test("deepwork handler creates pipeline scaffolding with git available", async (
   }
 });
 
+test("deepwork handler writes scaffolding under ctx.cwd when process.cwd differs", async () => {
+  const originalCwd = process.cwd();
+  const processDir = createTempDir();
+  const workspaceDir = createTempDir();
+  process.chdir(processDir);
+
+  try {
+    mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
+      if (Array.isArray(args) && args[0] === "--version") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (Array.isArray(args) && args[0] === "checkout") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const { pi, commands } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(workspaceDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined, "deepwork command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler(
+        { task: "Scoped workspace task" },
+        ctx,
+      );
+    });
+
+    const runId = extractRunId(confirmCalls);
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from confirmation message",
+    );
+
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, ".pipeline", runId)),
+      true,
+      "pipeline should be created under ctx.cwd",
+    );
+    assert.equal(
+      fs.existsSync(path.join(processDir, ".pipeline", runId)),
+      false,
+      "pipeline should not be created under process.cwd",
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(processDir, { recursive: true, force: true });
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+  }
+});
+
 test("deepwork handler creates scaffolding even when git is unavailable", async () => {
   const originalCwd = process.cwd();
   const tmpDir = createTempDir();
@@ -313,12 +377,130 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     );
     assert.match(
       sentUserMessages[0] ?? "",
+      /Do not write or edit project source files directly/,
+    );
+    assert.match(sentUserMessages[0] ?? "", /Deepwork configuration error/);
+    assert.match(
+      sentUserMessages[0] ?? "",
       /=== RUN ID ===\nqrspi-\d{8}-\d{6}/,
     );
     assert.match(sentUserMessages[0] ?? "", /=== USER TASK ===\nHandoff task/);
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler reports a scaffolded but inactive run when handoff fails", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
+      if (Array.isArray(args) && args[0] === "--version") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (Array.isArray(args) && args[0] === "checkout") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const { pi, commands } = createMockPi({
+      sendUserMessageImpl: async () => {
+        throw new Error("handoff unavailable");
+      },
+    });
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined, "deepwork command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler(
+        { task: "Handoff failure task" },
+        ctx,
+      );
+    });
+
+    const runId = extractRunId(confirmCalls);
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from confirmation message",
+    );
+
+    const startedCall = confirmCalls.find(
+      (call) => call.title === "Deepwork Started",
+    );
+    assert.ok(
+      startedCall !== undefined,
+      "Should show Deepwork Started confirmation",
+    );
+    assert.match(startedCall!.message, /no Deepwork orchestrator is active/i);
+    assert.match(startedCall!.message, /handoff unavailable/);
+    assert.match(
+      startedCall!.message,
+      new RegExp(`/deepwork-resume run-id:\"${runId}\"`),
+    );
+
+    assert.equal(
+      fs.existsSync(path.join(tmpDir, ".pipeline", runId, "state.md")),
+      true,
+      "scaffolding must still exist after handoff failure",
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler dry-run writes artifacts under ctx.cwd when process.cwd differs", async () => {
+  const originalCwd = process.cwd();
+  const processDir = createTempDir();
+  const workspaceDir = createTempDir();
+  process.chdir(processDir);
+
+  try {
+    const { pi, commands } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(workspaceDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined, "deepwork command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler(
+        { task: "Dry-run scoped task", "dry-run": "true", route: "quick-fix" },
+        ctx,
+      );
+    });
+
+    const runId = extractRunId(confirmCalls);
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from confirmation message",
+    );
+
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, ".pipeline", runId, "state.md")),
+      true,
+      "dry-run artifacts should be created under ctx.cwd",
+    );
+    assert.equal(
+      fs.existsSync(path.join(processDir, ".pipeline", runId)),
+      false,
+      "dry-run artifacts should not be created under process.cwd",
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(processDir, { recursive: true, force: true });
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
   }
 });
 
@@ -588,9 +770,117 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     );
     assert.match(
       sentUserMessages[0] ?? "",
+      /Do not write or edit project source files directly/,
+    );
+    assert.match(sentUserMessages[0] ?? "", /Deepwork configuration error/);
+    assert.match(
+      sentUserMessages[0] ?? "",
       new RegExp(`=== RUN ID ===\\n${runId}`),
     );
     assert.match(sentUserMessages[0] ?? "", /=== NEXT STAGE ===\n6/);
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork-resume reads state from ctx.cwd when process.cwd differs", async () => {
+  const originalCwd = process.cwd();
+  const processDir = createTempDir();
+  const workspaceDir = createTempDir();
+  process.chdir(processDir);
+
+  try {
+    const { pi, commands, sentUserMessages } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(workspaceDir, confirmCalls, true);
+
+    activate(pi);
+
+    const runId = "qrspi-20260524-160050";
+    const statePath = path.join(workspaceDir, ".pipeline", runId, "state.md");
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(
+      statePath,
+      `---\nrun_id: ${runId}\nmode: "live"\nroute: "full"\ncurrent_phase: 1\ntotal_phases: 1\nlast_completed_stage: "5"\nnext_stage: "6"\nstages_completed: []\nphase_history: []\nbackward_loops: 0\nresume_source: "resume"\ninteraction_mode: "interactive"\nfailure_policy: "fail-closed"\n---\n`,
+      "utf-8",
+    );
+
+    const resumeCmd = commands.find((c) => c.name === "deepwork-resume");
+    assert.ok(
+      resumeCmd !== undefined,
+      "deepwork-resume command must be registered",
+    );
+
+    await assert.doesNotReject(async () => {
+      await resumeCmd.definition.handler({ "run-id": runId }, ctx);
+    });
+
+    assert.equal(sentUserMessages.length, 1, "resume should use ctx.cwd state");
+    assert.match(
+      sentUserMessages[0] ?? "",
+      new RegExp(`=== RUN ID ===\\n${runId}`),
+    );
+    assert.equal(
+      confirmCalls.some((call) => call.title === "Resume Error"),
+      false,
+      "resume should not fail when state exists only under ctx.cwd",
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(processDir, { recursive: true, force: true });
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork-resume reports an inactive run when resume handoff fails", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const { pi, commands } = createMockPi({
+      sendUserMessageImpl: async () => {
+        throw new Error("resume handoff unavailable");
+      },
+    });
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const runId = "qrspi-20260524-160100";
+    const statePath = path.join(tmpDir, ".pipeline", runId, "state.md");
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(
+      statePath,
+      `---\nrun_id: ${runId}\nmode: "live"\nroute: "full"\ncurrent_phase: 1\ntotal_phases: 1\nlast_completed_stage: "5"\nnext_stage: "6"\nstages_completed: []\nphase_history: []\nbackward_loops: 0\nresume_source: "resume"\ninteraction_mode: "interactive"\nfailure_policy: "fail-closed"\n---\n`,
+      "utf-8",
+    );
+
+    const resumeCmd = commands.find((c) => c.name === "deepwork-resume");
+    assert.ok(
+      resumeCmd !== undefined,
+      "deepwork-resume command must be registered",
+    );
+
+    await assert.doesNotReject(async () => {
+      await resumeCmd.definition.handler({ "run-id": runId }, ctx);
+    });
+
+    const resumeCall = confirmCalls.find(
+      (call) => call.title === "Resume Pipeline",
+    );
+    assert.ok(
+      resumeCall !== undefined,
+      "Should show Resume Pipeline confirmation",
+    );
+    assert.match(resumeCall!.message, /no Deepwork orchestrator is active/i);
+    assert.match(resumeCall!.message, /resume handoff unavailable/);
+    assert.match(
+      resumeCall!.message,
+      new RegExp(`/deepwork-resume run-id:\"${runId}\"`),
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -171,13 +171,21 @@ function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function buildOrchestrationContract(): string {
+  return `=== ORCHESTRATION CONTRACT ===
+- Operate only as the Deepwork orchestrator.
+- Do not write or edit project source files directly.
+- Delegate every stage via qrspi_dispatch.
+- If the deepwork skill or qrspi_dispatch/qrspi_question tools are unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.`;
+}
+
 function buildLiveRunHandoffPrompt(
   runId: string,
   task: string,
   interactionMode: InteractionMode,
   failurePolicy: FailurePolicy,
 ): string {
-  return `Continue the existing Deepwork pipeline run that the runtime already scaffolded. Do not create a new run ID. Use Resume Mode against the existing pipeline directory on disk and continue from the recorded next stage in state.md.\n\n=== RUN ID ===\n${runId}\n\n=== MODE ===\nlive\n\n=== PIPELINE DIR ===\n.pipeline/${runId}\n\n=== USER TASK ===\n${task}\n\n=== INTERACTION MODE ===\n${interactionMode}\n\n=== FAILURE POLICY ===\n${failurePolicy}`;
+  return `Continue the existing Deepwork pipeline run that the runtime already scaffolded. Do not create a new run ID. Use Resume Mode against the existing pipeline directory on disk and continue from the recorded next stage in state.md.\n\n${buildOrchestrationContract()}\n\n=== RUN ID ===\n${runId}\n\n=== MODE ===\nlive\n\n=== PIPELINE DIR ===\n.pipeline/${runId}\n\n=== USER TASK ===\n${task}\n\n=== INTERACTION MODE ===\n${interactionMode}\n\n=== FAILURE POLICY ===\n${failurePolicy}`;
 }
 
 function buildResumeHandoffPrompt(parsed: {
@@ -189,7 +197,15 @@ function buildResumeHandoffPrompt(parsed: {
   interaction_mode: InteractionMode;
   failure_policy: FailurePolicy;
 }): string {
-  return `Resume the existing Deepwork pipeline run from disk. Do not create a new run ID. Use Resume Mode and continue from the recorded next stage.\n\n=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== LAST COMPLETED STAGE ===\n${parsed.last_completed_stage}\n\n=== NEXT STAGE ===\n${parsed.next_stage}\n\n=== PIPELINE DIR ===\n.pipeline/${parsed.run_id}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}`;
+  return `Resume the existing Deepwork pipeline run from disk. Do not create a new run ID. Use Resume Mode and continue from the recorded next stage.\n\n${buildOrchestrationContract()}\n\n=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== LAST COMPLETED STAGE ===\n${parsed.last_completed_stage}\n\n=== NEXT STAGE ===\n${parsed.next_stage}\n\n=== PIPELINE DIR ===\n.pipeline/${parsed.run_id}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}`;
+}
+
+function formatStartHandoffFailure(runId: string, error: string): string {
+  return `Automatic orchestration handoff failed. The run was scaffolded under .pipeline/${runId}, but no Deepwork orchestrator is active because pi.sendUserMessage() threw: ${error}. Fix the runtime configuration, then run /deepwork-resume run-id:"${runId}".`;
+}
+
+function formatResumeHandoffFailure(runId: string, error: string): string {
+  return `Automatic orchestration handoff failed. The recovered run remains on disk, but no Deepwork orchestrator is active because pi.sendUserMessage() threw: ${error}. Fix the runtime configuration, then rerun /deepwork-resume run-id:"${runId}".`;
 }
 
 async function handoffToSession(
@@ -207,6 +223,29 @@ async function handoffToSession(
 function writeTextFile(filePath: string, content: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, content, "utf-8");
+}
+
+function resolveWorkspacePath(workspaceRoot: string, filePath: string): string {
+  return path.resolve(workspaceRoot, filePath);
+}
+
+function resolveWorkspacePaths(
+  workspaceRoot: string,
+  runId: string,
+): {
+  statePath: string;
+  telemetryDir: string;
+  eventsPath: string;
+  runLogPath: string;
+  metricsPath: string;
+} {
+  return {
+    statePath: resolveWorkspacePath(workspaceRoot, getStatePath(runId)),
+    telemetryDir: resolveWorkspacePath(workspaceRoot, getTelemetryDir(runId)),
+    eventsPath: resolveWorkspacePath(workspaceRoot, getEventsPath(runId)),
+    runLogPath: resolveWorkspacePath(workspaceRoot, getRunLogPath(runId)),
+    metricsPath: resolveWorkspacePath(workspaceRoot, getMetricsPath(runId)),
+  };
 }
 
 function titleCase(value: string): string {
@@ -301,13 +340,14 @@ function formatDryRunMetricsSummary(
 }
 
 function runDryRun(
+  workspaceRoot: string,
   task: string,
   route: ExecutableRoute,
   interactionMode: InteractionMode,
   failurePolicy: FailurePolicy,
 ): { runId: string; state: PipelineState } {
   const runId = generateRunId();
-  const telemetryDir = getTelemetryDir(runId);
+  const paths = resolveWorkspacePaths(workspaceRoot, runId);
   const stageOrder = getRouteStages(route);
   const state = makeInitialState(runId, {
     mode: "dry-run",
@@ -335,9 +375,9 @@ function runDryRun(
     sequence += 1;
   };
 
-  fs.mkdirSync(telemetryDir, { recursive: true });
-  writeTextFile(getStatePath(runId), yamlify(state));
-  writeTextFile(getEventsPath(runId), "");
+  fs.mkdirSync(paths.telemetryDir, { recursive: true });
+  writeTextFile(paths.statePath, yamlify(state));
+  writeTextFile(paths.eventsPath, "");
 
   pushEvent("run.started", `Dry run started. Route: ${route}.`, {
     payload: { context: { mode: "dry-run" } },
@@ -355,7 +395,7 @@ function runDryRun(
 
     for (const artifactPath of stageArtifacts) {
       writeTextFile(
-        artifactPath,
+        resolveWorkspacePath(workspaceRoot, artifactPath),
         createDryRunArtifactContent(
           runId,
           route,
@@ -381,7 +421,7 @@ function runDryRun(
         ? "done"
         : String(stageNumber(nextStage(stage, route)!));
     state.stages_completed.push(stage);
-    writeTextFile(getStatePath(runId), yamlify(state));
+    writeTextFile(paths.statePath, yamlify(state));
 
     pushEvent(
       "stage.completed",
@@ -405,15 +445,15 @@ function runDryRun(
   );
 
   writeTextFile(
-    getEventsPath(runId),
+    paths.eventsPath,
     `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
   );
   writeTextFile(
-    getRunLogPath(runId),
+    paths.runLogPath,
     formatDryRunRunLog(runId, route, events, state),
   );
   writeTextFile(
-    getMetricsPath(runId),
+    paths.metricsPath,
     formatDryRunMetricsSummary(runId, route, stageOrder),
   );
 
@@ -429,13 +469,17 @@ function isGitAvailable(): boolean {
   }
 }
 
-function tryCreateGitBranch(runId: string): { ok: boolean; error?: string } {
+function tryCreateGitBranch(
+  runId: string,
+  workspaceRoot: string,
+): { ok: boolean; error?: string } {
   try {
     const result = spawnSync(
       "git",
       ["checkout", "-b", `qrspi/${runId}`, "main"],
       {
         encoding: "utf-8",
+        cwd: workspaceRoot,
       },
     );
     if (result.status !== 0) {
@@ -521,6 +565,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     if (dryRun) {
       const route = parsedRoute ?? "full";
       const { runId, state } = runDryRun(
+        ctx.cwd,
         task,
         route,
         parsedInteractionMode,
@@ -535,10 +580,10 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     }
 
     const runId = generateRunId();
-    const telemetryDir = getTelemetryDir(runId);
+    const paths = resolveWorkspacePaths(ctx.cwd, runId);
 
     try {
-      fs.mkdirSync(telemetryDir, { recursive: true });
+      fs.mkdirSync(paths.telemetryDir, { recursive: true });
     } catch (e: unknown) {
       const errMsg = describeError(e);
       await ctx.ui.confirm(
@@ -549,7 +594,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     }
 
     if (isGitAvailable()) {
-      const branchResult = tryCreateGitBranch(runId);
+      const branchResult = tryCreateGitBranch(runId, ctx.cwd);
       if (!branchResult.ok) {
         console.warn(
           `Failed to create git branch qrspi/${runId}: ${branchResult.error ?? "unknown error"}`,
@@ -567,7 +612,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     });
     const stateYaml = yamlify(state);
     try {
-      fs.writeFileSync(getStatePath(runId), stateYaml, "utf-8");
+      fs.writeFileSync(paths.statePath, stateYaml, "utf-8");
     } catch (e: unknown) {
       const errMsg = describeError(e);
       await ctx.ui.confirm(
@@ -578,7 +623,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     }
 
     try {
-      fs.writeFileSync(getEventsPath(runId), "\n", "utf-8");
+      fs.writeFileSync(paths.eventsPath, "\n", "utf-8");
     } catch (e: unknown) {
       const errMsg = describeError(e);
       await ctx.ui.confirm(
@@ -599,7 +644,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
     );
     const handoffSummary = handoff.delivered
       ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
-      : `Automatic orchestration handoff failed. The run has been scaffolded on disk, but pi.sendUserMessage() threw: ${handoff.error ?? "unknown error"}`;
+      : formatStartHandoffFailure(runId, handoff.error ?? "unknown error");
 
     await ctx.ui.confirm(
       "Deepwork Started",
@@ -621,7 +666,7 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
       return;
     }
 
-    const statePath = getStatePath(runId);
+    const statePath = resolveWorkspacePath(ctx.cwd, getStatePath(runId));
     if (!fs.existsSync(statePath)) {
       await ctx.ui.confirm(
         "Resume Error",
@@ -670,7 +715,10 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
     );
     const handoffSummary = handoff.delivered
       ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
-      : `Automatic orchestration handoff failed. The recovered run is on disk, but pi.sendUserMessage() threw: ${handoff.error ?? "unknown error"}`;
+      : formatResumeHandoffFailure(
+          parsed.run_id,
+          handoff.error ?? "unknown error",
+        );
 
     await ctx.ui.confirm(
       parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
