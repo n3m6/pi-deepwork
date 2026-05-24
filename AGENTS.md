@@ -4,7 +4,7 @@ Guidance for AI coding agents working in this repository.
 
 ## Project overview
 
-`pi-deepwork` (published as `deepwork-pi`) is a TypeScript extension for the **pi** AI coding-agent runtime. It implements the QRSPI deepwork pipeline:
+`pi-deepwork` is a TypeScript extension for the **pi** AI coding-agent runtime. It implements the QRSPI deepwork pipeline:
 
 Goals → Questions → Research → Design → Structure → Plan → Implement → Accept-Test → Replan → Verify → Report
 

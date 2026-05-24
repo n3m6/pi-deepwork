@@ -211,7 +211,7 @@ test("package.json matches expected manifest shape", () => {
   const raw = fs.readFileSync(pkgPath, "utf-8");
   const pkg = JSON.parse(raw) as Record<string, unknown>;
 
-  assert.equal(pkg.name, "deepwork-pi");
+  assert.equal(pkg.name, "pi-deepwork");
   assert.equal(pkg.main, "dist/index.js");
 
   const peers = pkg.peerDependencies as Record<string, unknown> | undefined;

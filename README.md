@@ -27,7 +27,7 @@ npm install
 npm run build
 
 # 3. Symlink the extension into pi's global extensions directory
-ln -s "$(pwd)" ~/.pi/agent/extensions/deepwork-pi
+ln -s "$(pwd)" ~/.pi/agent/extensions/pi-deepwork
 
 # 4. Symlink the agent markdown files into pi-subagents' flat global agent directory
 mkdir -p ~/.pi/agent/agents
@@ -38,7 +38,7 @@ What each step does:
 
 - Step 1 installs `pi-subagents`, which provides the `Agent` tool and the shared agent manager used by `qrspi_dispatch`.
 - Step 2 clones the repository and compiles the TypeScript source to CommonJS output in `dist/`.
-- Step 3 makes pi discover this extension from `~/.pi/agent/extensions/deepwork-pi`.
+- Step 3 makes pi discover this extension from `~/.pi/agent/extensions/pi-deepwork`.
 - Step 4 makes pi-subagents discover the 55 agent definitions from the flat `~/.pi/agent/agents/*.md` directory.
 
 ### Method B: `pi install git:`
@@ -53,14 +53,15 @@ pi install git:github.com/n3m6/pi-deepwork@main
 
 `pi install git:` performs the repository clone, runs `npm install --omit=dev` when a `package.json` is present, and places the extension in pi's managed extension directory. Agent type discovery still needs to be configured separately through either the global symlink path or a project-local `.pi/agents/` directory.
 
-### Repository name vs package name
+### Repository name and package name
 
-The GitHub repository is `pi-deepwork`, while the installable package name is `deepwork-pi`.
+The GitHub repository and `package.json` now both use `pi-deepwork`.
 
 - Manual cloning uses the repository URL: `https://github.com/n3m6/pi-deepwork.git`
-- `pi install git:` uses the package-oriented name: `git:github.com/n3m6/deepwork-pi@main`
+- `pi install git:` should use the repository locator: `git:github.com/n3m6/pi-deepwork@main`
 
-They refer to the same codebase.
+pi currently clones that install into a git-managed directory such as `~/.pi/agent/git/github.com/n3m6/pi-deepwork/`.
+Some pi builds still try to open the skill source from an npm-style path first, for example `~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/skills/deepwork/SKILL.md`, before the extension's `resources_discover` result is applied. When that happens, the first skill expansion can show `ENOENT` even though the installed extension later exposes the skill correctly.
 
 ## Agent Type Discovery
 
@@ -199,6 +200,12 @@ Check agent discovery first:
 - confirm the agent `.md` files are present directly under `~/.pi/agent/agents/`
 - or confirm the current project has the agent `.md` files directly under `.pi/agents/`
 - verify that the directory contains the expected `.md` agent definitions
+
+### The first `deepwork` skill expansion shows `ENOENT`
+
+If you installed with `pi install git:github.com/n3m6/pi-deepwork@main`, pi may still try an npm-style source path on the first skill-file read. The extension's runtime `resources_discover` handler points at the real git-managed `skills/` directory, so this is a path-resolution mismatch rather than a missing `skills/deepwork/SKILL.md` file.
+
+If you need a stable on-disk extension path today, prefer the clone-plus-symlink flow from Method A.
 
 ### `git` is not installed
 

@@ -1,6 +1,6 @@
 {
-  "name": "deepwork-pi",
-  "version": "0.1.0",
+  "name": "pi-deepwork",
+  "version": "0.1.1",
   "description": "QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents",
   "main": "dist/index.js",
   "scripts": {

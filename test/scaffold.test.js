@@ -15,9 +15,9 @@ test('skills/deepwork/ directory exists', () => {
 
 // --- Package identity ---
 
-test('package.json name is deepwork-pi', () => {
+test('package.json name is pi-deepwork', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
-  assert.equal(pkg.name, 'deepwork-pi');
+  assert.equal(pkg.name, 'pi-deepwork');
 });
 
 test('package.json description matches QRSPI spec', () => {
@@ -52,6 +52,16 @@ test('README documents flat pi-subagents agent discovery paths', () => {
   );
   assert.ok(readme.includes('## Manual pi Smoke-Test Checklist'));
   assert.ok(readme.includes('qrspi_get_subagent_result'));
+});
+
+test('README keeps git install guidance aligned with the repo locator', () => {
+  const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
+  assert.ok(readme.includes('pi install git:github.com/n3m6/pi-deepwork@main'));
+  assert.ok(
+    readme.includes(
+      'The GitHub repository and `package.json` now both use `pi-deepwork`.',
+    ),
+  );
 });
 
 test('package.json has test:watch script with correct value', () => {
