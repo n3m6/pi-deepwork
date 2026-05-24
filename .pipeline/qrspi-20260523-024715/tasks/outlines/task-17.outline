@@ -1,0 +1,15 @@
+Task: 17
+Title: Code review orchestrator and quality/security lenses
+Phase: 3
+Route: full
+Slice: Slice 3c — Code Review
+Dependencies: None
+Scope: Convert the code review orchestrator and the first four review lens agents: `qrspi-code-review` (orchestrator that dispatches review lens subagents and synthesizes findings), `qrspi-review-code-quality` (general code quality review), `qrspi-review-security` (security vulnerability review), and `qrspi-review-silent-failure` (edge case and silent failure review). All review lens agents are read-only (tools: read, bash, grep, find, ls) and use haiku-tier model.
+Acceptance Criteria: AC 6 (code review agent types), AC 7 (model tier frontmatter)
+NFRs: NFR: Compatibility (model tier)
+Gate Criteria: Phase 3 replan gate (Code review agents complete)
+Files:
+  - agents/qrspi-code-review.md (CREATE) — Code review orchestrator, tools: all 7, max_turns: 40, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-review-code-quality.md (CREATE) — Code quality review lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-review-security.md (CREATE) — Security review lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-review-silent-failure.md (CREATE) — Silent failure review lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5

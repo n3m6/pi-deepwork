@@ -1,0 +1,14 @@
+Task: 07
+Title: Stage 1 agent types (Goals)
+Phase: 1
+Route: full
+Slice: Slice 1 — Stage 1 Goals
+Dependencies: 01
+Scope: Convert the three Stage 1 agent types from their opencode sources: `qrspi-goals` (Stage 1 orchestrator — captures user intent, dispatches synthesizer and reviewer, runs human gate), `qrspi-goals-synthesizer` (distills interview record into goals.md and config.md), and `qrspi-goals-reviewer` (checklist review of goals artifacts). Each file follows the pi agent type convention with YAML frontmatter (`description`, `tools`, `model`, `thinking`, `max_turns`, `prompt_mode`, `extensions`) and system prompt body adapted per the conversion tables. Dispatches use `qrspi_dispatch` instead of opencode's `task` tool. Questions use `qrspi_question`.
+Acceptance Criteria: AC 6 (Stage 1 artifact production), AC 7 (model tier in frontmatter)
+NFRs: NFR: Compatibility (model tier frontmatter)
+Gate Criteria: Phase 1 replan gate (Stage 1 agents functional)
+Files:
+  - agents/qrspi-goals.md (CREATE) — Stage 1 orchestrator, tools: all 7, max_turns: 80, thinking: low, model: anthropic/claude-sonnet-4-5. Ported from /home/n3m6/.config/opencode/agents/qrspi-goals.md
+  - agents/qrspi-goals-synthesizer.md (CREATE) — Goal synthesizer leaf agent, tools: all 7, max_turns: 40, thinking: low, model: anthropic/claude-sonnet-4-5. Ported from /home/n3m6/.config/opencode/agents/qrspi-goals-synthesizer.md
+  - agents/qrspi-goals-reviewer.md (CREATE) — Goals checklist reviewer, tools: read, bash, grep, find, ls, max_turns: 20, thinking: low, model: anthropic/claude-haiku-4-5. Ported from /home/n3m6/.config/opencode/agents/qrspi-goals-reviewer.md

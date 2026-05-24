@@ -1,0 +1,15 @@
+Task: 20
+Title: Backward loop and replan agents
+Phase: 3
+Route: full
+Slice: Slice 3e — Backward Loop / Replan
+Dependencies: None
+Scope: Convert the four backward loop and replan agent types: `qrspi-backward-loop-detector` (analyzes acceptance failures and determines if replan is needed), `qrspi-replan` (orchestrator — dispatches replan writer and reviewer, triggers pipeline loopback), `qrspi-replan-writer` (produces replan artifacts: backward-loop-analysis.md and phase-NN-replan.md), and `qrspi-replan-reviewer` (reviews replan artifacts for correctness). All use pi agent type convention.
+Acceptance Criteria: AC 4 (backward loop agent types), AC 6 (replan agent types), AC 7 (model tier frontmatter)
+NFRs: NFR: Compatibility (model tier)
+Gate Criteria: Phase 3 replan gate (Backward loop agents complete)
+Files:
+  - agents/qrspi-backward-loop-detector.md (CREATE) — Backward loop detector, tools: read, bash, grep, find, ls, max_turns: 20, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-replan.md (CREATE) — Replan orchestrator, tools: all 7, max_turns: 60, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-replan-writer.md (CREATE) — Replan writer, tools: all 7, max_turns: 40, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-replan-reviewer.md (CREATE) — Replan reviewer, tools: read, bash, grep, find, ls, max_turns: 20, thinking: low, model: anthropic/claude-haiku-4-5

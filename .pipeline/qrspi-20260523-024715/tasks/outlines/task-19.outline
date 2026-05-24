@@ -1,0 +1,17 @@
+Task: 19
+Title: Stage 8 acceptance agents
+Phase: 3
+Route: full
+Slice: Slice 3d — Acceptance
+Dependencies: None
+Scope: Convert the six Stage 8 agent types: `qrspi-accept` (orchestrator — dispatches acceptance tester, coverage planner, and accept-review lenses, runs acceptance loop, triggers backward loop detection), `qrspi-acceptance-tester` (executes acceptance tests against implemented phases), `qrspi-coverage-planner` (plans test coverage for acceptance phase), `qrspi-review-accept-goal-traceability` (verifies acceptance criteria trace to goals), `qrspi-review-accept-spec` (reviews acceptance test specs), and `qrspi-review-accept-code-quality` (reviews code quality in acceptance context). All use pi agent type convention.
+Acceptance Criteria: AC 6 (Stage 8 agent types), AC 7 (model tier frontmatter)
+NFRs: NFR: Compatibility (model tier)
+Gate Criteria: Phase 3 replan gate (Acceptance agents complete)
+Files:
+  - agents/qrspi-accept.md (CREATE) — Stage 8 orchestrator, tools: all 7, max_turns: 100, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-acceptance-tester.md (CREATE) — Acceptance tester, tools: all 7, max_turns: 50, thinking: medium, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-coverage-planner.md (CREATE) — Coverage planner, tools: all 7, max_turns: 25, thinking: low, model: anthropic/claude-sonnet-4-5
+  - agents/qrspi-review-accept-goal-traceability.md (CREATE) — Accept goal traceability lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-review-accept-spec.md (CREATE) — Accept spec review lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5
+  - agents/qrspi-review-accept-code-quality.md (CREATE) — Accept code quality lens, tools: read, bash, grep, find, ls, max_turns: 15, thinking: low, model: anthropic/claude-haiku-4-5

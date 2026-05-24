@@ -423,66 +423,7 @@ Adapted from `/home/n3m6/.config/opencode/agents/deepwork.md` (927 lines).
 
 ## Pipeline File Convention (Preserved from Original)
 
-```
-.pipeline/qrspi-<run-id>/
-├── state.md                           Written: Deepwork  — Recovery state
-├── config.md                          Written: Stage 1   — Route, metadata
-├── requirements.md                    Written: Stage 1   — Verbatim user task
-├── goals.md                           Written: Stage 1   — Distilled intent
-├── goal-inventory.md                  Written: Stage 2   — Normalized goal table
-├── questions.md                       Written: Stage 2   — Research questions
-├── question-leakage-review.md         Written: Stage 2   — Leakage review
-├── question-quality-review.md         Written: Stage 2   — Quality review
-├── research/
-│   ├── q-01.md ... q-NN.md           Written: Stage 3   — Per-question findings
-│   └── summary.md                    Written: Stage 3   — Unified summary
-├── design.md                          Written: Stage 4   — Architecture
-├── structure.md                       Written: Stage 5   — File mapping
-├── plan.md                            Written: Stage 6   — Plan document
-├── phase-manifest.md                  Written: Stage 6   — Phase breakdown
-├── baseline-results.md                Written: Stage 6   — Pre-implementation baseline
-├── tasks/
-│   ├── outlines/
-│   │   └── task-NN.outline           Written: Stage 6   — Per-task outlines
-│   └── task-NN.md                    Written: Stage 6   — Canonical task specs
-├── reviews/
-│   ├── goals-review-round-NN.md      Written: Stage 1
-│   ├── research-review-round-NN.md   Written: Stage 3
-│   ├── design-review-round-NN.md     Written: Stage 4
-│   ├── structure-review-round-NN.md  Written: Stage 5
-│   ├── plan-review-round-NN.md       Written: Stage 6
-│   ├── task-spec/
-│   │   └── task-NN-review-round-MM.md Written: Stage 6
-│   ├── acceptance-phase-NN-review-round-MM.md Written: Stage 8
-│   └── replan-review-round-NN.md     Written: Stage 8.5
-├── feedback/
-│   ├── goals-round-NN.md             Written: Stage 1   — Gate rejection feedback
-│   ├── deferred-replan-NN.md         Written: Deepwork  — Deferred issues
-│   └── goals-reset-context.md        Written: Deepwork  — Full reset context
-├── phases/
-│   ├── archive/
-│   │   └── phase-NN/                 Written: Deepwork  — Archived future phases
-│   ├── phase-01/
-│   │   ├── tasks/ -> ../../tasks/    Written: Deepwork  — Symlink
-│   │   ├── execution-manifest.md     Written: Stage 7
-│   │   ├── e2e-regression-results.md Written: Stage 7
-│   │   ├── stage7-summary.md         Written: Stage 7
-│   │   ├── integration-results.md    Written: Stage 7
-│   │   ├── stage7-integration-summary.md Written: Stage 7
-│   │   ├── coverage-plan.md          Written: Stage 8
-│   │   ├── acceptance-results.md     Written: Stage 8
-│   │   ├── backward-loop-analysis.md Written: Stage 8
-│   │   ├── stage8-summary.md         Written: Stage 8
-│   │   └── replan/
-│   │       └── phase-01-replan.md    Written: Stage 8.5
-│   ├── phase-02/ ... phase-NN/       Written: Stages 7, 8, 8.5
-├── stage9-summary.md                 Written: Stage 9
-├── stage10-summary.md                Written: Stage 10
-└── telemetry/
-    ├── events.jsonl                   Written: Deepwork  — Append-only events
-    ├── run-log.md                     Written: Deepwork  — Human timeline
-    └── metrics-summary.md             Written: Deepwork  — End-of-run metrics
-```
+[Full directory tree listing of .pipeline/qrspi-<run-id>/ structure]
 
 ---
 
