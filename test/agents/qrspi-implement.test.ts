@@ -39,9 +39,9 @@ test("stage 6 implementation agent files have parseable frontmatter with enabled
   }
 });
 
-test("stage 6 implementation agents use the expected model tiers", () => {
-  assert.equal(frontmatter["qrspi-implement.md"].model, "anthropic/claude-sonnet-4-5");
-  assert.equal(frontmatter["qrspi-implement.md"].thinking, "low");
+test("stage 6 implementation agents use the expected model profile", () => {
+  assert.equal(frontmatter["qrspi-implement.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-implement.md"].thinking, "high");
 
   for (const name of [
     "qrspi-fast-impl-loop.md",
@@ -49,8 +49,8 @@ test("stage 6 implementation agents use the expected model tiers", () => {
     "qrspi-fast-impl-test.md",
     "qrspi-fast-impl-verify.md",
   ] as const) {
-    assert.equal(frontmatter[name].model, "anthropic/claude-sonnet-4-5", `${name} must use sonnet tier`);
-    assert.equal(frontmatter[name].thinking, "medium", `${name} must use medium thinking`);
+    assert.equal(frontmatter[name].model, "deepseek-v4-pro", `${name} must use deepseek-v4-pro`);
+    assert.equal(frontmatter[name].thinking, "high", `${name} must use high thinking`);
   }
 
   for (const name of [
@@ -58,8 +58,8 @@ test("stage 6 implementation agents use the expected model tiers", () => {
     "qrspi-integration-checker.md",
     "qrspi-baseline-regression-checker.md",
   ] as const) {
-    assert.equal(frontmatter[name].model, "anthropic/claude-haiku-4-5", `${name} must use haiku tier`);
-    assert.equal(frontmatter[name].thinking, "low", `${name} must use low thinking`);
+    assert.equal(frontmatter[name].model, "deepseek-v4-pro", `${name} must use deepseek-v4-pro`);
+    assert.equal(frontmatter[name].thinking, "high", `${name} must use high thinking`);
   }
 });
 

@@ -1,8 +1,8 @@
 ---
 description: "Stage 7 orchestrator — reads phase inputs, dispatches qrspi-acceptance-tester, writes phase artifacts, dispatches qrspi-backward-loop-detector when failures persist, and returns the stage contract to deepwork. Supports lite reuse-only acceptance and full author/review acceptance modes."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

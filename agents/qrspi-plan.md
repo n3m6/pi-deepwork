@@ -1,8 +1,8 @@
 ---
 description: "Stage 6 orchestrator — reads route-appropriate inputs, dispatches the plan writer for outlines, runs the outline-level plan review loop, generates task specs after plan acceptance, runs per-task spec review, appends review status, and dispatches the baseline checker. Writes plan.md, phase-manifest.md, task outlines, canonical tasks/task-NN.md, review artifacts, and baseline-results.md."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 80
 prompt_mode: replace
 extensions: false

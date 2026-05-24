@@ -1,8 +1,8 @@
 ---
 description: "Reviews generated research questions independently for leakage. Initial mode uses goals and preserved requirements to flag planned-change leakage; follow-up mode is goal-blind and flags prescriptive or target-state wording from the question text and open-gap context only. Read-only."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

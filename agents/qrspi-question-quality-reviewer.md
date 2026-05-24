@@ -1,8 +1,8 @@
 ---
 description: "Reviews generated research questions independently for coverage, objectivity, tag accuracy, dependency-question materiality, hybrid necessity, redundancy, boundedness, field completeness, traceability, necessity, and decision relevance. Initial mode checks normalized-goal coverage; follow-up mode checks open-gap coverage. Read-only."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

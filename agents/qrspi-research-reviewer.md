@@ -1,8 +1,8 @@
 ---
 description: "Reviews research summary for completeness, accuracy, and goal-blind compliance. Read-only. Returns PASS/FAIL with structured fix guidance."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Nested research batch runner — researches one question batch, writes per-question findings and a batch summary, and runs a bounded batch-local review loop before returning PASS-compatible terminal state. Goal-blind with respect to goals and requirements."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 40
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Revises the remaining implementation plan after a completed phase, updating the phase manifest and writing the complete task set for the next implementation phase while preserving completed work. Minor design amendments are allowed only when the chosen approach stays intact. Read-only."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 35
 prompt_mode: replace
 extensions: false

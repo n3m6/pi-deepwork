@@ -79,6 +79,11 @@ const expectedFiles = new Set([
   ...sonnetMediumAgents,
   ...haikuLowAgents,
 ]);
+const allAgents = [
+  ...sonnetLowAgents,
+  ...sonnetMediumAgents,
+  ...haikuLowAgents,
+] as const;
 
 function parseFrontmatter(filePath: string): Record<string, string> {
   const raw = fs.readFileSync(filePath, "utf8");
@@ -140,48 +145,17 @@ test("every agent frontmatter has model and thinking fields", () => {
   }
 });
 
-test("all sonnet low agents use sonnet-tier with low thinking", () => {
-  for (const file of sonnetLowAgents) {
+test("all agents use deepseek-v4-pro with high thinking", () => {
+  for (const file of allAgents) {
     const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(
-      parsed.model,
-      "anthropic/claude-sonnet-4-5",
-      `${file} model mismatch`,
-    );
-    assert.equal(parsed.thinking, "low", `${file} thinking mismatch`);
-  }
-});
-
-test("all sonnet medium agents use sonnet-tier with medium thinking", () => {
-  for (const file of sonnetMediumAgents) {
-    const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(
-      parsed.model,
-      "anthropic/claude-sonnet-4-5",
-      `${file} model mismatch`,
-    );
-    assert.equal(parsed.thinking, "medium", `${file} thinking mismatch`);
-  }
-});
-
-test("all haiku agents use haiku-tier with low thinking", () => {
-  for (const file of haikuLowAgents) {
-    const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(
-      parsed.model,
-      "anthropic/claude-haiku-4-5",
-      `${file} model mismatch`,
-    );
-    assert.equal(parsed.thinking, "low", `${file} thinking mismatch`);
+    assert.equal(parsed.model, "deepseek-v4-pro", `${file} model mismatch`);
+    assert.equal(parsed.thinking, "high", `${file} thinking mismatch`);
   }
 });
 
 test("no agent uses an unexpected model or thinking value", () => {
-  const allowedModels = new Set([
-    "anthropic/claude-sonnet-4-5",
-    "anthropic/claude-haiku-4-5",
-  ]);
-  const allowedThinking = new Set(["low", "medium"]);
+  const allowedModels = new Set(["deepseek-v4-pro"]);
+  const allowedThinking = new Set(["high"]);
 
   for (const file of expectedFiles) {
     const parsed = parseFrontmatter(path.join(agentsDir, file));

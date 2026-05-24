@@ -1,8 +1,8 @@
 ---
 description: "Stage 10 orchestrator — reads all stage summaries, phase metadata, and replan notes and dispatches the reporter to produce the final pipeline report. Writes stage10-summary.md."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 10
 prompt_mode: replace
 extensions: false

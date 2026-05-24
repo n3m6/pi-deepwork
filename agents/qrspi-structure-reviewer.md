@@ -1,8 +1,8 @@
 ---
 description: "Reviews generated structure.md independently for design alignment, file-map correctness, interface quality, and diagram completeness. Verifies file paths against the codebase. Read-only."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

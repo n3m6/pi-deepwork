@@ -165,27 +165,27 @@ test("qrspi-research-reviewer.md frontmatter — exact 7 required fields, no ext
 });
 
 // ---------------------------------------------------------------------------
-// Frontmatter — model tiers (AC-7)
+// Frontmatter — model settings (AC-7)
 // ---------------------------------------------------------------------------
 
-test("qrspi-research.md model is anthropic/claude-sonnet-4-5", () => {
-  assert.equal(getField(orchFM, "model"), "anthropic/claude-sonnet-4-5");
+test("qrspi-research.md uses deepseek-v4-pro", () => {
+  assert.equal(getField(orchFM, "model"), "deepseek-v4-pro");
 });
 
-test("qrspi-codebase-researcher.md model is anthropic/claude-haiku-4-5", () => {
-  assert.equal(getField(cbFM, "model"), "anthropic/claude-haiku-4-5");
+test("qrspi-codebase-researcher.md uses deepseek-v4-pro", () => {
+  assert.equal(getField(cbFM, "model"), "deepseek-v4-pro");
 });
 
-test("qrspi-web-researcher.md model is anthropic/claude-haiku-4-5", () => {
-  assert.equal(getField(webFM, "model"), "anthropic/claude-haiku-4-5");
+test("qrspi-web-researcher.md uses deepseek-v4-pro", () => {
+  assert.equal(getField(webFM, "model"), "deepseek-v4-pro");
 });
 
-test("qrspi-research-synthesizer.md model is anthropic/claude-sonnet-4-5", () => {
-  assert.equal(getField(synthFM, "model"), "anthropic/claude-sonnet-4-5");
+test("qrspi-research-synthesizer.md uses deepseek-v4-pro", () => {
+  assert.equal(getField(synthFM, "model"), "deepseek-v4-pro");
 });
 
-test("qrspi-research-reviewer.md model is anthropic/claude-haiku-4-5", () => {
-  assert.equal(getField(reviewFM, "model"), "anthropic/claude-haiku-4-5");
+test("qrspi-research-reviewer.md uses deepseek-v4-pro", () => {
+  assert.equal(getField(reviewFM, "model"), "deepseek-v4-pro");
 });
 
 // ---------------------------------------------------------------------------
@@ -266,7 +266,7 @@ test("qrspi-research-reviewer.md max_turns is 20", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Frontmatter — prompt_mode: replace, extensions: false, thinking: low
+// Frontmatter — prompt_mode: replace, extensions: false, thinking: high
 // ---------------------------------------------------------------------------
 
 const ALL_FMS: [string, Frontmatter | null][] = [
@@ -289,9 +289,9 @@ test("all five agents have extensions: false", () => {
   }
 });
 
-test("all five agents have thinking: low", () => {
+test("all five agents have thinking: high", () => {
   for (const [name, fm] of ALL_FMS) {
-    assert.equal(getField(fm, "thinking"), "low", `${name} thinking must be "low"`);
+    assert.equal(getField(fm, "thinking"), "high", `${name} thinking must be "high"`);
   }
 });
 
@@ -585,15 +585,15 @@ test("Research agents — no opencode permission system references", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cross-file: model tier strategy (Sonnet for orchestrator+synthesizer, Haiku for leaves+reviewer)
+// Cross-file: model profile strategy
 // ---------------------------------------------------------------------------
 
-test("Model tier strategy: orchestrator and synthesizer use Sonnet; leaves and reviewer use Haiku", () => {
-  assert.equal(getField(orchFM, "model"), "anthropic/claude-sonnet-4-5");
-  assert.equal(getField(synthFM, "model"), "anthropic/claude-sonnet-4-5");
-  assert.equal(getField(cbFM, "model"), "anthropic/claude-haiku-4-5");
-  assert.equal(getField(webFM, "model"), "anthropic/claude-haiku-4-5");
-  assert.equal(getField(reviewFM, "model"), "anthropic/claude-haiku-4-5");
+test("All research agents use deepseek-v4-pro", () => {
+  assert.equal(getField(orchFM, "model"), "deepseek-v4-pro");
+  assert.equal(getField(synthFM, "model"), "deepseek-v4-pro");
+  assert.equal(getField(cbFM, "model"), "deepseek-v4-pro");
+  assert.equal(getField(webFM, "model"), "deepseek-v4-pro");
+  assert.equal(getField(reviewFM, "model"), "deepseek-v4-pro");
 });
 
 // ---------------------------------------------------------------------------

@@ -17,13 +17,13 @@ test("stage 10 report agents have parseable frontmatter with enabled schema", ()
   }
 });
 
-test("stage 10 report agents use the expected tools and models", () => {
+test("stage 10 report agents use the expected tools and model profile", () => {
   assert.ok((frontmatter["qrspi-report.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-report.md must expose qrspi_dispatch");
-  assert.equal(frontmatter["qrspi-report.md"].model, "anthropic/claude-sonnet-4-5");
-  assert.equal(frontmatter["qrspi-report.md"].thinking, "low");
+  assert.equal(frontmatter["qrspi-report.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-report.md"].thinking, "high");
 
-  assert.equal(frontmatter["qrspi-reporter.md"].model, "anthropic/claude-haiku-4-5");
-  assert.equal(frontmatter["qrspi-reporter.md"].thinking, "low");
+  assert.equal(frontmatter["qrspi-reporter.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-reporter.md"].thinking, "high");
 });
 
 test("qrspi-report dispatches qrspi-reporter and returns report content", () => {

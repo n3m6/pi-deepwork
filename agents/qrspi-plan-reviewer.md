@@ -1,8 +1,8 @@
 ---
 description: "Reviews the current Stage 6 planning artifacts from the pipeline run directory for AGENTS guidance compliance, requirements coverage, dependency correctness, phase quality, outline completeness, and traceability. Reads plan.md, phase-manifest.md, and active task outlines. Flags placeholders, forward dependencies, vague file maps, missing NFR coverage, completed-phase preservation defects, and conflicts with AGENTS.md. Read-only."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 30
 prompt_mode: replace
 extensions: false

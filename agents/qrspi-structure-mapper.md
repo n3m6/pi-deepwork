@@ -1,8 +1,8 @@
 ---
 description: "Maps design slices to specific files, components, interfaces, and diagrams while honoring preserved requirements. Tracks create vs. modify for each file. Read-only — never modifies project files."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 30
 prompt_mode: replace
 extensions: false

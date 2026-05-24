@@ -1,8 +1,8 @@
 ---
 description: "Merged Stage 2 child — generates neutral initial or follow-up research question batches for qrspi-research, runs leakage and quality review, and writes compatibility snapshots plus a round-local questions file. Disabled for top-level discovery."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 40
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Synthesizes goals.md and config.md from interview context. Produces formal goals artifact with intent, functional requirements, non-functional requirements, technical specification, constraints, non-goals, acceptance criteria, and route determination."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 40
 prompt_mode: replace
 extensions: false

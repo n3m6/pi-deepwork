@@ -164,11 +164,11 @@ test("qrspi-design.md frontmatter — tools field exact value", () => {
 });
 
 test("qrspi-design.md frontmatter — model field", () => {
-  assert.equal(getField(orchFM, "model"), "anthropic/claude-sonnet-4-5");
+  assert.equal(getField(orchFM, "model"), "deepseek-v4-pro");
 });
 
 test("qrspi-design.md frontmatter — thinking field", () => {
-  assert.equal(getField(orchFM, "thinking"), "low");
+  assert.equal(getField(orchFM, "thinking"), "high");
 });
 
 test("qrspi-design.md frontmatter — max_turns field", () => {
@@ -233,11 +233,11 @@ test("qrspi-design-synthesizer.md frontmatter — tools field (read, bash, grep,
 });
 
 test("qrspi-design-synthesizer.md frontmatter — model field", () => {
-  assert.equal(getField(synthFM, "model"), "anthropic/claude-sonnet-4-5");
+  assert.equal(getField(synthFM, "model"), "deepseek-v4-pro");
 });
 
 test("qrspi-design-synthesizer.md frontmatter — thinking field", () => {
-  assert.equal(getField(synthFM, "thinking"), "low");
+  assert.equal(getField(synthFM, "thinking"), "high");
 });
 
 test("qrspi-design-synthesizer.md frontmatter — max_turns field", () => {
@@ -302,11 +302,11 @@ test("qrspi-design-reviewer.md frontmatter — tools field (read-only: read, bas
 });
 
 test("qrspi-design-reviewer.md frontmatter — model field", () => {
-  assert.equal(getField(reviewFM, "model"), "anthropic/claude-haiku-4-5");
+  assert.equal(getField(reviewFM, "model"), "deepseek-v4-pro");
 });
 
 test("qrspi-design-reviewer.md frontmatter — thinking field", () => {
-  assert.equal(getField(reviewFM, "thinking"), "low");
+  assert.equal(getField(reviewFM, "thinking"), "high");
 });
 
 test("qrspi-design-reviewer.md frontmatter — max_turns field", () => {
@@ -561,21 +561,21 @@ test("qrspi-design.md body — uses bash: mkdir -p for directory creation", () =
 // Cross-file: model tier assignment (sonnet for orchestrator/synthesizer, haiku for reviewer)
 // ---------------------------------------------------------------------------
 
-test("Model tier — orchestrator uses sonnet, synthesizer uses sonnet, reviewer uses haiku", () => {
+test("All design agents use deepseek-v4-pro", () => {
   assert.equal(
     getField(orchFM, "model"),
-    "anthropic/claude-sonnet-4-5",
-    "orchestrator must use sonnet-tier model"
+    "deepseek-v4-pro",
+    "orchestrator must use deepseek-v4-pro"
   );
   assert.equal(
     getField(synthFM, "model"),
-    "anthropic/claude-sonnet-4-5",
-    "synthesizer must use sonnet-tier model"
+    "deepseek-v4-pro",
+    "synthesizer must use deepseek-v4-pro"
   );
   assert.equal(
     getField(reviewFM, "model"),
-    "anthropic/claude-haiku-4-5",
-    "reviewer must use haiku-tier model"
+    "deepseek-v4-pro",
+    "reviewer must use deepseek-v4-pro"
   );
 });
 

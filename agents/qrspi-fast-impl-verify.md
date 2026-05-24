@@ -1,8 +1,8 @@
 ---
 description: "Verify agent for the fast impl loop. Runs targeted verification, dispatches qrspi-code-review, applies bounded local fixes via a `general-purpose` child worker, commits only on clean success, and returns an explicit Route Hint. When `WORKTREE ROOT` is present, verification, review file reads, local fixes, and commits run there."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: medium
+model: deepseek-v4-pro
+thinking: high
 max_turns: 85
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Stage 8 orchestrator — revises the remaining plan after a completed phase, runs automated review rounds, and writes updated remaining-work artifacts. Writes plan.md, phase-manifest.md, next-phase task specs, review artifacts, and a phase-local replan note."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 45
 prompt_mode: replace
 extensions: false

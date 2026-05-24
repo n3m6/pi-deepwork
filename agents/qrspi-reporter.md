@@ -1,8 +1,8 @@
 ---
 description: "Formats the Final Report from supplied pipeline artifacts only. Never writes code or modifies files."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 5
 prompt_mode: replace
 extensions: false

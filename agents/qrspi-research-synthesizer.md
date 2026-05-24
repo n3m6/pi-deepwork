@@ -1,8 +1,8 @@
 ---
 description: "Synthesizes per-question research findings into a unified research summary. Goal-blind: integrates facts, identifies gaps and conflicts, no solution recommendations."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 30
 prompt_mode: replace
 extensions: false

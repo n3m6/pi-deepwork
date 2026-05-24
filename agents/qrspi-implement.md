@@ -1,8 +1,8 @@
 ---
 description: "Stage 6: groups phase tasks into dependency waves, creates one git worktree per task, launches qrspi-fast-impl-loop per task per wave as a background batch, joins the results, then squash-merges successful task worktrees back onto the pipeline branch before gating the wave with qrspi-e2e-regression-checker. After all waves, launches qrspi-integration-checker and qrspi-baseline-regression-checker as a background batch and joins them. Remediates regressions up to 3 rounds. Creates git checkpoints. Writes execution-manifest.md, e2e-regression-results.md, stage7-summary.md, integration-results.md, regression-results.md, and stage7-integration-summary.md."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 60
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Writes a plan overview, phase manifest, and structured per-task outlines. The Stage 6 orchestrator uses the returned outlines to dispatch per-task spec writers. Supports full and quick-fix routes and preserves traceability to requirements, NFRs, replan gates, and repository instructions from AGENTS.md."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 60
 prompt_mode: replace
 extensions: false

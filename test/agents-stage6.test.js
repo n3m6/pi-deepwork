@@ -225,27 +225,27 @@ test('qrspi-baseline-checker.md frontmatter — tools field (read-only)', () => 
 // ---------------------------------------------------------------------------
 
 test('qrspi-plan.md frontmatter — model field', () => {
-  assert.equal(planFM.model, 'anthropic/claude-sonnet-4-5');
+  assert.equal(planFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-plan-writer.md frontmatter — model field', () => {
-  assert.equal(planWriterFM.model, 'anthropic/claude-sonnet-4-5');
+  assert.equal(planWriterFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-task-spec-writer.md frontmatter — model field', () => {
-  assert.equal(taskSpecWriterFM.model, 'anthropic/claude-sonnet-4-5');
+  assert.equal(taskSpecWriterFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-task-spec-reviewer.md frontmatter — model field', () => {
-  assert.equal(taskSpecReviewerFM.model, 'anthropic/claude-haiku-4-5');
+  assert.equal(taskSpecReviewerFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-plan-reviewer.md frontmatter — model field', () => {
-  assert.equal(planReviewerFM.model, 'anthropic/claude-haiku-4-5');
+  assert.equal(planReviewerFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-baseline-checker.md frontmatter — model field', () => {
-  assert.equal(baselineCheckerFM.model, 'anthropic/claude-haiku-4-5');
+  assert.equal(baselineCheckerFM.model, 'deepseek-v4-pro');
 });
 
 // ---------------------------------------------------------------------------
@@ -280,32 +280,32 @@ test('qrspi-baseline-checker.md frontmatter — max_turns field', () => {
 // F. Cross-file: thinking, extensions, enabled, prompt_mode
 // ---------------------------------------------------------------------------
 
-test('All 6 agents — thinking field is low', () => {
-  assert.equal(planFM.thinking, 'low', 'qrspi-plan thinking must be low');
+test('All 6 agents — thinking field is high', () => {
+  assert.equal(planFM.thinking, 'high', 'qrspi-plan thinking must be high');
   assert.equal(
     planWriterFM.thinking,
-    'low',
-    'qrspi-plan-writer thinking must be low',
+    'high',
+    'qrspi-plan-writer thinking must be high',
   );
   assert.equal(
     taskSpecWriterFM.thinking,
-    'low',
-    'qrspi-task-spec-writer thinking must be low',
+    'high',
+    'qrspi-task-spec-writer thinking must be high',
   );
   assert.equal(
     taskSpecReviewerFM.thinking,
-    'low',
-    'qrspi-task-spec-reviewer thinking must be low',
+    'high',
+    'qrspi-task-spec-reviewer thinking must be high',
   );
   assert.equal(
     planReviewerFM.thinking,
-    'low',
-    'qrspi-plan-reviewer thinking must be low',
+    'high',
+    'qrspi-plan-reviewer thinking must be high',
   );
   assert.equal(
     baselineCheckerFM.thinking,
-    'low',
-    'qrspi-baseline-checker thinking must be low',
+    'high',
+    'qrspi-baseline-checker thinking must be high',
   );
 });
 
@@ -1021,39 +1021,39 @@ test('All 6 agents — no opencode permission system references', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Y. Cross-file: Model tier compliance
+// Y. Cross-file: Model profile compliance
 // ---------------------------------------------------------------------------
 
-test('Sonnet tier for orchestrator/plan-writer/task-spec-writer, Haiku tier for reviewers/baseline-checker', () => {
+test('All Stage 6 planning agents use deepseek-v4-pro', () => {
   assert.equal(
     planFM.model,
-    'anthropic/claude-sonnet-4-5',
-    'qrspi-plan must use sonnet-tier model',
+    'deepseek-v4-pro',
+    'qrspi-plan must use deepseek-v4-pro',
   );
   assert.equal(
     planWriterFM.model,
-    'anthropic/claude-sonnet-4-5',
-    'qrspi-plan-writer must use sonnet-tier model',
+    'deepseek-v4-pro',
+    'qrspi-plan-writer must use deepseek-v4-pro',
   );
   assert.equal(
     taskSpecWriterFM.model,
-    'anthropic/claude-sonnet-4-5',
-    'qrspi-task-spec-writer must use sonnet-tier model',
+    'deepseek-v4-pro',
+    'qrspi-task-spec-writer must use deepseek-v4-pro',
   );
   assert.equal(
     taskSpecReviewerFM.model,
-    'anthropic/claude-haiku-4-5',
-    'qrspi-task-spec-reviewer must use haiku-tier model',
+    'deepseek-v4-pro',
+    'qrspi-task-spec-reviewer must use deepseek-v4-pro',
   );
   assert.equal(
     planReviewerFM.model,
-    'anthropic/claude-haiku-4-5',
-    'qrspi-plan-reviewer must use haiku-tier model',
+    'deepseek-v4-pro',
+    'qrspi-plan-reviewer must use deepseek-v4-pro',
   );
   assert.equal(
     baselineCheckerFM.model,
-    'anthropic/claude-haiku-4-5',
-    'qrspi-baseline-checker must use haiku-tier model',
+    'deepseek-v4-pro',
+    'qrspi-baseline-checker must use deepseek-v4-pro',
   );
 });
 

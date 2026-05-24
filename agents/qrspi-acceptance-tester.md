@@ -1,8 +1,8 @@
 ---
 description: "Maps the current phase's acceptance criteria to a coverage plan, chooses lite reuse-only acceptance or full reviewed authoring, reconciles acceptance-test lifecycle changes, runs active tests, and loops up to 3 rounds. Reports persistent failures and boundary violations but does not classify backward loops."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: medium
+model: deepseek-v4-pro
+thinking: high
 max_turns: 30
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Post-code test agent for the fast impl loop. Discovers, classifies, adopts, repairs, and writes deterministic behavior tests after production code exists. When `WORKTREE ROOT` is present, all discovery, edits, and test execution run there. Returns an evidence-classified test inventory for qrspi-fast-impl-verify."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: medium
+model: deepseek-v4-pro
+thinking: high
 max_turns: 75
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Drafts or revises the current phase's acceptance coverage plan for a single round. Maps phase-scoped criteria to concrete test approaches and lifecycle actions and uses preserved requirements only to refine acceptance-scope coverage."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 10
 prompt_mode: replace
 extensions: false

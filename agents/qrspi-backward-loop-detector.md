@@ -1,8 +1,8 @@
 ---
 description: "Stage 7 backward-loop detector — analyzes the completed phase after acceptance testing, classifies persistent failures, and recommends the earliest loop-back target, a defer-to-replan outcome, or a full reset to goals when structural issues are present."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

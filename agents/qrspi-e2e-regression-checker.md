@@ -1,8 +1,8 @@
 ---
 description: "Diffs the current E2E state against baseline-results.md after each completed Stage 7 wave. Identifies new E2E regressions introduced by the current phase, attributes each to suspected task IDs using the current execution manifest, and returns a regression list. Does not fix anything."
 tools: read, bash, grep, find, ls, qrspi_dispatch
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 15
 prompt_mode: replace
 extensions: false

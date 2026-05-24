@@ -113,7 +113,7 @@ test('qrspi-goals.md frontmatter — tools field', () => {
 });
 
 test('qrspi-goals.md frontmatter — model field', () => {
-  assert.equal(orchFM.model, 'anthropic/claude-sonnet-4-5');
+  assert.equal(orchFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-goals.md frontmatter — max_turns field', () => {
@@ -136,7 +136,7 @@ test('qrspi-goals-synthesizer.md frontmatter — tools includes write and edit',
 });
 
 test('qrspi-goals-synthesizer.md frontmatter — model field', () => {
-  assert.equal(synthFM.model, 'anthropic/claude-sonnet-4-5');
+  assert.equal(synthFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-goals-synthesizer.md frontmatter — max_turns field', () => {
@@ -157,7 +157,7 @@ test('qrspi-goals-reviewer.md frontmatter — tools field (read-only)', () => {
 });
 
 test('qrspi-goals-reviewer.md frontmatter — model field', () => {
-  assert.equal(reviewFM.model, 'anthropic/claude-haiku-4-5');
+  assert.equal(reviewFM.model, 'deepseek-v4-pro');
 });
 
 test('qrspi-goals-reviewer.md frontmatter — max_turns field', () => {
@@ -659,24 +659,24 @@ test('Agents — no opencode permission system references in any agent file', ()
 });
 
 // ---------------------------------------------------------------------------
-// Cross-file: model tier compliance
+// Cross-file: model profile compliance
 // ---------------------------------------------------------------------------
 
-test('Haiku tier for reviewer, sonnet tier for orchestrator/synthesizer', () => {
+test('All Stage 1 agents use deepseek-v4-pro', () => {
   assert.equal(
     reviewFM.model,
-    'anthropic/claude-haiku-4-5',
-    'reviewer must use haiku-tier model',
+    'deepseek-v4-pro',
+    'reviewer must use deepseek-v4-pro',
   );
   assert.equal(
     orchFM.model,
-    'anthropic/claude-sonnet-4-5',
-    'orchestrator must use sonnet-tier model',
+    'deepseek-v4-pro',
+    'orchestrator must use deepseek-v4-pro',
   );
   assert.equal(
     synthFM.model,
-    'anthropic/claude-sonnet-4-5',
-    'synthesizer must use sonnet-tier model',
+    'deepseek-v4-pro',
+    'synthesizer must use deepseek-v4-pro',
   );
 });
 

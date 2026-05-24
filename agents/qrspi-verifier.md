@@ -1,8 +1,8 @@
 ---
 description: "Verifies implementation completeness against acceptance results, preserved requirements, and the recorded baseline. Runs the full configured build, lint, typecheck, E2E, and test suite, distinguishes known baseline failures from new regressions, and reports failures without modifying project source."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-sonnet-4-5
-thinking: medium
+model: deepseek-v4-pro
+thinking: high
 max_turns: 25
 prompt_mode: replace
 extensions: false

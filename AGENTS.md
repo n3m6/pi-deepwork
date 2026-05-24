@@ -74,7 +74,7 @@ When changing state schema or stage ordering, update `pipeline.ts`, the YAML ser
 ## Agents and skill
 
 - Agent definitions in [agents/](agents/) are plain markdown with frontmatter consumed by `pi-subagents`. The current expected count is **55**; tests under [test/agents/](test/agents/) and [test/agents-stage1.test.js](test/agents-stage1.test.js) / [test/agents-stage6.test.js](test/agents-stage6.test.js) assert structural invariants. Update those tests if you add, rename, or remove an agent.
-- Orchestrator agents use a **sonnet-tier** model (`anthropic/claude-sonnet-4-5`); reviewers and most leaf agents use a **haiku-tier** model (`anthropic/claude-haiku-4-5`). Keep this split unless intentionally changing it, and update [test/model-tier-verification.test.ts](test/model-tier-verification.test.ts) accordingly.
+- Agent definitions in [agents/](agents/) currently use a single model profile: `model: deepseek-v4-pro` and `thinking: high`. Keep [test/model-tier-verification.test.ts](test/model-tier-verification.test.ts) aligned if that policy changes.
 - The deepwork skill prompt is [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md); changes are covered by [test/skill.test.js](test/skill.test.js).
 
 ## Operational safety

@@ -1,8 +1,8 @@
 ---
 description: "Production-code implementation step in the fast impl loop. Implements on fresh entry or repairs on code-repair entry via a `general-purpose` child worker. When `WORKTREE ROOT` is present, all edits and validation run there. Never authors tests. PASS means the local build passes the targeted slice only."
 tools: all
-model: anthropic/claude-sonnet-4-5
-thinking: medium
+model: deepseek-v4-pro
+thinking: high
 max_turns: 75
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Stage 9 orchestrator — dispatches verifier to run full build/lint/test suite with baseline comparison. Writes stage9-summary.md."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 25
 prompt_mode: replace
 extensions: false

@@ -1,8 +1,8 @@
 ---
 description: "Records the pre-implementation build, lint, typecheck, E2E, and test baseline for a QRSPI run. Captures known failures without fixing them. Runs standard project checks via bash."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

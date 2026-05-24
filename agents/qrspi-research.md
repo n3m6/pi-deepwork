@@ -1,8 +1,8 @@
 ---
 description: "Stage 2 orchestrator — merges question generation and research into one looped research stage. It generates an initial neutral question batch, dispatches batch research passes, synthesizes cumulative findings, generates incremental follow-up questions for unresolved gaps, and stops only when findings are clean or the loop stalls. Preserves compatibility artifacts such as questions.md and research/summary.md."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 70
 prompt_mode: replace
 extensions: false

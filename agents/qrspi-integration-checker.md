@@ -1,8 +1,8 @@
 ---
 description: "Lightweight Stage 7 integration gate before acceptance; runs cross-task checks directly via bash."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 20
 prompt_mode: replace
 extensions: false

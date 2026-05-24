@@ -1,8 +1,8 @@
 ---
 description: "Per-task code-quality reviewer — checks structure, maintainability, naming, and scope discipline for QRSPI task changes."
 tools: read, bash, grep, find, ls
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 25
 prompt_mode: replace
 extensions: false

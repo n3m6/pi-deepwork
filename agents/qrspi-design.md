@@ -1,8 +1,8 @@
 ---
 description: "Stage 3 orchestrator — conducts interactive or automated design selection, dispatches the design synthesizer, runs automated review rounds, and runs or auto-resolves the approval gate. Writes design.md and review artifacts."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 60
 prompt_mode: replace
 extensions: false

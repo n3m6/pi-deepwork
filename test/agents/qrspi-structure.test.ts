@@ -164,14 +164,14 @@ test("qrspi-structure.md tools includes read, write, edit, bash, grep, find, ls"
   assert.ok(val.includes("edit"), "tools must include edit");
 });
 
-test("qrspi-structure.md model is anthropic/claude-sonnet-4-5", () => {
+test("qrspi-structure.md uses deepseek-v4-pro", () => {
   const val = getField(orchFM, "model");
-  assert.equal(val, "anthropic/claude-sonnet-4-5", "model must be anthropic/claude-sonnet-4-5");
+  assert.equal(val, "deepseek-v4-pro", "model must be deepseek-v4-pro");
 });
 
-test("qrspi-structure.md thinking is low", () => {
+test("qrspi-structure.md thinking is high", () => {
   const val = getField(orchFM, "thinking");
-  assert.equal(val, "low", "thinking must be low");
+  assert.equal(val, "high", "thinking must be high");
 });
 
 test("qrspi-structure.md max_turns is 40", () => {
@@ -238,14 +238,14 @@ test("qrspi-structure-mapper.md tools are read, bash, grep, find, ls (read-only)
   assert.ok(!val.includes("edit"), "mapper must not include edit tool");
 });
 
-test("qrspi-structure-mapper.md model is anthropic/claude-sonnet-4-5", () => {
+test("qrspi-structure-mapper.md uses deepseek-v4-pro", () => {
   const val = getField(mapperFM, "model");
-  assert.equal(val, "anthropic/claude-sonnet-4-5", "model must be anthropic/claude-sonnet-4-5");
+  assert.equal(val, "deepseek-v4-pro", "model must be deepseek-v4-pro");
 });
 
-test("qrspi-structure-mapper.md thinking is low", () => {
+test("qrspi-structure-mapper.md thinking is high", () => {
   const val = getField(mapperFM, "thinking");
-  assert.equal(val, "low", "thinking must be low");
+  assert.equal(val, "high", "thinking must be high");
 });
 
 test("qrspi-structure-mapper.md max_turns is 30", () => {
@@ -312,14 +312,14 @@ test("qrspi-structure-reviewer.md tools are read, bash, grep, find, ls (read-onl
   assert.ok(!val.includes("edit"), "reviewer must not include edit tool");
 });
 
-test("qrspi-structure-reviewer.md model is anthropic/claude-haiku-4-5", () => {
+test("qrspi-structure-reviewer.md uses deepseek-v4-pro", () => {
   const val = getField(reviewFM, "model");
-  assert.equal(val, "anthropic/claude-haiku-4-5", "model must be anthropic/claude-haiku-4-5");
+  assert.equal(val, "deepseek-v4-pro", "model must be deepseek-v4-pro");
 });
 
-test("qrspi-structure-reviewer.md thinking is low", () => {
+test("qrspi-structure-reviewer.md thinking is high", () => {
   const val = getField(reviewFM, "thinking");
-  assert.equal(val, "low", "thinking must be low");
+  assert.equal(val, "high", "thinking must be high");
 });
 
 test("qrspi-structure-reviewer.md max_turns is 20", () => {
@@ -335,13 +335,13 @@ test("qrspi-structure-reviewer.md body is non-empty (system prompt body exists)"
 // Model tier assignment (AC-7)
 // ---------------------------------------------------------------------------
 
-test("orchestrator and mapper use sonnet-tier; reviewer uses haiku-tier", () => {
-  assert.equal(getField(orchFM, "model"), "anthropic/claude-sonnet-4-5",
-    "orchestrator model must be sonnet-tier");
-  assert.equal(getField(mapperFM, "model"), "anthropic/claude-sonnet-4-5",
-    "mapper model must be sonnet-tier");
-  assert.equal(getField(reviewFM, "model"), "anthropic/claude-haiku-4-5",
-    "reviewer model must be haiku-tier");
+test("All structure agents use deepseek-v4-pro", () => {
+  assert.equal(getField(orchFM, "model"), "deepseek-v4-pro",
+    "orchestrator model must be deepseek-v4-pro");
+  assert.equal(getField(mapperFM, "model"), "deepseek-v4-pro",
+    "mapper model must be deepseek-v4-pro");
+  assert.equal(getField(reviewFM, "model"), "deepseek-v4-pro",
+    "reviewer model must be deepseek-v4-pro");
 });
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,8 @@
 ---
 description: "Writes a single detailed task-NN.md spec from the persisted task outline and upstream pipeline artifacts in the pipeline run directory. Produces a self-contained task spec with concrete files, test expectations, dependencies, source traceability, and metadata."
 tools: read, bash, grep, find, ls, write, edit
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 40
 prompt_mode: replace
 extensions: false

@@ -17,13 +17,13 @@ test("stage 9 verify agents have parseable frontmatter with enabled schema", () 
   }
 });
 
-test("stage 9 verify agents use the expected tools and models", () => {
+test("stage 9 verify agents use the expected tools and model profile", () => {
   assert.ok((frontmatter["qrspi-verify.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-verify.md must expose qrspi_dispatch");
-  assert.equal(frontmatter["qrspi-verify.md"].model, "anthropic/claude-sonnet-4-5");
-  assert.equal(frontmatter["qrspi-verify.md"].thinking, "low");
+  assert.equal(frontmatter["qrspi-verify.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-verify.md"].thinking, "high");
 
-  assert.equal(frontmatter["qrspi-verifier.md"].model, "anthropic/claude-sonnet-4-5");
-  assert.equal(frontmatter["qrspi-verifier.md"].thinking, "medium");
+  assert.equal(frontmatter["qrspi-verifier.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-verifier.md"].thinking, "high");
 });
 
 test("qrspi-verify dispatches the verifier and mirrors status into stage9-summary", () => {

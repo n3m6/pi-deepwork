@@ -1,8 +1,8 @@
 ---
 description: "Researches external documentation and web sources for facts relevant to a single research question. Goal-blind: reports facts only, no solution recommendations. Returns structured findings."
 tools: read, bash
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 15
 prompt_mode: replace
 extensions: false

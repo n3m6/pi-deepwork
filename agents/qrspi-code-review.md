@@ -1,8 +1,8 @@
 ---
 description: "Per-task review orchestrator — reads changed files from the current checkout or an optional task worktree, launches specialized reviewers as background subagents, joins their results, collates findings, and returns blocking vs non-blocking review results."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result
-model: anthropic/claude-haiku-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 25
 prompt_mode: replace
 extensions: false

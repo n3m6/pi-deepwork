@@ -1,8 +1,8 @@
 ---
 description: "Stage 4 orchestrator — dispatches the structure mapper, runs automated review rounds, and runs or auto-resolves the approval gate. Writes structure.md and review artifacts."
 tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question
-model: anthropic/claude-sonnet-4-5
-thinking: low
+model: deepseek-v4-pro
+thinking: high
 max_turns: 40
 prompt_mode: replace
 extensions: false

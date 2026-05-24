@@ -19,14 +19,14 @@ test("stage 8 replan agents have parseable frontmatter with enabled schema", () 
   }
 });
 
-test("stage 8 replan agents use the expected tools and models", () => {
+test("stage 8 replan agents use the expected tools and model profile", () => {
   assert.ok((frontmatter["qrspi-replan.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-replan.md must expose qrspi_dispatch");
-  assert.equal(frontmatter["qrspi-replan.md"].model, "anthropic/claude-sonnet-4-5");
-  assert.equal(frontmatter["qrspi-replan.md"].thinking, "low");
+  assert.equal(frontmatter["qrspi-replan.md"].model, "deepseek-v4-pro");
+  assert.equal(frontmatter["qrspi-replan.md"].thinking, "high");
 
   for (const name of ["qrspi-replan-writer.md", "qrspi-replan-reviewer.md"] as const) {
-    assert.equal(frontmatter[name].model, "anthropic/claude-haiku-4-5", `${name} must use haiku tier`);
-    assert.equal(frontmatter[name].thinking, "low", `${name} must use low thinking`);
+    assert.equal(frontmatter[name].model, "deepseek-v4-pro", `${name} must use deepseek-v4-pro`);
+    assert.equal(frontmatter[name].thinking, "high", `${name} must use high thinking`);
   }
 });
 
