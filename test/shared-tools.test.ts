@@ -183,14 +183,14 @@ test("dispatch: foreground success returns PASS with agent ID and result text", 
   setPi({ api: "fake" } as any);
   const refreshCalls: Array<Map<string, unknown>> = [];
   __setSubagentModuleLoaderForTests((moduleId: string) => {
-    if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
+    if (moduleId === "@tintinweb/pi-subagents/src/custom-agents.ts") {
       return {
         loadCustomAgents: (cwd: string) =>
           new Map<string, unknown>([["cwd", cwd]]),
       };
     }
 
-    if (moduleId === "@tintinweb/pi-subagents/dist/agent-types.js") {
+    if (moduleId === "@tintinweb/pi-subagents/src/agent-types.ts") {
       return {
         registerAgents: (agents: Map<string, unknown>) => {
           refreshCalls.push(agents);

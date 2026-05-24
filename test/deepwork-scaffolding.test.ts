@@ -397,8 +397,25 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
 
   try {
     const refreshCalls: string[][] = [];
+    const legacyMirroredAgentPath = path.join(
+      tmpDir,
+      ".pi",
+      "agents",
+      "qrspi-goals.md",
+    );
+    const legacyMirroredAgentContent = fs.readFileSync(
+      path.resolve(__dirname, "..", "..", "agents", "qrspi-goals.md"),
+      "utf-8",
+    );
+    fs.mkdirSync(path.dirname(legacyMirroredAgentPath), { recursive: true });
+    fs.writeFileSync(
+      legacyMirroredAgentPath,
+      legacyMirroredAgentContent,
+      "utf-8",
+    );
+
     __setSubagentModuleLoaderForTests((moduleId: string) => {
-      if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
+      if (moduleId === "@tintinweb/pi-subagents/src/custom-agents.ts") {
         return {
           loadCustomAgents: (cwd: string) =>
             new Map<string, unknown>([
@@ -408,7 +425,7 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
         };
       }
 
-      if (moduleId === "@tintinweb/pi-subagents/dist/agent-types.js") {
+      if (moduleId === "@tintinweb/pi-subagents/src/agent-types.ts") {
         return {
           registerAgents: (agents: Map<string, unknown>) => {
             refreshCalls.push([...agents.keys()].sort());
@@ -440,6 +457,25 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
           fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
           true,
           "deepwork should mirror bundled QRSPI agents before handoff",
+        );
+        const mirroredAgentContent = fs.readFileSync(
+          legacyMirroredAgentPath,
+          "utf-8",
+        );
+        assert.match(
+          mirroredAgentContent,
+          /^name:\s*qrspi-goals$/m,
+          "deepwork should upgrade legacy mirrored QRSPI agents with an explicit name field",
+        );
+        assert.match(
+          mirroredAgentContent,
+          /^systemPromptMode:\s*replace$/m,
+          "deepwork should add the active pi-subagents prompt-mode alias when mirroring QRSPI agents",
+        );
+        assert.doesNotMatch(
+          mirroredAgentContent,
+          /^extensions:\s*false$/m,
+          "deepwork should write a cross-runtime extensions field that active pi-subagents can parse",
         );
         handoffMessage =
           typeof content === "string" ? content : JSON.stringify(content);
