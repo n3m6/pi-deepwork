@@ -64,6 +64,8 @@ test('README keeps git install guidance aligned with the repo locator', () => {
       'The GitHub repository and `package.json` now both use `pi-deepwork`.',
     ),
   );
+  assert.ok(readme.includes('~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/'));
+  assert.ok(readme.includes('creates an npm-compatible compatibility install'));
 });
 
 test('package.json has test:watch script with correct value', () => {

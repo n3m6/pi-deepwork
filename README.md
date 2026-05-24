@@ -61,8 +61,8 @@ The GitHub repository and `package.json` now both use `pi-deepwork`.
 - `pi install git:` should use the repository locator: `git:github.com/n3m6/pi-deepwork@main`
 
 pi currently clones that install into a git-managed directory such as `~/.pi/agent/git/github.com/n3m6/pi-deepwork/`.
-Some pi builds still try to open the skill source from an npm-style path first, for example `~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/skills/deepwork/SKILL.md`, before the extension's `resources_discover` result is applied. When that happens, the first skill expansion can show `ENOENT` even though the installed extension later exposes the skill correctly.
-If deterministic skill loading matters in your environment, prefer the clone-plus-symlink workflow from Method A over `pi install git:` until pi's probe order is fixed upstream.
+Some pi builds still try to open the skill source from an npm-style path first, for example `~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/skills/deepwork/SKILL.md`, before the extension's `resources_discover` result is applied. To cover that probe order, pi-deepwork now creates an npm-compatible compatibility install for its `skills/` payload when it is running from the git-managed pi install root. That lets the first Deepwork skill expansion succeed even when pi probes the npm-style scoped path before consulting `resources_discover`.
+If that compatibility install cannot be created because of filesystem permissions or a broken pi install, fall back to the clone-plus-symlink workflow from Method A until the environment is repaired.
 
 ## Agent Type Discovery
 
@@ -211,9 +211,16 @@ If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent ty
 
 ### The first `deepwork` skill expansion shows `ENOENT`
 
-If you installed with `pi install git:github.com/n3m6/pi-deepwork@main`, pi may still try an npm-style source path on the first skill-file read. The extension's runtime `resources_discover` handler points at the real git-managed `skills/` directory, so this is a path-resolution mismatch rather than a missing `skills/deepwork/SKILL.md` file.
+If you installed with `pi install git:github.com/n3m6/pi-deepwork@main`, pi may still try an npm-style source path on the first skill-file read. pi-deepwork now creates a compatibility path under `~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/` when it is activated from the git-managed install root, so the first `SKILL.md` read should succeed without extra operator setup.
 
-If you need a stable on-disk extension path today, prefer the clone-plus-symlink flow from Method A.
+If you still see `ENOENT`, verify both the real git install and the compatibility path exist:
+
+```bash
+ls -la ~/.pi/agent/git/github.com/n3m6/pi-deepwork/skills/deepwork/SKILL.md
+ls -la ~/.pi/agent/npm/node_modules/@n3m6/pi-deepwork/skills/deepwork/SKILL.md
+```
+
+If the git-managed skill exists but the npm-compatible path does not, the extension likely could not create the compatibility install because of a filesystem or install-layout problem. Fix that environment issue or use the clone-plus-symlink flow from Method A.
 
 If you see that initial `ENOENT` and the session then behaves like a generic coding assistant instead of Deepwork orchestration, treat that as a failed handoff rather than a completed pipeline start. The run scaffold may still exist under `.pipeline/<run-id>/`; after fixing the install or tool-discovery issue, resume it with `/deepwork-resume run-id:"<run-id>"`.
 

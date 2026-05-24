@@ -36,6 +36,7 @@ import {
   ensureBundledProjectAgents,
   getProjectAgentsDir,
 } from "./subagent-catalog";
+import { ensureRuntimeSkillCompatInstall } from "./skill-compat";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -758,6 +759,13 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
 }
 
 export default function activate(pi: ExtensionAPI): void {
+  const skillCompat = ensureRuntimeSkillCompatInstall(__dirname);
+  if (skillCompat.error) {
+    console.warn(
+      `[pi-deepwork] Unable to prepare npm-compatible Deepwork skill path${skillCompat.targetRoot ? ` at ${skillCompat.targetRoot}` : ""}: ${skillCompat.error}`,
+    );
+  }
+
   setPi(pi);
 
   pi.registerCommand("deepwork", {
