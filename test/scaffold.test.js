@@ -54,6 +54,11 @@ test('README documents flat pi-subagents agent discovery paths', () => {
   );
   assert.ok(readme.includes('## Manual pi Smoke-Test Checklist'));
   assert.ok(readme.includes('qrspi_get_subagent_result'));
+  assert.ok(
+    readme.includes(
+      "refresh pi-subagents' custom-agent registry before the live or resume handoff",
+    ),
+  );
 });
 
 test('README keeps git install guidance aligned with the repo locator', () => {

@@ -7,6 +7,7 @@ import { mock } from "node:test";
 
 import activate from "../src/index";
 import { getDryRunArtifactPaths } from "../src/pipeline";
+import { __setSubagentModuleLoaderForTests } from "../src/subagent-catalog";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -395,6 +396,29 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
   process.chdir(tmpDir);
 
   try {
+    const refreshCalls: string[][] = [];
+    __setSubagentModuleLoaderForTests((moduleId: string) => {
+      if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
+        return {
+          loadCustomAgents: (cwd: string) =>
+            new Map<string, unknown>([
+              ["qrspi-goals", { cwd }],
+              ["qrspi-research", { cwd }],
+            ]),
+        };
+      }
+
+      if (moduleId === "@tintinweb/pi-subagents/dist/agent-types.js") {
+        return {
+          registerAgents: (agents: Map<string, unknown>) => {
+            refreshCalls.push([...agents.keys()].sort());
+          },
+        };
+      }
+
+      throw new Error(`unexpected module: ${moduleId}`);
+    });
+
     mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
       if (Array.isArray(args) && args[0] === "--version")
         return { status: 0, stdout: "", stderr: "" };
@@ -403,7 +427,24 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
       return { status: 1, stdout: "", stderr: "" };
     });
 
-    const { pi, commands, sentUserMessages } = createMockPi();
+    let handoffMessage = "";
+    const { pi, commands } = createMockPi({
+      sendUserMessageImpl: async (content) => {
+        assert.equal(
+          refreshCalls.length,
+          1,
+          "deepwork should refresh the custom-agent registry before handoff",
+        );
+        assert.deepEqual(refreshCalls[0], ["qrspi-goals", "qrspi-research"]);
+        assert.equal(
+          fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
+          true,
+          "deepwork should mirror bundled QRSPI agents before handoff",
+        );
+        handoffMessage =
+          typeof content === "string" ? content : JSON.stringify(content);
+      },
+    });
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeMockCtx(tmpDir, confirmCalls, true);
 
@@ -416,26 +457,20 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
       await deepworkCmd.definition.handler({ task: "Handoff task" }, ctx);
     });
 
-    assert.equal(
-      sentUserMessages.length,
-      1,
-      "deepwork must hand off exactly one kickoff prompt",
-    );
+    assert.notEqual(handoffMessage, "", "deepwork must hand off one prompt");
     assert.match(
-      sentUserMessages[0] ?? "",
+      handoffMessage,
       /Continue the existing Deepwork pipeline run/i,
     );
     assert.match(
-      sentUserMessages[0] ?? "",
+      handoffMessage,
       /Do not write or edit project source files directly/,
     );
-    assert.match(sentUserMessages[0] ?? "", /Deepwork configuration error/);
-    assert.match(
-      sentUserMessages[0] ?? "",
-      /=== RUN ID ===\nqrspi-\d{8}-\d{6}/,
-    );
-    assert.match(sentUserMessages[0] ?? "", /=== USER TASK ===\nHandoff task/);
+    assert.match(handoffMessage, /Deepwork configuration error/);
+    assert.match(handoffMessage, /=== RUN ID ===\nqrspi-\d{8}-\d{6}/);
+    assert.match(handoffMessage, /=== USER TASK ===\nHandoff task/);
   } finally {
+    __setSubagentModuleLoaderForTests();
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
@@ -784,7 +819,47 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
   process.chdir(tmpDir);
 
   try {
-    const { pi, commands, sentUserMessages } = createMockPi();
+    const refreshCalls: string[][] = [];
+    __setSubagentModuleLoaderForTests((moduleId: string) => {
+      if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
+        return {
+          loadCustomAgents: (cwd: string) =>
+            new Map<string, unknown>([
+              ["qrspi-goals", { cwd }],
+              ["qrspi-research", { cwd }],
+            ]),
+        };
+      }
+
+      if (moduleId === "@tintinweb/pi-subagents/dist/agent-types.js") {
+        return {
+          registerAgents: (agents: Map<string, unknown>) => {
+            refreshCalls.push([...agents.keys()].sort());
+          },
+        };
+      }
+
+      throw new Error(`unexpected module: ${moduleId}`);
+    });
+
+    let handoffMessage = "";
+    const { pi, commands } = createMockPi({
+      sendUserMessageImpl: async (content) => {
+        assert.equal(
+          refreshCalls.length,
+          1,
+          "resume should refresh the custom-agent registry before handoff",
+        );
+        assert.deepEqual(refreshCalls[0], ["qrspi-goals", "qrspi-research"]);
+        assert.equal(
+          fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
+          true,
+          "resume should preserve or mirror bundled QRSPI agents before handoff",
+        );
+        handoffMessage =
+          typeof content === "string" ? content : JSON.stringify(content);
+      },
+    });
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeMockCtx(tmpDir, confirmCalls, true);
 
@@ -809,26 +884,17 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
       await resumeCmd.definition.handler({ "run-id": runId }, ctx);
     });
 
-    assert.equal(
-      sentUserMessages.length,
-      1,
-      "resume must hand off exactly one prompt",
-    );
+    assert.notEqual(handoffMessage, "", "resume must hand off one prompt");
+    assert.match(handoffMessage, /Resume the existing Deepwork pipeline run/i);
     assert.match(
-      sentUserMessages[0] ?? "",
-      /Resume the existing Deepwork pipeline run/i,
-    );
-    assert.match(
-      sentUserMessages[0] ?? "",
+      handoffMessage,
       /Do not write or edit project source files directly/,
     );
-    assert.match(sentUserMessages[0] ?? "", /Deepwork configuration error/);
-    assert.match(
-      sentUserMessages[0] ?? "",
-      new RegExp(`=== RUN ID ===\\n${runId}`),
-    );
-    assert.match(sentUserMessages[0] ?? "", /=== NEXT STAGE ===\n6/);
+    assert.match(handoffMessage, /Deepwork configuration error/);
+    assert.match(handoffMessage, new RegExp(`=== RUN ID ===\\n${runId}`));
+    assert.match(handoffMessage, /=== NEXT STAGE ===\n6/);
   } finally {
+    __setSubagentModuleLoaderForTests();
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

@@ -114,8 +114,9 @@ Current live-mode behavior:
 - scaffold `.pipeline/<run-id>/` under the active workspace root from `ctx.cwd`
 - write initial `state.md` and telemetry files
 - inject the `deepwork` skill through `resources_discover`
+- refresh pi-subagents' custom-agent registry before the live or resume handoff so the first Deepwork turn can already see the mirrored `qrspi-*` agent types
 - send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
-- refresh pi-subagents' custom-agent registry when `qrspi_dispatch` launches a stage agent, so the mirrored `qrspi-*` definitions are visible immediately in the same session
+- refresh pi-subagents' custom-agent registry again when `qrspi_dispatch` launches a stage agent, so the mirrored `qrspi-*` definitions stay visible for the dispatch path even if the runtime cached an older registry
 - instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, and must stop with a configuration error if the Deepwork skill or `qrspi_dispatch` / `qrspi_question` tools are unavailable
 - if `pi.sendUserMessage()` fails, keep the scaffolded run on disk and report that no Deepwork orchestrator is active yet; recovery is to fix the runtime configuration and rerun `/deepwork-resume run-id:"<run-id>"`
 
@@ -208,6 +209,8 @@ Check agent discovery first:
 - verify that the directory contains the expected `.md` agent definitions
 
 If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent type and pi-subagents falls back to `general-purpose`, the stage-agent markdown files were not discovered or the subagent registry did not refresh after they were mirrored into `.pi/agents/`. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
+
+On a healthy live or resume handoff, the first Deepwork turn should already be able to see the mirrored `qrspi-*` types. If `subagent list` still shows only builtin agents immediately after `/deepwork` or `/deepwork-resume`, confirm the current repository now has `.pi/agents/*.md` and rerun after refreshing the installed extension copy.
 
 ### The first `deepwork` skill expansion shows `ENOENT`
 

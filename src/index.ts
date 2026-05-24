@@ -35,6 +35,7 @@ import {
 import {
   ensureBundledProjectAgents,
   getProjectAgentsDir,
+  refreshSubagentRegistry,
 } from "./subagent-catalog";
 import { ensureRuntimeSkillCompatInstall } from "./skill-compat";
 import type {
@@ -514,6 +515,14 @@ function ensureWorkspaceQrsiAgents(
 ): { ok: true } | { ok: false; error: string } {
   try {
     ensureBundledProjectAgents(workspaceRoot);
+
+    const refreshResult = refreshSubagentRegistry(workspaceRoot);
+    if (!refreshResult.refreshed && refreshResult.error) {
+      console.warn(
+        `[pi-deepwork] Unable to refresh pi-subagents agent registry before Deepwork handoff: ${refreshResult.error}`,
+      );
+    }
+
     return { ok: true };
   } catch (error: unknown) {
     return {
