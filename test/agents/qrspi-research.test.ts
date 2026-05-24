@@ -227,6 +227,20 @@ test("qrspi-research-reviewer.md tools matches spec: read, bash, grep, find, ls"
   );
 });
 
+test("qrspi-research-pass.md tools include background result joins for multi-researcher batches", () => {
+  assert.equal(
+    getField(researchPassFM, "tools"),
+    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result"
+  );
+});
+
+test("qrspi-questions.md tools include background result joins for reviewer batches", () => {
+  assert.equal(
+    getField(questionsFM, "tools"),
+    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result"
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Frontmatter — turn limits
 // ---------------------------------------------------------------------------
@@ -385,9 +399,19 @@ test("qrspi-research-pass.md body — contains subagent_type: 'qrspi-web-researc
   assert.ok(researchPassBody.includes('subagent_type: "qrspi-web-researcher"'));
 });
 
+test("qrspi-research-pass.md body — uses background join contract for hybrid research", () => {
+  assert.ok(researchPassBody.includes("run_in_background: true"));
+  assert.ok(researchPassBody.includes("qrspi_get_subagent_result"));
+});
+
 test("qrspi-questions.md body — supports initial and follow-up modes", () => {
   assert.ok(questionsBody.includes("MODE ===") && questionsBody.includes("initial") && questionsBody.includes("follow-up"));
   assert.ok(questionsBody.includes("QUESTION BATCH FILE"), "questions child must accept a round-local batch path");
+});
+
+test("qrspi-questions.md body — uses background join contract for reviewer batches", () => {
+  assert.ok(questionsBody.includes("run_in_background: true"));
+  assert.ok(questionsBody.includes("qrspi_get_subagent_result"));
 });
 
 // ---------------------------------------------------------------------------

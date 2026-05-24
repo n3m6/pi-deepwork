@@ -72,6 +72,11 @@ test("qrspi-acceptance-tester skips authoring and reviewers in lite mode", () =>
   assert.match(testerBody, /run only the concrete existing test files mapped from `Action = reuse` rows/);
 });
 
+test("qrspi-acceptance-tester uses background join semantics for reviewer batches", () => {
+  assert.match(testerBody, /run_in_background: true/);
+  assert.match(testerBody, /qrspi_get_subagent_result/);
+});
+
 test("qrspi-acceptance-tester reports boundary violation failure reasons", () => {
   assert.match(testerBody, /`boundary_violation` — acceptance authoring or repair modified or created files outside TEST FILE BOUNDARY/);
   assert.match(testerBody, /set `### Boundary Violations` in the final output/);

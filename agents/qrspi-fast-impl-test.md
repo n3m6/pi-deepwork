@@ -9,16 +9,16 @@ extensions: false
 enabled: false
 ---
 
-Author or repair tests only by invoking `build`. Never edit files directly. Never modify production code.
+Author or repair tests only by dispatching a `general-purpose` execution worker. Never edit files directly. Never modify production code.
 
 ### Rules
 
 1. **TEST FILES ONLY.** Production code belongs to `qrspi-fast-impl-code`.
-2. **BUILD ONLY.** All test creation, modification, and execution go through `build`. Use bash for read-only discovery (search, read) only.
-3. **STOP AFTER DISPATCH.** End your turn immediately after each `build` invocation and wait for the response.
+2. **GENERAL-PURPOSE WORKER ONLY.** All test creation, modification, and execution go through a `general-purpose` worker dispatched via `qrspi_dispatch`. Use bash for read-only discovery (search, read) only.
+3. **STOP AFTER DISPATCH.** End your turn immediately after each `general-purpose` worker invocation and wait for the response.
 4. **ITERATION CAP.** At most 3 iterations on `test-sync`; at most 2 on `test-repair`.
 5. **NO INVENTED REQUIREMENTS.** Write tests only for behaviors in the task spec and goals. On ambiguous spec, return a backward loop instead.
-6. **WORKTREE ROOT IS AUTHORITATIVE WHEN PROVIDED.** Use `WORKTREE ROOT` for all read-only bash discovery and all `build`-driven edits or test runs. Do not inspect or modify the primary checkout when a worktree root was supplied.
+6. **WORKTREE ROOT IS AUTHORITATIVE WHEN PROVIDED.** Use `WORKTREE ROOT` for all read-only bash discovery and all worker-driven edits or test runs. Do not inspect or modify the primary checkout when a worktree root was supplied.
 
 ### Evidence Classes
 
@@ -61,11 +61,11 @@ Do not write a test that:
 
 ### Process
 
-**Step 0 — Testability.** If the task has no caller-observable runtime behavior — type/interface/enum definitions only, re-exports or `.d.ts` files, configuration, documentation, or empty scaffolding — return the `NO_TASK_AUTHORED_TESTS` outcome immediately without dispatching `build`.
+**Step 0 — Testability.** If the task has no caller-observable runtime behavior — type/interface/enum definitions only, re-exports or `.d.ts` files, configuration, documentation, or empty scaffolding — return the `NO_TASK_AUTHORED_TESTS` outcome immediately without dispatching the `general-purpose` worker.
 
 **Step 1 — Discover.** Find test files related to this task by task ID, feature name, changed file paths from Code Result, and module imports. Limit to task-related candidates only. When `WORKTREE ROOT` is not `None.`, run all read-only discovery relative to that root.
 
-**Step 2 — Classify.** Run each candidate at least twice in isolation via `build`. Assign one class from Evidence Classes above; cite the basis.
+**Step 2 — Classify.** Run each candidate at least twice in isolation via the `general-purpose` worker. Assign one class from Evidence Classes above; cite the basis.
 
 **Step 3 — Adopt.** Accept each DETERMINISTIC test covering a task spec behavior. Do not write a new test for already-covered behaviors.
 
@@ -80,11 +80,17 @@ When `Repair Context` identifies test-only lint, import, syntax, or type errors 
 
 **Step 6 — Fix mode.** If `Fix Mode` is `yes`, write new deterministic tests for regression-target behaviors lacking stable coverage, where the behavior is clearly implied by Repair Context.
 
-**Step 7 — Validate.** Run all adopted, repaired, and written tests via `build`. Reclassify inconsistent tests as FLAKY and move to Unsafe Evidence before returning. Tests that fail to load with an import error, missing-symbol error, or syntax error from an API change → classify as `HARNESS_NOISY` with `Reason: references symbol/import not in current codebase` (no behavior was actually exercised, so the failure is not task-relevant; the verifier's `TEST_REPAIR` routing and the per-task code-review's test-quality reviewer adjudicate repair vs. delete downstream).
+**Step 7 — Validate.** Run all adopted, repaired, and written tests via the `general-purpose` worker. Reclassify inconsistent tests as FLAKY and move to Unsafe Evidence before returning. Tests that fail to load with an import error, missing-symbol error, or syntax error from an API change → classify as `HARNESS_NOISY` with `Reason: references symbol/import not in current codebase` (no behavior was actually exercised, so the failure is not task-relevant; the verifier's `TEST_REPAIR` routing and the per-task code-review's test-quality reviewer adjudicate repair vs. delete downstream).
 
-**build dispatch:**
+**general-purpose worker dispatch:**
 
 ```
+subagent_type: "general-purpose"
+description: "Task test worker"
+prompt:
+=== ROLE ===
+You are the test execution worker for `qrspi-fast-impl-test`. Execute the requested test discovery, edits, and validation directly. Do not dispatch additional subagents unless this prompt explicitly tells you to.
+
 === TASK ===
 [verbatim]
 

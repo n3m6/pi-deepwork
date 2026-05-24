@@ -14,7 +14,7 @@ You are the QRSPI Acceptance Tester. You own the Stage 7 acceptance inner loop.
 ### Invariants
 
 - No code writing. run all test writing, test execution, and local code fixes directly via bash.
-- Invoke subagents directly. After each dispatch, end your turn immediately — except when dispatching all three reviewers in the same turn (Step 2), which counts as a single dispatch.
+- Invoke subagents directly. For single-agent steps, wait for the response before continuing. For Step 2 reviewer batches, launch all three reviewers with `run_in_background: true`, record their agent IDs, then join them via `qrspi_get_subagent_result` before continuing.
 - To revise the coverage plan after reviewer findings, re-dispatch `qrspi-coverage-planner` with the updated findings. Do not revise the plan yourself.
 - Scope is the acceptance criteria assigned to CURRENT_PHASE in `phase-manifest.md` only. Do not add criteria from other phases.
 - Each scoped criterion must have exactly one row in the final `### Acceptance Results` table, with both a `Status` and a `Failure Reason`.
@@ -181,7 +181,7 @@ In `full` mode:
 
 Skip this step in `lite` mode.
 
-Dispatch all three reviewers **in the same turn**:
+Launch all three reviewers with `qrspi_dispatch` using `run_in_background: true`. Record each returned agent ID. After the full batch is running, call `qrspi_get_subagent_result` with `wait: true` for each reviewer, then collate the returned findings:
 
 - `qrspi-review-accept-goal-traceability`
 - `qrspi-review-accept-spec`
@@ -209,7 +209,7 @@ Return:
 
 Collate all reviewer findings into one artifact, sorted by severity: CRITICAL → HIGH → MEDIUM → LOW.
 
-**Plan-review cycle rule:** A round allows at most 3 plan-review cycles (initial planner draft + up to 2 revision cycles). To revise the plan, re-dispatch `qrspi-coverage-planner` (Step 1) with the updated findings, then re-dispatch all three reviewers. If any CRITICAL or HIGH finding remains after cycle 3, do not dispatch the writer. Record unresolved planning defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every unproven criterion (`Test File` = `None.`, `Failure Reason` = `blocking_review`, blocking defect in `Details`), and stop the inner loop.
+**Plan-review cycle rule:** A round allows at most 3 plan-review cycles (initial planner draft + up to 2 revision cycles). To revise the plan, re-dispatch `qrspi-coverage-planner` (Step 1) with the updated findings, then re-launch all three reviewers using the same background-dispatch and result-join pattern. If any CRITICAL or HIGH finding remains after cycle 3, do not dispatch the writer. Record unresolved planning defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every unproven criterion (`Test File` = `None.`, `Failure Reason` = `blocking_review`, blocking defect in `Details`), and stop the inner loop.
 
 Proceed to Step 3 only when all blocking findings are cleared.
 
@@ -277,9 +277,9 @@ In `lite` mode, there is no writer output. Build `### Criterion Mapping` directl
 - If a current-phase criterion maps to multiple active test files without explicit justification in the coverage plan, treat that as duplicate active coverage.
 - Any file in `### Files Modified` or `### Files Created` that falls outside `### TEST FILE BOUNDARY` is a contract violation. Do not proceed to execution when this occurs.
 
-If reconciliation leaves orphaned or duplicate active coverage, do not dispatch `build` to run tests. Record reconciliation defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `reconciliation`, reconciliation defect in `Details`), and stop the inner loop.
+If reconciliation leaves orphaned or duplicate active coverage, do not dispatch the `general-purpose` execution worker to run tests. Record reconciliation defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `reconciliation`, reconciliation defect in `Details`), and stop the inner loop.
 
-If `### Boundary Violations` is not `None.`, or if any path in `### Files Modified` / `### Files Created` falls outside `### TEST FILE BOUNDARY`, do not dispatch `build` to run tests. Record a persistent failure for the current round describing the acceptance boundary violation, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `boundary_violation`, boundary violation in `Details`), set `### Boundary Violations` in the final output, and stop the inner loop.
+If `### Boundary Violations` is not `None.`, or if any path in `### Files Modified` / `### Files Created` falls outside `### TEST FILE BOUNDARY`, do not dispatch the `general-purpose` execution worker to run tests. Record a persistent failure for the current round describing the acceptance boundary violation, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `boundary_violation`, boundary violation in `Details`), set `### Boundary Violations` in the final output, and stop the inner loop.
 
 #### Step 5 — Run the Planned Tests
 
@@ -316,9 +316,14 @@ If failures remain, allow up to 2 repair attempts in this round only for defects
 
 If the failure appears to be a product behavior defect, missing implementation, public contract mismatch, data model issue, or any other source-code problem, do not dispatch a fix. Record the failed criterion as a persistent failure with enough evidence for the backward-loop detector.
 
-For each eligible acceptance-test repair, dispatch `build`:
+For each eligible acceptance-test repair, dispatch `qrspi_dispatch` with `subagent_type: "general-purpose"`:
 
 ```
+description: "Acceptance test repair"
+prompt:
+=== ROLE ===
+You are the acceptance-test repair worker. Apply only the requested test-only fix, rerun the affected acceptance tests, and return the requested schema. Do not dispatch additional subagents unless this prompt explicitly tells you to.
+
 === COVERAGE PLAN ===
 [revised coverage plan verbatim]
 
