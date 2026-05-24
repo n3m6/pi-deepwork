@@ -1,6 +1,6 @@
 # pi-deepwork (NOT READY FOR PRODUCTION USE)
 
-pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Questions -> Research -> Design -> Structure -> Plan -> Implement -> Accept-Test -> Replan -> Verify -> Report). Today it supports two entry modes from a single `/deepwork` prompt: live run scaffolding, which initializes pipeline state for a real run, and `dry-run`, which simulates the route locally and writes placeholder pipeline artifacts without invoking subagents or editing project source files.
+pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Research + Questions -> Design -> Structure -> Plan -> Implement -> Accept-Test -> Replan -> Verify -> Report). Today it supports two entry modes from a single `/deepwork` prompt: live run scaffolding, which initializes pipeline state for a real run, and `dry-run`, which simulates the route locally and writes placeholder pipeline artifacts without invoking subagents or editing project source files.
 
 ## Prerequisites
 
@@ -89,6 +89,17 @@ Use `/deepwork` with a task description:
 /deepwork task:"Add resumable pipeline orchestration to the extension"
 ```
 
+Optional run policy arguments:
+
+- `interaction-mode:"interactive"` (default) allows human gates.
+- `interaction-mode:"automated"` suppresses human prompts where the Deepwork policy has a deterministic choice.
+- `failure-policy:"fail-closed"` (default) stops on ambiguous automated decisions.
+- `failure-policy:"best-effort"` continues when a safe automated fallback is defined.
+
+```text
+/deepwork task:"Add resumable pipeline orchestration to the extension" interaction-mode:"automated" failure-policy:"best-effort"
+```
+
 Current live-mode behavior:
 
 - create a new run ID in `qrspi-YYYYMMDD-HHMMSS` format
@@ -99,7 +110,7 @@ Current live-mode behavior:
 
 ### Run a dry-run simulation
 
-Use the same command with `dry-run:"true"` and an optional `route`:
+Use the same command with `dry-run:"true"`, an optional `route`, and the same optional policy arguments:
 
 ```text
 /deepwork task:"Add resumable pipeline orchestration to the extension" dry-run:"true" route:"full"
@@ -109,11 +120,15 @@ Use the same command with `dry-run:"true"` and an optional `route`:
 /deepwork task:"Fix a small regression in the resume flow" dry-run:"true" route:"quick-fix"
 ```
 
+```text
+/deepwork task:"Audit the route model" dry-run:"true" route:"full" interaction-mode:"automated" failure-policy:"fail-closed"
+```
+
 Dry-run mode will:
 
 - create a new run ID in `qrspi-YYYYMMDD-HHMMSS` format
 - write a simulated `.pipeline/<run-id>/` artifact tree for the chosen route
-- mark `state.md` with `mode: "dry-run"` and advance it to `next_stage: "done"`
+- mark `state.md` with `mode: "dry-run"`, the selected interaction/failure policy, and advance it to `next_stage: "done"`
 - generate synthetic telemetry files such as `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`
 - skip git branch creation and checkpoint commits
 - skip all `qrspi_dispatch` and `qrspi_question` activity
@@ -135,7 +150,7 @@ Each run writes state and stage artifacts under `.pipeline/<run-id>/`, including
 - `telemetry/events.jsonl` — pipeline event stream
 - `telemetry/run-log.md` — readable run timeline
 - `telemetry/metrics-summary.md` — summarized metrics and counts
-- stage artifacts such as `goals.md`, `questions.md`, `research/summary.md`, `design.md`, `structure.md`, `plan.md`, phase task specs, acceptance results, verification summaries, and the final report
+- stage artifacts such as `goals.md`, merged research/question artifacts (`questions.md`, `research/question-ledger.md`, `research/open-questions.md`, `research/summary.md`), `design.md`, `structure.md`, `plan.md`, phase task specs, acceptance results, verification summaries, and the final report
 
 `.pipeline/` is intentionally ignored by git because it contains per-run ephemeral artifacts.
 

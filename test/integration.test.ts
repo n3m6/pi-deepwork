@@ -100,7 +100,7 @@ resume_source: "resume"
 `;
 }
 
-test("full route simulation walks all 11 stages and produces a canonical artifact tree", async () => {
+test("full route simulation walks all 10 executable stages and produces a canonical artifact tree", async () => {
   const tmpDir = await makeTempDir();
   const runId = generateRunId();
   const pipelineDir = path.join(tmpDir, getPipelineDir(runId));

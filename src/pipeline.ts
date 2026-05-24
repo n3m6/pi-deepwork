@@ -2,6 +2,8 @@ export type RunId = string;
 export type PipelineRoute = "" | "full" | "quick-fix";
 export type ExecutableRoute = Exclude<PipelineRoute, "">;
 export type PipelineMode = "live" | "dry-run";
+export type InteractionMode = "interactive" | "automated";
+export type FailurePolicy = "fail-closed" | "best-effort";
 
 export interface PipelinePaths {
   pipelineDir: string;
@@ -30,6 +32,8 @@ export interface PipelineState {
   backward_loops: number;
   resume_source: "fresh" | "resume" | "artifacts";
   mode: PipelineMode;
+  interaction_mode: InteractionMode;
+  failure_policy: FailurePolicy;
 }
 
 export interface TelemetryEvent {
@@ -65,7 +69,6 @@ export interface TelemetryEvent {
 
 export const STAGE_NAMES: ReadonlyArray<string> = [
   "goals",
-  "questions",
   "research",
   "design",
   "structure",
@@ -79,7 +82,6 @@ export const STAGE_NAMES: ReadonlyArray<string> = [
 
 export const QUICK_FIX_STAGE_NAMES: ReadonlyArray<string> = [
   "goals",
-  "questions",
   "research",
   "plan",
   "implement",
@@ -90,14 +92,26 @@ export const QUICK_FIX_STAGE_NAMES: ReadonlyArray<string> = [
 
 const DRY_RUN_STAGE_ARTIFACTS: Readonly<Record<string, ReadonlyArray<string>>> = {
   goals: ["config.md", "requirements.md", "goals.md", "goal-inventory.md"],
-  questions: ["questions.md"],
-  research: ["research/summary.md"],
+  research: [
+    "goal-inventory.md",
+    "questions.md",
+    "question-leakage-review.md",
+    "question-quality-review.md",
+    "research/iterations/round-01/questions.md",
+    "research/iterations/round-01/q-01.md",
+    "research/iterations/round-01/summary.md",
+    "research/question-ledger.md",
+    "research/open-questions.md",
+    "research/summary.md",
+    "reviews/research/round-01/research-pass-review-round-01.md",
+    "reviews/research-review-round-01.md",
+  ],
   design: ["design.md"],
   structure: ["structure.md"],
   plan: ["plan.md", "phase-manifest.md", "baseline-results.md"],
   implement: ["phases/phase-01/execution-manifest.md", "phases/phase-01/stage7-summary.md"],
   accept: ["phases/phase-01/acceptance-results.md", "phases/phase-01/stage8-summary.md"],
-  replan: ["phases/phase-01/replan-summary.md"],
+  replan: ["phases/phase-01/replan/phase-01-replan.md"],
   verify: ["stage9-summary.md"],
   report: ["stage10-summary.md", "telemetry/run-log.md", "telemetry/metrics-summary.md"],
 };
@@ -190,6 +204,8 @@ export function makeInitialState(
     backward_loops: 0,
     resume_source: "fresh",
     mode: "live",
+    interaction_mode: "interactive",
+    failure_policy: "fail-closed",
     ...overrides,
   };
 }

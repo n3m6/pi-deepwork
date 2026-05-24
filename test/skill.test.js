@@ -93,14 +93,13 @@ const requiredSections = [
   { name: 'Route Handling', marker: '### Route Handling' },
   { name: 'Pre-Flight', marker: '### Pre-Flight' },
   { name: 'Stage 1 — Goals', marker: '### Stage 1 — Goals' },
-  { name: 'Stage 2 — Questions', marker: '### Stage 2 — Questions' },
-  { name: 'Stage 3 — Research', marker: '### Stage 3 — Research' },
-  { name: 'Stage 4 — Design', marker: '### Stage 4 — Design' },
-  { name: 'Stage 5 — Structure', marker: '### Stage 5 — Structure' },
-  { name: 'Stage 6 — Plan', marker: '### Stage 6 — Plan' },
-  { name: 'Stage 7 — Implement', marker: '### Stage 7 — Implement' },
-  { name: 'Stage 8 — Acceptance Test', marker: '### Stage 8 — Acceptance Test' },
-  { name: 'Stage 8.5 — Replan', marker: '### Stage 8.5 — Replan' },
+  { name: 'Stage 2 — Research', marker: '### Stage 2 — Research' },
+  { name: 'Stage 3 — Design', marker: '### Stage 3 — Design' },
+  { name: 'Stage 4 — Structure', marker: '### Stage 4 — Structure' },
+  { name: 'Stage 5 — Plan', marker: '### Stage 5 — Plan' },
+  { name: 'Stage 6 — Implement', marker: '### Stage 6 — Implement' },
+  { name: 'Stage 7 — Acceptance Test', marker: '### Stage 7 — Acceptance Test' },
+  { name: 'Stage 8 — Replan', marker: '### Stage 8 — Replan' },
   { name: 'Stage 9 — Verify', marker: '### Stage 9 — Verify' },
   { name: 'Stage 10 — Report', marker: '### Stage 10 — Report' },
   { name: 'Backward Loop Protocol', marker: '### Backward Loop Protocol' },
@@ -150,26 +149,26 @@ test('SKILL.md contains quick-fix route with skip logic', () => {
     'Should contain skip instructions for quick-fix route');
 });
 
-test('Quick-fix skips Stages 4 and 5', () => {
-  // Check Stage 3 transitions to Stage 6 on quick-fix
-  assert.ok(skillContent.includes('proceed to **Stage 6**') && skillContent.includes('quick-fix'),
-    'Stage 3 should route to Stage 6 on quick-fix');
+test('Quick-fix skips Stages 3 and 4', () => {
+  // Check Stage 2 transitions to Stage 5 on quick-fix
+  assert.ok(skillContent.includes('proceed to **Stage 5**') && skillContent.includes('quick-fix'),
+    'Stage 2 should route to Stage 5 on quick-fix');
 });
 
-test('Quick-fix skips Stage 8.5', () => {
-  const idx85 = skillContent.indexOf('### Stage 8.5 — Replan');
+test('Quick-fix skips Stage 8', () => {
+  const idx85 = skillContent.indexOf('### Stage 8 — Replan');
   const idx9 = skillContent.indexOf('### Stage 9 — Verify');
-  assert.ok(idx85 !== -1 && idx9 !== -1, 'Stage 8.5 and Stage 9 section markers must exist');
+  assert.ok(idx85 !== -1 && idx9 !== -1, 'Stage 8 and Stage 9 section markers must exist');
   const stage85Section = skillContent.substring(idx85, idx9);
   // Check that skip logic mentions quick-fix (case-insensitive for "Skip")
   assert.ok(stage85Section.toLowerCase().includes('quick-fix') && 
     stage85Section.toLowerCase().includes('skip'),
-    'Stage 8.5 should be skipped on quick-fix');
+    'Stage 8 should be skipped on quick-fix');
 });
 
-test('Quick-fix route locks after Stage 6 and uses single-phase', () => {
+test('Quick-fix route locks after Stage 5 and uses single-phase', () => {
   assert.ok(skillContent.includes('Route is now locked'),
-    'Route should lock after Stage 6');
+    'Route should lock after Stage 5');
   assert.ok(skillContent.includes('total_phases: 1') || 
     skillContent.includes('set `total_phases: 1`'),
     'Quick-fix should hardcode single phase');
@@ -269,9 +268,9 @@ test('SKILL.md contains metrics-summary.md 8-section layout', () => {
   }
 });
 
-// --- state.md 11-field schema ---
+// --- state.md 13-field schema ---
 
-test('SKILL.md documents state.md with all 11 fields', () => {
+test('SKILL.md documents state.md with all 13 fields', () => {
   const stateFields = [
     'run_id',
     'mode',
@@ -284,6 +283,8 @@ test('SKILL.md documents state.md with all 11 fields', () => {
     'phase_history',
     'backward_loops',
     'resume_source',
+    'interaction_mode',
+    'failure_policy',
   ];
   const stateSectionStart = skillContent.indexOf('### `state.md` Contract');
   const stateSectionEnd = skillContent.indexOf('### Pipeline Files Convention');
@@ -301,33 +302,33 @@ test('SKILL.md describes human gates at correct stages', () => {
   // Stage 1 (Goals) human gate
   const stage1Section = skillContent.substring(
     skillContent.indexOf('### Stage 1 — Goals'),
-    skillContent.indexOf('### Stage 2 — Questions')
+    skillContent.indexOf('### Stage 2 — Research')
   );
   assert.ok(stage1Section.includes('qrspi_question') || stage1Section.includes('human gate') || 
     stage1Section.includes('Human Gate'),
     'Stage 1 should reference human gate');
 
-  // Stage 4 human gate
+  // Stage 3 human gate
   const stage4Section = skillContent.substring(
-    skillContent.indexOf('### Stage 4 — Design'),
-    skillContent.indexOf('### Stage 5 — Structure')
+    skillContent.indexOf('### Stage 3 — Design'),
+    skillContent.indexOf('### Stage 4 — Structure')
   );
   assert.ok(stage4Section.includes('qrspi_question') || stage4Section.includes('human gate') ||
     stage4Section.includes('Human Gate'),
-    'Stage 4 should reference human gate');
+    'Stage 3 should reference human gate');
 
-  // Stage 5 human gate
+  // Stage 4 human gate
   const stage5Section = skillContent.substring(
-    skillContent.indexOf('### Stage 5 — Structure'),
-    skillContent.indexOf('### Stage 6 — Plan')
+    skillContent.indexOf('### Stage 4 — Structure'),
+    skillContent.indexOf('### Stage 5 — Plan')
   );
   assert.ok(stage5Section.includes('qrspi_question') || stage5Section.includes('human gate') ||
     stage5Section.includes('Human Gate'),
-    'Stage 5 should reference human gate');
+    'Stage 4 should reference human gate');
 
-  // Stage 6 unclean-cap gate
+  // Stage 5 unclean-cap gate
   assert.ok(skillContent.includes('unclean-cap') && skillContent.includes('qrspi_question'),
-    'Stage 6 should have unclean-cap human gate');
+    'Stage 5 should have unclean-cap human gate');
 });
 
 // --- Error handling ---
@@ -364,8 +365,8 @@ test('SKILL.md contains post-pipeline cleanup logic', () => {
 test('SKILL.md pipeline diagram includes all stages in order', () => {
   const stageOrder = [
     'Goals',
-    'Questions',
     'Research',
+    'Questions',
     'Design',
     'Structure',
     'Plan',

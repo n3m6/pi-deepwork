@@ -280,7 +280,7 @@ test("deepwork handler dry-run creates a completed full-route simulation without
     assert.ok(stateContent.includes('mode: "dry-run"'), "state.md must record dry-run mode");
     assert.ok(stateContent.includes('route: "full"'), "state.md must record the full route");
     assert.ok(stateContent.includes('next_stage: "done"'), "dry-run state should be complete");
-    assert.ok(stateContent.includes('last_completed_stage: "11"'), "dry-run state should end at report");
+    assert.ok(stateContent.includes('last_completed_stage: "10"'), "dry-run state should end at report");
 
     for (const artifact of getDryRunArtifactPaths(runId!, "full")) {
       assert.ok(fs.existsSync(path.join(tmpDir, artifact)), `${artifact} must exist for full dry-run`);
@@ -332,9 +332,9 @@ test("deepwork handler dry-run quick-fix skips design, structure, and replan art
     assert.equal(fs.existsSync(path.join(pipelineDir, "design.md")), false, "design.md must be skipped on quick-fix dry-run");
     assert.equal(fs.existsSync(path.join(pipelineDir, "structure.md")), false, "structure.md must be skipped on quick-fix dry-run");
     assert.equal(
-      fs.existsSync(path.join(pipelineDir, "phases", "phase-01", "replan-summary.md")),
+      fs.existsSync(path.join(pipelineDir, "phases", "phase-01", "replan", "phase-01-replan.md")),
       false,
-      "replan-summary.md must be skipped on quick-fix dry-run",
+      "phase-local replan artifact must be skipped on quick-fix dry-run",
     );
   } finally {
     process.chdir(originalCwd);

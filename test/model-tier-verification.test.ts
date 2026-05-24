@@ -13,6 +13,7 @@ const managerSymbol = Symbol.for("pi-subagents:manager");
 const sonnetLowAgents = [
   "qrspi-goals-synthesizer.md",
   "qrspi-goals.md",
+  "qrspi-research-pass.md",
   "qrspi-questions.md",
   "qrspi-research-synthesizer.md",
   "qrspi-research.md",
@@ -36,7 +37,6 @@ const sonnetMediumAgents = [
   "qrspi-acceptance-tester.md",
   "qrspi-fast-impl-loop.md",
   "qrspi-fast-impl-verify.md",
-  "qrspi-simplify-pass.md",
   "qrspi-verifier.md",
 ] as const;
 

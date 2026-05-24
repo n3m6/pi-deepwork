@@ -429,10 +429,10 @@ test("qrspi-structure.md body contains Step C — Automated Review Loop", () => 
     "Step C must be 'Automated Review Loop'");
 });
 
-test("qrspi-structure.md body contains Step D — Human Gate", () => {
+test("qrspi-structure.md body contains Step D — Approval Gate", () => {
   assert.ok(orchBody.includes("Step D"), "orchestrator body must contain Step D");
-  assert.ok(/Step D.*Human Gate/i.test(orchBody),
-    "Step D must be 'Human Gate'");
+  assert.ok(/Step D.*Approval Gate/i.test(orchBody),
+    "Step D must be 'Approval Gate'");
 });
 
 // ---------------------------------------------------------------------------

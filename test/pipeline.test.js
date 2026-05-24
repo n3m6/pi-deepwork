@@ -141,12 +141,13 @@ test('getPipelinePaths has exactly 7 keys', () => {
 // makeInitialState
 // ---------------------------------------------------------------------------
 
-test('makeInitialState returns object with all 11 required fields', () => {
+test('makeInitialState returns object with all 13 required fields', () => {
   const state = makeInitialState(testRunId);
   const expectedFields = [
     'run_id', 'route', 'current_phase', 'total_phases',
     'last_completed_stage', 'next_stage', 'stages_completed',
     'phase_history', 'backward_loops', 'resume_source', 'mode',
+    'interaction_mode', 'failure_policy',
   ];
   const keys = Object.keys(state).sort();
   assert.deepEqual(keys, expectedFields.sort());
@@ -313,13 +314,13 @@ test('createRunLogEntry handles empty summary', () => {
 // STAGE_NAMES
 // ---------------------------------------------------------------------------
 
-test('STAGE_NAMES is an array of 11 stage names in canonical order', () => {
+test('STAGE_NAMES is an array of 10 stage names in canonical order', () => {
   const expected = [
-    'goals', 'questions', 'research', 'design', 'structure',
+    'goals', 'research', 'design', 'structure',
     'plan', 'implement', 'accept', 'replan', 'verify', 'report',
   ];
   assert.deepEqual(STAGE_NAMES, expected);
-  assert.equal(STAGE_NAMES.length, 11);
+  assert.equal(STAGE_NAMES.length, 10);
 });
 
 test('getRouteStages("full") returns canonical full-route order', () => {
@@ -329,7 +330,6 @@ test('getRouteStages("full") returns canonical full-route order', () => {
 test('getRouteStages("quick-fix") returns quick-fix order', () => {
   assert.deepEqual(getRouteStages('quick-fix'), [
     'goals',
-    'questions',
     'research',
     'plan',
     'implement',
@@ -343,7 +343,7 @@ test('getDryRunArtifactPaths("full") includes design, structure, replan, and tel
   const artifacts = getDryRunArtifactPaths(testRunId, 'full');
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'));
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'));
-  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan-summary.md'));
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md'));
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md'));
 });
 
@@ -351,7 +351,7 @@ test('getDryRunArtifactPaths("quick-fix") omits skipped-stage artifacts', () => 
   const artifacts = getDryRunArtifactPaths(testRunId, 'quick-fix');
   assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'), false);
   assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'), false);
-  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan-summary.md'), false);
+  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md'), false);
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/plan.md'));
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/run-log.md'));
 });
@@ -364,16 +364,16 @@ test('stageNumber("goals") returns 1', () => {
   assert.equal(stageNumber('goals'), 1);
 });
 
-test('stageNumber("design") returns 4 (case-insensitive — capital D)', () => {
-  assert.equal(stageNumber('Design'), 4);
+test('stageNumber("design") returns 3 (case-insensitive — capital D)', () => {
+  assert.equal(stageNumber('Design'), 3);
 });
 
-test('stageNumber("report") returns 11', () => {
-  assert.equal(stageNumber('report'), 11);
+test('stageNumber("report") returns 10', () => {
+  assert.equal(stageNumber('report'), 10);
 });
 
-test('stageNumber("REPORT") returns 11 (all caps)', () => {
-  assert.equal(stageNumber('REPORT'), 11);
+test('stageNumber("REPORT") returns 10 (all caps)', () => {
+  assert.equal(stageNumber('REPORT'), 10);
 });
 
 test('stageNumber("nonexistent") returns 0', () => {
@@ -384,8 +384,8 @@ test('stageNumber("") returns 0', () => {
   assert.equal(stageNumber(''), 0);
 });
 
-test('stageNumber returns correct index for all 11 stages', () => {
-  const stages = ['goals', 'questions', 'research', 'design', 'structure', 'plan', 'implement', 'accept', 'replan', 'verify', 'report'];
+test('stageNumber returns correct index for all 10 stages', () => {
+  const stages = ['goals', 'research', 'design', 'structure', 'plan', 'implement', 'accept', 'replan', 'verify', 'report'];
   stages.forEach((name, idx) => {
     assert.equal(stageNumber(name), idx + 1, `stageNumber("${name}") should be ${idx + 1}`);
   });
@@ -395,8 +395,8 @@ test('stageNumber returns correct index for all 11 stages', () => {
 // nextStage — full route
 // ---------------------------------------------------------------------------
 
-test('nextStage full route: goals → questions', () => {
-  assert.equal(nextStage('goals', 'full'), 'questions');
+test('nextStage full route: goals → research', () => {
+  assert.equal(nextStage('goals', 'full'), 'research');
 });
 
 test('nextStage full route: design → structure', () => {
@@ -411,14 +411,14 @@ test('nextStage full route: report → null (last stage)', () => {
   assert.equal(nextStage('report', 'full'), null);
 });
 
-test('nextStage full route walks linearly through all 11 stages', () => {
+test('nextStage full route walks linearly through all 10 stages', () => {
   for (let i = 0; i < STAGE_NAMES.length - 1; i++) {
     assert.equal(nextStage(STAGE_NAMES[i], 'full'), STAGE_NAMES[i + 1]);
   }
 });
 
-test('nextStage full route case-insensitive: GOALS → questions', () => {
-  assert.equal(nextStage('GOALS', 'full'), 'questions');
+test('nextStage full route case-insensitive: GOALS → research', () => {
+  assert.equal(nextStage('GOALS', 'full'), 'research');
 });
 
 // ---------------------------------------------------------------------------
@@ -461,12 +461,8 @@ test('nextStage quick-fix: replan returns null (skipped stage)', () => {
   assert.equal(nextStage('replan', 'quick-fix'), null);
 });
 
-test('nextStage quick-fix: goals → questions (first two same)', () => {
-  assert.equal(nextStage('goals', 'quick-fix'), 'questions');
-});
-
-test('nextStage quick-fix: questions → research', () => {
-  assert.equal(nextStage('questions', 'quick-fix'), 'research');
+test('nextStage quick-fix: goals → research', () => {
+  assert.equal(nextStage('goals', 'quick-fix'), 'research');
 });
 
 // ---------------------------------------------------------------------------
@@ -536,7 +532,7 @@ test('stageNumber is deterministic', () => {
 
 test('nextStage is deterministic', () => {
   for (let i = 0; i < 3; i++) {
-    assert.equal(nextStage('goals', 'full'), 'questions');
+    assert.equal(nextStage('goals', 'full'), 'research');
   }
 });
 

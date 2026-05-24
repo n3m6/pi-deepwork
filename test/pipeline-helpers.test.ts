@@ -128,12 +128,14 @@ test("getMetricsPath returns .pipeline/<runId>/telemetry/metrics-summary.md", ()
 // makeInitialState
 // ---------------------------------------------------------------------------
 
-test("makeInitialState returns object with all 11 required fields", () => {
+test("makeInitialState returns object with all 13 required fields", () => {
   const state = makeInitialState("qrspi-20260515-143022");
   const keys = Object.keys(state).sort();
   const expected = [
     "backward_loops",
     "current_phase",
+    "failure_policy",
+    "interaction_mode",
     "last_completed_stage",
     "mode",
     "next_stage",
@@ -258,9 +260,9 @@ test("makeTelemetryEvent overrides do not leak to subsequent calls", () => {
 // STAGE_NAMES
 // ---------------------------------------------------------------------------
 
-test("STAGE_NAMES contains at least 11 entries", () => {
+test("STAGE_NAMES contains the 10 executable stages", () => {
   assert.ok(STAGE_NAMES.length >= 10);
-  assert.equal(STAGE_NAMES.length, 11);
+  assert.equal(STAGE_NAMES.length, 10);
 });
 
 test("STAGE_NAMES index 0 (Stage 1) is 'goals'", () => {
@@ -278,7 +280,6 @@ test("getRouteStages('full') returns the canonical full stage list", () => {
 test("getRouteStages('quick-fix') returns the quick-fix stage list", () => {
   assert.deepEqual(getRouteStages("quick-fix"), [
     "goals",
-    "questions",
     "research",
     "plan",
     "implement",
@@ -292,7 +293,7 @@ test("getDryRunArtifactPaths('full') includes full-route artifacts", () => {
   const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "full");
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"));
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"));
-  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan-summary.md"));
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md"));
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md"));
 });
 
@@ -300,7 +301,7 @@ test("getDryRunArtifactPaths('quick-fix') omits skipped-stage artifacts", () => 
   const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "quick-fix");
   assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"), false);
   assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"), false);
-  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan-summary.md"), false);
+  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md"), false);
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/plan.md"));
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/run-log.md"));
 });
@@ -313,12 +314,12 @@ test("stageNumber('goals') returns 1", () => {
   assert.equal(stageNumber("goals"), 1);
 });
 
-test("stageNumber('questions') returns 2", () => {
-  assert.equal(stageNumber("questions"), 2);
+test("stageNumber('research') returns 2", () => {
+  assert.equal(stageNumber("research"), 2);
 });
 
-test("stageNumber('report') returns 11", () => {
-  assert.equal(stageNumber("report"), 11);
+test("stageNumber('report') returns 10", () => {
+  assert.equal(stageNumber("report"), 10);
 });
 
 test("stageNumber of unrecognized stage name returns 0", () => {
@@ -333,17 +334,17 @@ test("stageNumber('') returns 0", () => {
 // nextStage — full route
 // ---------------------------------------------------------------------------
 
-test("nextStage('goals', 'full') returns 'questions'", () => {
-  assert.equal(nextStage("goals", "full"), "questions");
+test("nextStage('goals', 'full') returns 'research'", () => {
+  assert.equal(nextStage("goals", "full"), "research");
 });
 
 test("nextStage('report', 'full') returns null", () => {
   assert.equal(nextStage("report", "full"), null);
 });
 
-test("nextStage walks all 10 full-route transitions correctly", () => {
+test("nextStage walks all full-route transitions correctly", () => {
   const fullOrder = [
-    "goals", "questions", "research", "design", "structure",
+    "goals", "research", "design", "structure",
     "plan", "implement", "accept", "replan", "verify", "report",
   ];
   for (let i = 0; i < fullOrder.length - 1; i++) {
@@ -364,8 +365,8 @@ test("nextStage('', 'full') returns null", () => {
 // nextStage — quick-fix route
 // ---------------------------------------------------------------------------
 
-test("nextStage quick-fix: 'goals' → 'questions'", () => {
-  assert.equal(nextStage("goals", "quick-fix"), "questions");
+test("nextStage quick-fix: 'goals' → 'research'", () => {
+  assert.equal(nextStage("goals", "quick-fix"), "research");
 });
 
 test("nextStage quick-fix: 'research' → 'plan' (skips design, structure)", () => {

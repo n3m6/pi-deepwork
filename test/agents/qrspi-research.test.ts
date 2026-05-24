@@ -77,18 +77,24 @@ function getField(fm: Frontmatter | null, field: string): string {
 // ---------------------------------------------------------------------------
 
 const orchestratorPath = path.join(agentsDir, "qrspi-research.md");
+const researchPassPath = path.join(agentsDir, "qrspi-research-pass.md");
+const questionsPath = path.join(agentsDir, "qrspi-questions.md");
 const codebaseResearcherPath = path.join(agentsDir, "qrspi-codebase-researcher.md");
 const webResearcherPath = path.join(agentsDir, "qrspi-web-researcher.md");
 const synthesizerPath = path.join(agentsDir, "qrspi-research-synthesizer.md");
 const reviewerPath = path.join(agentsDir, "qrspi-research-reviewer.md");
 
 const orchFM = parseFrontmatter(orchestratorPath);
+const researchPassFM = parseFrontmatter(researchPassPath);
+const questionsFM = parseFrontmatter(questionsPath);
 const cbFM = parseFrontmatter(codebaseResearcherPath);
 const webFM = parseFrontmatter(webResearcherPath);
 const synthFM = parseFrontmatter(synthesizerPath);
 const reviewFM = parseFrontmatter(reviewerPath);
 
 const orchBody = getBody(orchestratorPath);
+const researchPassBody = getBody(researchPassPath);
+const questionsBody = getBody(questionsPath);
 const cbBody = getBody(codebaseResearcherPath);
 const webBody = getBody(webResearcherPath);
 const synthBody = getBody(synthesizerPath);
@@ -103,6 +109,14 @@ const EXPECTED_FIELDS_SORTED = [...EXPECTED_FIELDS].sort();
 
 test("qrspi-research.md exists and has parseable frontmatter", () => {
   assert.ok(orchFM !== null, "qrspi-research.md frontmatter must be parseable");
+});
+
+test("qrspi-research-pass.md exists and has parseable frontmatter", () => {
+  assert.ok(researchPassFM !== null, "qrspi-research-pass.md frontmatter must be parseable");
+});
+
+test("qrspi-questions.md exists and has parseable frontmatter", () => {
+  assert.ok(questionsFM !== null, "qrspi-questions.md frontmatter must be parseable");
 });
 
 test("qrspi-codebase-researcher.md exists and has parseable frontmatter", () => {
@@ -178,10 +192,10 @@ test("qrspi-research-reviewer.md model is anthropic/claude-haiku-4-5", () => {
 // Frontmatter — tool sets
 // ---------------------------------------------------------------------------
 
-test("qrspi-research.md tools matches spec: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question", () => {
+test("qrspi-research.md tools matches spec: read, bash, grep, find, ls, write, edit, qrspi_dispatch", () => {
   assert.equal(
     getField(orchFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question"
+    "read, bash, grep, find, ls, write, edit, qrspi_dispatch"
   );
 });
 
@@ -217,8 +231,8 @@ test("qrspi-research-reviewer.md tools matches spec: read, bash, grep, find, ls"
 // Frontmatter — turn limits
 // ---------------------------------------------------------------------------
 
-test("qrspi-research.md max_turns is 60", () => {
-  assert.equal(parseInt(getField(orchFM, "max_turns"), 10), 60);
+test("qrspi-research.md max_turns is 70", () => {
+  assert.equal(parseInt(getField(orchFM, "max_turns"), 10), 70);
 });
 
 test("qrspi-codebase-researcher.md max_turns is 15", () => {
@@ -284,6 +298,16 @@ test("all five agents have non-empty system prompt body", () => {
   }
 });
 
+test("merged research child agents have non-empty system prompt bodies", () => {
+  const bodies: [string, string][] = [
+    ["research-pass", researchPassBody],
+    ["questions", questionsBody],
+  ];
+  for (const [name, body] of bodies) {
+    assert.ok(body.trim().length > 0, `${name} body must not be empty`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Body — orchestrator: goal-blind constraint
 // ---------------------------------------------------------------------------
@@ -337,12 +361,12 @@ test("qrspi-research.md body — does not contain opencode 'task' dispatch refer
   assert.ok(!/via\s+task\b/i.test(orchBody), "body must not use 'via task' dispatch reference");
 });
 
-test("qrspi-research.md body — contains subagent_type: 'qrspi-codebase-researcher'", () => {
-  assert.ok(orchBody.includes('subagent_type: "qrspi-codebase-researcher"'));
+test("qrspi-research.md body — contains subagent_type: 'qrspi-questions'", () => {
+  assert.ok(orchBody.includes('subagent_type: "qrspi-questions"'));
 });
 
-test("qrspi-research.md body — contains subagent_type: 'qrspi-web-researcher'", () => {
-  assert.ok(orchBody.includes('subagent_type: "qrspi-web-researcher"'));
+test("qrspi-research.md body — contains subagent_type: 'qrspi-research-pass'", () => {
+  assert.ok(orchBody.includes('subagent_type: "qrspi-research-pass"'));
 });
 
 test("qrspi-research.md body — contains subagent_type: 'qrspi-research-synthesizer'", () => {
@@ -351,6 +375,19 @@ test("qrspi-research.md body — contains subagent_type: 'qrspi-research-synthes
 
 test("qrspi-research.md body — contains subagent_type: 'qrspi-research-reviewer'", () => {
   assert.ok(orchBody.includes('subagent_type: "qrspi-research-reviewer"'));
+});
+
+test("qrspi-research-pass.md body — contains subagent_type: 'qrspi-codebase-researcher'", () => {
+  assert.ok(researchPassBody.includes('subagent_type: "qrspi-codebase-researcher"'));
+});
+
+test("qrspi-research-pass.md body — contains subagent_type: 'qrspi-web-researcher'", () => {
+  assert.ok(researchPassBody.includes('subagent_type: "qrspi-web-researcher"'));
+});
+
+test("qrspi-questions.md body — supports initial and follow-up modes", () => {
+  assert.ok(questionsBody.includes("MODE ===") && questionsBody.includes("initial") && questionsBody.includes("follow-up"));
+  assert.ok(questionsBody.includes("QUESTION BATCH FILE"), "questions child must accept a round-local batch path");
 });
 
 // ---------------------------------------------------------------------------

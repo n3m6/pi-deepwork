@@ -23,6 +23,8 @@ import type {
   PipelineMode,
   PipelineState,
   TelemetryEvent,
+  InteractionMode,
+  FailurePolicy,
 } from "./pipeline";
 import { createDispatchTool, createQuestionTool, setPi } from "./shared-tools";
 import type {
@@ -44,6 +46,8 @@ stages_completed: ${JSON.stringify(state.stages_completed)}
 phase_history: ${JSON.stringify(state.phase_history)}
 backward_loops: ${state.backward_loops}
 resume_source: "${state.resume_source}"
+interaction_mode: "${state.interaction_mode}"
+failure_policy: "${state.failure_policy}"
 ---
 `;
 }
@@ -54,6 +58,8 @@ function parseStateYaml(raw: string): {
   next_stage: string;
   last_completed_stage: string;
   route: string;
+  interaction_mode: InteractionMode;
+  failure_policy: FailurePolicy;
 } | null {
   const parts = raw.split("---");
   if (parts.length < 3) return null;
@@ -82,6 +88,8 @@ function parseStateYaml(raw: string): {
     next_stage: map.next_stage,
     last_completed_stage: map.last_completed_stage,
     route: map.route,
+    interaction_mode: map.interaction_mode === "automated" ? "automated" : "interactive",
+    failure_policy: map.failure_policy === "best-effort" ? "best-effort" : "fail-closed",
   };
 }
 
@@ -105,6 +113,32 @@ function parseRouteArg(value: unknown): ExecutableRoute | null {
 
   const normalized = value.trim().toLowerCase();
   if (normalized === "full" || normalized === "quick-fix") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function parseInteractionModeArg(value: unknown): InteractionMode | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "interactive" || normalized === "automated") {
+    return normalized;
+  }
+
+  return null;
+}
+
+function parseFailurePolicyArg(value: unknown): FailurePolicy | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "fail-closed" || normalized === "best-effort") {
     return normalized;
   }
 
@@ -145,6 +179,8 @@ function updatePhaseHistory(state: PipelineState, stage: string): void {
 function createDryRunArtifactContent(
   runId: string,
   route: ExecutableRoute,
+  interactionMode: InteractionMode,
+  failurePolicy: FailurePolicy,
   stage: string,
   task: string,
   artifactPath: string,
@@ -160,7 +196,9 @@ function createDryRunArtifactContent(
     `- Run ID: ${runId}`,
     `- Mode: dry-run`,
     `- Route: ${route}`,
-    `- Stage: ${stageNumber(stage)} of 11 (${titleCase(stage)})`,
+    `- Interaction Mode: ${interactionMode}`,
+    `- Failure Policy: ${failurePolicy}`,
+    `- Stage: ${stageNumber(stage)} of ${totalStages} (${titleCase(stage)})`,
     `- Progress: ${stageIndex} of ${totalStages}`,
     `- Artifact: ${relativeArtifactPath}`,
   ].join("\n");
@@ -170,7 +208,7 @@ function createDryRunArtifactContent(
   }
 
   if (relativeArtifactPath === "config.md") {
-    return `# Config — Dry Run\n\n- Run ID: ${runId}\n- Mode: dry-run\n- Route: ${route}\n- Selected stages: ${getRouteStages(route).join(", ")}\n`;
+    return `# Config — Dry Run\n\n- Run ID: ${runId}\n- Mode: dry-run\n- Route: ${route}\n- Interaction Mode: ${interactionMode}\n- Failure Policy: ${failurePolicy}\n- Selected stages: ${getRouteStages(route).join(", ")}\n`;
   }
 
   if (relativeArtifactPath === "phase-manifest.md") {
@@ -203,7 +241,12 @@ function formatDryRunMetricsSummary(
   return `# Metrics Summary — ${runId}\n\n## Run\n\n- Mode: dry-run\n- Route: ${route}\n- Final status: completed-pass\n- Stages completed: ${stageOrder.length} of ${stageOrder.length}\n\n## Stage Durations\n\n| Stage | Simulated Phases | Status |\n| ----- | ---------------- | ------ |\n${durationRows}\n`;
 }
 
-function runDryRun(task: string, route: ExecutableRoute): { runId: string; state: PipelineState } {
+function runDryRun(
+  task: string,
+  route: ExecutableRoute,
+  interactionMode: InteractionMode,
+  failurePolicy: FailurePolicy,
+): { runId: string; state: PipelineState } {
   const runId = generateRunId();
   const telemetryDir = getTelemetryDir(runId);
   const stageOrder = getRouteStages(route);
@@ -211,6 +254,8 @@ function runDryRun(task: string, route: ExecutableRoute): { runId: string; state
     mode: "dry-run",
     route,
     total_phases: route === "quick-fix" ? 1 : 0,
+    interaction_mode: interactionMode,
+    failure_policy: failurePolicy,
   });
   const events: TelemetryEvent[] = [];
   let sequence = 1;
@@ -252,7 +297,17 @@ function runDryRun(task: string, route: ExecutableRoute): { runId: string; state
     for (const artifactPath of stageArtifacts) {
       writeTextFile(
         artifactPath,
-        createDryRunArtifactContent(runId, route, stage, task, artifactPath, stageIndex, stageOrder.length),
+        createDryRunArtifactContent(
+          runId,
+          route,
+          interactionMode,
+          failurePolicy,
+          stage,
+          task,
+          artifactPath,
+          stageIndex,
+          stageOrder.length,
+        ),
       );
     }
 
@@ -327,11 +382,35 @@ const deepworkHandler: CommandHandler = async (
   const dryRun = parseDryRunArg(args["dry-run"]);
   const routeArg = args.route;
   const parsedRoute = parseRouteArg(routeArg);
+  const interactionModeArg = args["interaction-mode"];
+  const parsedInteractionMode = interactionModeArg === undefined
+    ? "interactive"
+    : parseInteractionModeArg(interactionModeArg);
+  const failurePolicyArg = args["failure-policy"];
+  const parsedFailurePolicy = failurePolicyArg === undefined
+    ? "fail-closed"
+    : parseFailurePolicyArg(failurePolicyArg);
 
   if (dryRun && routeArg !== undefined && parsedRoute === null) {
     await ctx.ui.confirm(
       "Deepwork Error",
       `Invalid route "${String(routeArg)}". Expected "full" or "quick-fix".`
+    );
+    return;
+  }
+
+  if (parsedInteractionMode === null) {
+    await ctx.ui.confirm(
+      "Deepwork Error",
+      `Invalid interaction-mode "${String(interactionModeArg)}". Expected "interactive" or "automated".`
+    );
+    return;
+  }
+
+  if (parsedFailurePolicy === null) {
+    await ctx.ui.confirm(
+      "Deepwork Error",
+      `Invalid failure-policy "${String(failurePolicyArg)}". Expected "fail-closed" or "best-effort".`
     );
     return;
   }
@@ -351,11 +430,11 @@ const deepworkHandler: CommandHandler = async (
 
   if (dryRun) {
     const route = parsedRoute ?? "full";
-    const { runId, state } = runDryRun(task, route);
+    const { runId, state } = runDryRun(task, route, parsedInteractionMode, parsedFailurePolicy);
 
     await ctx.ui.confirm(
       "Deepwork Dry Run Complete",
-      `=== RUN ID ===\n${runId}\n\n=== MODE ===\ndry-run\n\n=== ROUTE ===\n${route}\n\n=== USER TASK ===\n${task}\n\nDry run complete. Simulated artifacts were written to .pipeline/${runId}/ and state.md now points to ${state.next_stage}. No subagents were dispatched and no project files were modified.`
+      `=== RUN ID ===\n${runId}\n\n=== MODE ===\ndry-run\n\n=== ROUTE ===\n${route}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDry run complete. Simulated artifacts were written to .pipeline/${runId}/ and state.md now points to ${state.next_stage}. No subagents were dispatched and no project files were modified.`
     );
     return;
   }
@@ -384,7 +463,10 @@ const deepworkHandler: CommandHandler = async (
     );
   }
 
-  const state = makeInitialState(runId);
+  const state = makeInitialState(runId, {
+    interaction_mode: parsedInteractionMode,
+    failure_policy: parsedFailurePolicy,
+  });
   const stateYaml = yamlify(state);
   try {
     fs.writeFileSync(getStatePath(runId), stateYaml, "utf-8");
@@ -404,7 +486,7 @@ const deepworkHandler: CommandHandler = async (
 
   await ctx.ui.confirm(
     "Deepwork Started",
-    `=== RUN ID ===\n${runId}\n\n=== USER TASK ===\n${task}\n\nDeepwork pipeline starting. Stage 1 (Goals) will begin.`
+    `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDeepwork pipeline starting. Stage 1 (Goals) will begin.`
   );
 };
 
@@ -456,14 +538,14 @@ const deepworkResumeHandler: CommandHandler = async (
     const kind = parsed.mode === "dry-run" ? "simulated dry run" : "pipeline run";
     await ctx.ui.confirm(
       title,
-      `=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\nThis ${kind} is already complete. There is no next stage to resume.`
+      `=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nThis ${kind} is already complete. There is no next stage to resume.`
     );
     return;
   }
 
   await ctx.ui.confirm(
     parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
-    `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\nResuming deepwork pipeline. The orchestrator will pick up from the recorded next stage.`
+    `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nResuming deepwork pipeline. The orchestrator will pick up from the recorded next stage.`
   );
 };
 
@@ -477,6 +559,8 @@ export default function activate(pi: ExtensionAPI): void {
       task: [],
       "dry-run": ["false", "true"],
       route: ["full", "quick-fix"],
+      "interaction-mode": ["interactive", "automated"],
+      "failure-policy": ["fail-closed", "best-effort"],
     }),
     handler: deepworkHandler,
   });
