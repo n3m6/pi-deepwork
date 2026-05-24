@@ -32,6 +32,10 @@ import {
   createQuestionTool,
   setPi,
 } from "./shared-tools";
+import {
+  ensureBundledProjectAgents,
+  getProjectAgentsDir,
+} from "./subagent-catalog";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -504,6 +508,20 @@ function scanPipelineRunIds(): string[] {
   }
 }
 
+function ensureWorkspaceQrsiAgents(
+  workspaceRoot: string,
+): { ok: true } | { ok: false; error: string } {
+  try {
+    ensureBundledProjectAgents(workspaceRoot);
+    return { ok: true };
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      error: `Failed to prepare QRSPI agent definitions under ${getProjectAgentsDir(workspaceRoot)}: ${describeError(error)}`,
+    };
+  }
+}
+
 function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
   return async (args: Record<string, unknown>, ctx: ExtensionContext) => {
     let task: string | undefined =
@@ -576,6 +594,12 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
         "Deepwork Dry Run Complete",
         `=== RUN ID ===\n${runId}\n\n=== MODE ===\ndry-run\n\n=== ROUTE ===\n${route}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDry run complete. Simulated artifacts were written to .pipeline/${runId}/ and state.md now points to ${state.next_stage}. No subagents were dispatched and no project files were modified.`,
       );
+      return;
+    }
+
+    const agentPrep = ensureWorkspaceQrsiAgents(ctx.cwd);
+    if (!agentPrep.ok) {
+      await ctx.ui.confirm("Deepwork Error", agentPrep.error);
       return;
     }
 
@@ -706,6 +730,12 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
         title,
         `=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nThis ${kind} is already complete. There is no next stage to resume.`,
       );
+      return;
+    }
+
+    const agentPrep = ensureWorkspaceQrsiAgents(ctx.cwd);
+    if (!agentPrep.ok) {
+      await ctx.ui.confirm("Resume Error", agentPrep.error);
       return;
     }
 

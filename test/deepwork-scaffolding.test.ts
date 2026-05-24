@@ -269,6 +269,11 @@ test("deepwork handler writes scaffolding under ctx.cwd when process.cwd differs
       false,
       "pipeline should not be created under process.cwd",
     );
+    assert.equal(
+      fs.existsSync(path.join(workspaceDir, ".pi", "agents", "qrspi-goals.md")),
+      true,
+      "bundled QRSPI agents should be mirrored into the workspace .pi/agents directory",
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(processDir, { recursive: true, force: true });
@@ -332,6 +337,51 @@ test("deepwork handler creates scaffolding even when git is unavailable", async 
     assert.ok(
       startedCall!.message.includes("Gitless task"),
       "Confirmation must include task",
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler preserves an existing project-local QRSPI agent override", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const agentsDir = path.join(tmpDir, ".pi", "agents");
+    fs.mkdirSync(agentsDir, { recursive: true });
+    const overridePath = path.join(agentsDir, "qrspi-goals.md");
+    fs.writeFileSync(overridePath, "# custom override\n", "utf-8");
+
+    mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
+      if (Array.isArray(args) && args[0] === "--version") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      if (Array.isArray(args) && args[0] === "checkout") {
+        return { status: 0, stdout: "", stderr: "" };
+      }
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const { pi, commands } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined, "deepwork command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler({ task: "Respect overrides" }, ctx);
+    });
+
+    assert.equal(
+      fs.readFileSync(overridePath, "utf-8"),
+      "# custom override\n",
+      "existing project-local QRSPI agent overrides must not be overwritten",
     );
   } finally {
     process.chdir(originalCwd);

@@ -51,7 +51,7 @@ pi install npm:@tintinweb/pi-subagents
 pi install git:github.com/n3m6/pi-deepwork@main
 ```
 
-`pi install git:` performs the repository clone, runs `npm install --omit=dev` when a `package.json` is present, and places the extension in pi's managed extension directory. Agent type discovery still needs to be configured separately through either the global symlink path or a project-local `.pi/agents/` directory.
+`pi install git:` performs the repository clone, runs `npm install --omit=dev` when a `package.json` is present, and places the extension in pi's managed extension directory. On the first live `/deepwork` or `/deepwork-resume` run in a repository, pi-deepwork mirrors its bundled QRSPI agent definitions into that repository's `.pi/agents/` directory so pi-subagents can discover them without a separate setup step. Manual global symlinks are still useful when you want the QRSPI agent catalog available before the first Deepwork run or across all repositories.
 
 ### Repository name and package name
 
@@ -110,10 +110,12 @@ Optional run policy arguments:
 Current live-mode behavior:
 
 - create a new run ID in `qrspi-YYYYMMDD-HHMMSS` format
+- mirror the bundled QRSPI agent definitions into the active workspace's `.pi/agents/` directory without overwriting existing project-local overrides
 - scaffold `.pipeline/<run-id>/` under the active workspace root from `ctx.cwd`
 - write initial `state.md` and telemetry files
 - inject the `deepwork` skill through `resources_discover`
 - send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
+- refresh pi-subagents' custom-agent registry when `qrspi_dispatch` launches a stage agent, so the mirrored `qrspi-*` definitions are visible immediately in the same session
 - instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, and must stop with a configuration error if the Deepwork skill or `qrspi_dispatch` / `qrspi_question` tools are unavailable
 - if `pi.sendUserMessage()` fails, keep the scaffolded run on disk and report that no Deepwork orchestrator is active yet; recovery is to fix the runtime configuration and rerun `/deepwork-resume run-id:"<run-id>"`
 
@@ -200,11 +202,12 @@ The extension degrades gracefully and returns a clear prerequisite message when 
 
 Check agent discovery first:
 
+- if you started Deepwork at least once in the repository, confirm the runtime mirrored the bundled agent `.md` files into `.pi/agents/`
 - confirm the agent `.md` files are present directly under `~/.pi/agent/agents/`
 - or confirm the current project has the agent `.md` files directly under `.pi/agents/`
 - verify that the directory contains the expected `.md` agent definitions
 
-If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent type and pi-subagents falls back to `general-purpose`, the stage-agent markdown files were not discovered. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
+If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent type and pi-subagents falls back to `general-purpose`, the stage-agent markdown files were not discovered or the subagent registry did not refresh after they were mirrored into `.pi/agents/`. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
 
 ### The first `deepwork` skill expansion shows `ENOENT`
 
@@ -244,7 +247,7 @@ npm test
 
 Use this checklist in a real pi environment after installation. It is the operator flow to verify end-to-end behavior that the repo tests cannot exercise on their own.
 
-1. Install `@tintinweb/pi-subagents >=0.7.3`, build this extension, and place the agent files directly under `~/.pi/agent/agents/` or `.pi/agents/`.
+1. Install `@tintinweb/pi-subagents >=0.7.3`, build this extension, and either place the agent files directly under `~/.pi/agent/agents/` or let the first live/resume Deepwork run mirror them into `.pi/agents/` automatically.
 2. Start pi in a disposable repository with git initialized, Node 18+, and access to the sonnet and haiku model tiers used by the agents.
 3. Confirm `/deepwork` and `/deepwork-resume` are present, and verify the `deepwork` skill is available in the session.
 4. Run `/deepwork task:"Smoke test dry run" dry-run:"true" route:"quick-fix"` and verify `.pipeline/<run-id>/state.md` records `mode: "dry-run"` and `next_stage: "done"`.

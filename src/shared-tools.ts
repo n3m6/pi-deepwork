@@ -5,6 +5,7 @@ import type {
   ModelRegistryLike,
   ToolDefinition,
 } from "./types/pi-extensions";
+import { refreshSubagentRegistry } from "./subagent-catalog";
 
 // ──────────────────────────────────────────────
 // Module-level state — set by activate() before tool registration
@@ -543,6 +544,13 @@ export function createDispatchTool(): ToolDefinition {
     // 3. Guard: extension must be activated
     if (_pi === null) {
       return dispatchFailResponse("Extension not activated.");
+    }
+
+    const refreshResult = refreshSubagentRegistry(ctx.cwd);
+    if (!refreshResult.refreshed && refreshResult.error) {
+      console.warn(
+        `[pi-deepwork] Unable to refresh pi-subagents agent registry: ${refreshResult.error}`,
+      );
     }
 
     // 4. Resolve optional model override before spawn.

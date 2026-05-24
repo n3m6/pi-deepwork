@@ -6,6 +6,7 @@ import {
   createQuestionTool,
   setPi,
 } from "../src/shared-tools";
+import { __setSubagentModuleLoaderForTests } from "../src/subagent-catalog";
 import type { ExtensionContext } from "../src/types/pi-extensions";
 
 const MANAGER_SYMBOL = Symbol.for("pi-subagents:manager");
@@ -61,6 +62,7 @@ function makeMockCtx(
 
 function resetGlobalState(): void {
   setPi(null);
+  __setSubagentModuleLoaderForTests();
   delete (globalThis as Record<string, unknown>)[
     MANAGER_SYMBOL as unknown as string
   ];
@@ -179,6 +181,25 @@ test("dispatch: missing pi-subagents manager returns FAIL with install message",
 test("dispatch: foreground success returns PASS with agent ID and result text", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
+  const refreshCalls: Array<Map<string, unknown>> = [];
+  __setSubagentModuleLoaderForTests((moduleId: string) => {
+    if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
+      return {
+        loadCustomAgents: (cwd: string) =>
+          new Map<string, unknown>([["cwd", cwd]]),
+      };
+    }
+
+    if (moduleId === "@tintinweb/pi-subagents/dist/agent-types.js") {
+      return {
+        registerAgents: (agents: Map<string, unknown>) => {
+          refreshCalls.push(agents);
+        },
+      };
+    }
+
+    throw new Error(`unexpected module: ${moduleId}`);
+  });
   const signal = new AbortController().signal;
   const record: MockRecord = {
     id: "agent-fg-1",
@@ -224,6 +245,8 @@ test("dispatch: foreground success returns PASS with agent ID and result text", 
   assert.ok(result.content.includes("All tasks done"));
   assert.equal(receivedOptions?.description, "foreground test");
   assert.equal(receivedOptions?.signal, signal);
+  assert.equal(refreshCalls.length, 1);
+  assert.equal(refreshCalls[0]?.get("cwd"), "/fake/cwd");
   const details = asDetails(result.details);
   assert.equal(details.status, "completed");
   assert.equal(details.agentId, "agent-fg-1");
