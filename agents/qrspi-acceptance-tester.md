@@ -277,9 +277,9 @@ In `lite` mode, there is no writer output. Build `### Criterion Mapping` directl
 - If a current-phase criterion maps to multiple active test files without explicit justification in the coverage plan, treat that as duplicate active coverage.
 - Any file in `### Files Modified` or `### Files Created` that falls outside `### TEST FILE BOUNDARY` is a contract violation. Do not proceed to execution when this occurs.
 
-If reconciliation leaves orphaned or duplicate active coverage, do not dispatch the `general-purpose` execution worker to run tests. Record reconciliation defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `reconciliation`, reconciliation defect in `Details`), and stop the inner loop.
+If reconciliation leaves orphaned or duplicate active coverage, do not dispatch the `general-purpose` child worker to run tests. Record reconciliation defects as persistent failures, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `reconciliation`, reconciliation defect in `Details`), and stop the inner loop.
 
-If `### Boundary Violations` is not `None.`, or if any path in `### Files Modified` / `### Files Created` falls outside `### TEST FILE BOUNDARY`, do not dispatch the `general-purpose` execution worker to run tests. Record a persistent failure for the current round describing the acceptance boundary violation, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `boundary_violation`, boundary violation in `Details`), set `### Boundary Violations` in the final output, and stop the inner loop.
+If `### Boundary Violations` is not `None.`, or if any path in `### Files Modified` / `### Files Created` falls outside `### TEST FILE BOUNDARY`, do not dispatch the `general-purpose` child worker to run tests. Record a persistent failure for the current round describing the acceptance boundary violation, populate `### Acceptance Results` with FAIL rows for every criterion without an execution result (`Test File` = `None.`, `Failure Reason` = `boundary_violation`, boundary violation in `Details`), set `### Boundary Violations` in the final output, and stop the inner loop.
 
 #### Step 5 — Run the Planned Tests
 
@@ -316,13 +316,14 @@ If failures remain, allow up to 2 repair attempts in this round only for defects
 
 If the failure appears to be a product behavior defect, missing implementation, public contract mismatch, data model issue, or any other source-code problem, do not dispatch a fix. Record the failed criterion as a persistent failure with enough evidence for the backward-loop detector.
 
-For each eligible acceptance-test repair, dispatch `qrspi_dispatch` with `subagent_type: "general-purpose"`:
+For each eligible acceptance-test repair, dispatch the `general-purpose` child worker with `qrspi_dispatch`:
 
 ```
-description: "Acceptance test repair"
+subagent_type: "general-purpose"
+description: "general-purpose child worker: acceptance-test repair"
 prompt:
 === ROLE ===
-You are the acceptance-test repair worker. Apply only the requested test-only fix, rerun the affected acceptance tests, and return the requested schema. Do not dispatch additional subagents unless this prompt explicitly tells you to.
+You are the `general-purpose` child worker for `qrspi-acceptance-tester`. Apply only the requested test-only fix, rerun the affected acceptance tests, and return the requested schema. Do not dispatch additional subagents unless this prompt explicitly tells you to.
 
 === COVERAGE PLAN ===
 [revised coverage plan verbatim]

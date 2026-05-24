@@ -109,6 +109,7 @@ test("qrspi-fast-impl-loop routes exclusively by explicit verify route hints", (
 
 test("qrspi-fast-impl-code delegates implementation to general-purpose and never writes tests", () => {
   assert.match(codeBody, /`general-purpose`/);
+  assert.match(codeBody, /general-purpose child worker/i);
   assert.match(codeBody, /subagent_type: "general-purpose"/);
   assert.match(codeBody, /Production code only/);
   assert.match(codeBody, /never author tests/i);
@@ -117,11 +118,12 @@ test("qrspi-fast-impl-code delegates implementation to general-purpose and never
   assert.match(codeBody, /### Backward Loop Request/);
 });
 
-test("qrspi-fast-impl-test and qrspi-fast-impl-verify use general-purpose worker dispatches", () => {
+test("qrspi-fast-impl-test and qrspi-fast-impl-verify use the shared general-purpose child-worker template", () => {
   assert.match(testBody, /subagent_type: "general-purpose"/);
-  assert.match(testBody, /general-purpose worker dispatch/i);
+  assert.match(testBody, /general-purpose child worker/i);
   assert.match(verifyBody, /subagent_type: "general-purpose"/);
-  assert.match(verifyBody, /Task verification worker/);
+  assert.match(verifyBody, /general-purpose child worker/i);
+  assert.match(verifyBody, /for `qrspi-fast-impl-verify`/);
 });
 
 test("qrspi-fast-impl-test classifies evidence and supports no-task-authored-tests", () => {
@@ -145,6 +147,7 @@ test("qrspi-fast-impl-verify returns final verification status plus explicit rep
 
 test("stage 6 gate checkers expose their regression and integration contracts", () => {
   assert.match(e2eBody, /subagent_type: "general-purpose"/);
+  assert.match(e2eBody, /general-purpose child worker/i);
   assert.match(e2eBody, /### E2E Gate Status/);
   assert.match(e2eBody, /### Regressions/);
 
@@ -155,6 +158,7 @@ test("stage 6 gate checkers expose their regression and integration contracts", 
   assert.match(integrationBody, /### Backward Loop Request/);
 
   assert.match(baselineBody, /subagent_type: "general-purpose"/);
+  assert.match(baselineBody, /general-purpose child worker/i);
   assert.match(baselineBody, /### Regression List/);
   assert.match(baselineBody, /### Skipped Checks/);
   assert.match(baselineBody, /### Coverage/);

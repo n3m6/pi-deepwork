@@ -77,6 +77,12 @@ test("qrspi-acceptance-tester uses background join semantics for reviewer batche
   assert.match(testerBody, /qrspi_get_subagent_result/);
 });
 
+test("qrspi-acceptance-tester uses the shared general-purpose child-worker template for test repairs", () => {
+  assert.match(testerBody, /general-purpose child worker/i);
+  assert.match(testerBody, /subagent_type: "general-purpose"/);
+  assert.match(testerBody, /for `qrspi-acceptance-tester`/);
+});
+
 test("qrspi-acceptance-tester reports boundary violation failure reasons", () => {
   assert.match(testerBody, /`boundary_violation` — acceptance authoring or repair modified or created files outside TEST FILE BOUNDARY/);
   assert.match(testerBody, /set `### Boundary Violations` in the final output/);
