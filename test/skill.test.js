@@ -24,11 +24,16 @@ test('SKILL.md exists at skills/deepwork/SKILL.md', () => {
   );
 });
 
-test('SKILL.md has no YAML frontmatter (no leading ---)', () => {
+test('SKILL.md has YAML frontmatter with required metadata', () => {
   const trimmed = skillContent.trimStart();
-  assert.ok(
-    !trimmed.startsWith('---'),
-    'First non-whitespace chars should not be ---',
+  const frontmatterMatch = trimmed.match(/^---\n([\s\S]*?)\n---/);
+
+  assert.ok(frontmatterMatch, 'SKILL.md should start with YAML frontmatter');
+  assert.match(frontmatterMatch[1], /^name:\s+deepwork$/m);
+  assert.match(
+    frontmatterMatch[1],
+    /^description:\s+.+$/m,
+    'SKILL.md frontmatter should include a description',
   );
 });
 
