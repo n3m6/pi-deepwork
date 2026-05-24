@@ -144,6 +144,27 @@ test("qrspi_question tool is registered exactly once with required fields", () =
   assert.ok("type" in props);
 });
 
+test("qrspi_get_subagent_result tool is registered exactly once with required fields", () => {
+  const { pi, tools } = createMockPi();
+  activate(pi);
+
+  const resultTools = tools.filter(
+    (t) => t.definition.name === "qrspi_get_subagent_result",
+  );
+  assert.equal(resultTools.length, 1);
+  const tool = resultTools[0]!.definition;
+  assert.ok(typeof tool.name === "string" && tool.name.length > 0);
+  assert.ok(
+    typeof tool.description === "string" && tool.description.length > 0,
+  );
+  assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
+  assert.equal(typeof tool.execute, "function");
+
+  const props = tool.parameters.properties as Record<string, unknown>;
+  assert.ok("agent_id" in props);
+  assert.ok("wait" in props);
+});
+
 test("resources_discover event listener is subscribed", () => {
   const { pi, events } = createMockPi();
   activate(pi);
@@ -198,6 +219,11 @@ test("package.json matches expected manifest shape", () => {
   assert.ok(
     "@tintinweb/pi-subagents" in peers,
     "@tintinweb/pi-subagents must be in peerDependencies",
+  );
+  assert.equal(
+    peers["@tintinweb/pi-subagents"],
+    ">=0.7.3",
+    "@tintinweb/pi-subagents must declare the minimum compatible peer version",
   );
 
   const scripts = pkg.scripts as Record<string, unknown> | undefined;

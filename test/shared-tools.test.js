@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 
 // Import the full module object so we can mutate _pi
 const sharedTools = require('../dist/shared-tools');
-const { createDispatchTool, createQuestionTool } = sharedTools;
+const { createDispatchTool, createGetSubagentResultTool, createQuestionTool } =
+  sharedTools;
 
 const MANAGER_SYMBOL = Symbol.for('pi-subagents:manager');
 
@@ -50,7 +51,14 @@ test('createDispatchTool returns a ToolDefinition with a parameters JSON Schema'
   assert.equal(props.prompt.type, 'string');
   assert.equal(props.description.type, 'string');
   assert.equal(props.run_in_background.type, 'boolean');
-  assert.deepEqual(props.thinking.enum, ['low', 'medium', 'high']);
+  assert.deepEqual(props.thinking.enum, [
+    'off',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+  ]);
   assert.equal(props.max_turns.type, 'number');
   assert.equal(props.model.type, 'string');
 });
@@ -213,11 +221,24 @@ test('dispatch: background with _pi null returns "Extension not activated"', asy
 // createDispatchTool — background dispatch success
 // ──────────────────────────────────────────────────────────
 
-test('dispatch: background mode returns RUNNING with agent ID', async () => {
+test('dispatch: background mode returns RUNNING and marks the spawn as background', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
+  const record = {
+    id: 'agent-background-1',
+    status: 'running',
+    startedAt: Date.now(),
+    promise: Promise.resolve('done'),
+  };
+  let receivedOptions = null;
   globalThis[MANAGER_SYMBOL] = {
-    spawn: () => 'agent-background-1',
+    spawn: (_pi, _ctx, _type, _prompt, options) => {
+      receivedOptions = options;
+      return record.id;
+    },
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -234,10 +255,9 @@ test('dispatch: background mode returns RUNNING with agent ID', async () => {
     ctx,
   );
   assert.ok(result.content.includes('### Status — RUNNING'));
-  assert.ok(result.content.includes('agent-background-1'));
-  assert.ok(result.content.includes('Subagent dispatched in background'));
-  assert.equal(result.details.status, 'running');
-  assert.equal(result.details.agentId, 'agent-background-1');
+  assert.ok(result.content.includes(record.id));
+  assert.ok(result.content.includes('qrspi_get_subagent_result'));
+  assert.equal(receivedOptions.isBackground, true);
   sharedTools._pi = null;
   delete globalThis[MANAGER_SYMBOL];
 });
@@ -249,13 +269,19 @@ test('dispatch: background mode returns RUNNING with agent ID', async () => {
 test('dispatch: foreground success returns PASS with agent ID and result', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
+  const record = {
+    id: 'agent-fg-1',
+    status: 'completed',
+    result: 'All tasks done',
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve('All tasks done'),
+  };
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async () => ({
-      agentId: 'agent-fg-1',
-      status: 'completed',
-      result: 'All tasks done',
-      startedAt: new Date().toISOString(),
-    }),
+    spawn: () => record.id,
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -284,13 +310,19 @@ test('dispatch: foreground success returns PASS with agent ID and result', async
 test('dispatch: foreground subagent failed returns FAIL with error', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
+  const record = {
+    id: 'agent-failed-1',
+    status: 'error',
+    error: 'Task crashed',
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve(''),
+  };
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async () => ({
-      agentId: 'agent-failed-1',
-      status: 'failed',
-      error: 'Task crashed',
-      startedAt: new Date().toISOString(),
-    }),
+    spawn: () => record.id,
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -319,17 +351,23 @@ test('dispatch: foreground subagent failed returns FAIL with error', async () =>
 test('dispatch: _pi set before createDispatchTool is used by execute', async () => {
   resetGlobalState();
   sharedTools._pi = { customApiField: 42 };
+  const record = {
+    id: 'a',
+    status: 'completed',
+    result: 'ok',
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve('ok'),
+  };
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async (pi) => {
+    spawn: (pi) => {
       // Verify that the pi passed to manager is the same as our _pi
       assert.strictEqual(pi, sharedTools._pi);
-      return {
-        agentId: 'a',
-        status: 'completed',
-        result: 'ok',
-        startedAt: new Date().toISOString(),
-      };
+      return record.id;
     },
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -666,16 +704,18 @@ test('question: no UI — select defaults to first option with uiUnavailable tru
 // createDispatchTool: background does not block
 // ──────────────────────────────────────────────────────────
 
-test('dispatch: background mode does not call spawnAndWait', async () => {
+test('dispatch: background mode calls spawn when background support is enabled', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
-  let spawnAndWaitCalled = false;
+  let spawnCalled = false;
   globalThis[MANAGER_SYMBOL] = {
-    spawn: () => 'agent-bg-no-wait',
-    spawnAndWait: async () => {
-      spawnAndWaitCalled = true;
-      return {};
+    spawn: () => {
+      spawnCalled = true;
+      return 'agent-bg-no-wait';
     },
+    getRecord: () => undefined,
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -693,11 +733,83 @@ test('dispatch: background mode does not call spawnAndWait', async () => {
   );
   assert.ok(result.content.includes('### Status — RUNNING'));
   assert.equal(
-    spawnAndWaitCalled,
-    false,
-    'spawnAndWait should not be called for background dispatch',
+    spawnCalled,
+    true,
+    'spawn should be called for background dispatch',
   );
   sharedTools._pi = null;
+  delete globalThis[MANAGER_SYMBOL];
+});
+
+test('createGetSubagentResultTool returns a ToolDefinition with name "qrspi_get_subagent_result"', () => {
+  const tool = createGetSubagentResultTool();
+  assert.equal(tool.name, 'qrspi_get_subagent_result');
+});
+
+test('get subagent result: running record without wait returns RUNNING', async () => {
+  resetGlobalState();
+  const record = {
+    id: 'agent-running-1',
+    status: 'running',
+    startedAt: Date.now(),
+    promise: Promise.resolve('done'),
+  };
+  globalThis[MANAGER_SYMBOL] = {
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => true,
+    waitForAll: async () => {},
+  };
+  const tool = createGetSubagentResultTool();
+  const result = await tool.execute(
+    'id',
+    { agent_id: record.id },
+    new AbortController().signal,
+    () => {},
+    makeMockCtx(),
+  );
+  assert.ok(result.content.includes('### Status — RUNNING'));
+  assert.ok(result.content.includes(record.id));
+  delete globalThis[MANAGER_SYMBOL];
+});
+
+test('get subagent result: wait true joins a running background task', async () => {
+  resetGlobalState();
+  const record = {
+    id: 'agent-running-2',
+    status: 'running',
+    startedAt: Date.now(),
+    promise: Promise.resolve('done'),
+  };
+  const finalRecord = {
+    id: record.id,
+    status: 'completed',
+    result: 'Background complete',
+    startedAt: record.startedAt,
+    completedAt: Date.now(),
+    promise: record.promise,
+  };
+  let phase = 'running';
+  globalThis[MANAGER_SYMBOL] = {
+    getRecord: (id) => {
+      if (id !== record.id) return undefined;
+      return phase === 'running' ? record : finalRecord;
+    },
+    hasRunning: () => phase === 'running',
+    waitForAll: async () => {
+      phase = 'completed';
+    },
+  };
+  const tool = createGetSubagentResultTool();
+  const result = await tool.execute(
+    'id',
+    { agent_id: record.id, wait: true },
+    new AbortController().signal,
+    () => {},
+    makeMockCtx(),
+  );
+  assert.ok(result.content.includes('### Status — PASS'));
+  assert.ok(result.content.includes('Background complete'));
+  assert.equal(record.resultConsumed, true);
   delete globalThis[MANAGER_SYMBOL];
 });
 
@@ -705,23 +817,37 @@ test('dispatch: background mode does not call spawnAndWait', async () => {
 // createDispatchTool: spawn model/thinking/max_turns passed to manager
 // ──────────────────────────────────────────────────────────
 
-test('dispatch: foreground passes model option to spawnAndWait', async () => {
+test('dispatch: foreground resolves model override and uses camelCase options', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
+  const fakeModel = { id: 'anthropic/claude-sonnet-4-5' };
+  const record = {
+    id: 'a',
+    status: 'completed',
+    result: 'ok',
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve('ok'),
+  };
   let receivedOptions = null;
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async (_pi, _ctx, _type, _prompt, options) => {
+    spawn: (_pi, _ctx, _type, _prompt, options) => {
       receivedOptions = options;
-      return {
-        agentId: 'a',
-        status: 'completed',
-        result: 'ok',
-        startedAt: new Date().toISOString(),
-      };
+      return record.id;
     },
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
-  const ctx = makeMockCtx();
+  const ctx = makeMockCtx({
+    modelRegistry: {
+      find: (query) =>
+        query === 'anthropic/claude-sonnet-4-5' ? fakeModel : undefined,
+      getAll: () => [],
+      getAvailable: () => [],
+    },
+  });
   await tool.execute(
     'id',
     {
@@ -736,43 +862,46 @@ test('dispatch: foreground passes model option to spawnAndWait', async () => {
     () => {},
     ctx,
   );
-  assert.equal(receivedOptions.model, 'anthropic/claude-sonnet-4-5');
-  assert.equal(receivedOptions.thinking, 'high');
-  assert.equal(receivedOptions.max_turns, 40);
+  assert.equal(receivedOptions.model, fakeModel);
+  assert.equal(receivedOptions.thinkingLevel, 'high');
+  assert.equal(receivedOptions.maxTurns, 40);
+  assert.equal(receivedOptions.description, 'd');
+  assert.equal('thinking' in receivedOptions, false);
+  assert.equal('max_turns' in receivedOptions, false);
   sharedTools._pi = null;
   delete globalThis[MANAGER_SYMBOL];
 });
 
-test('dispatch: background passes model option to spawn', async () => {
+test('dispatch: model override without modelRegistry fails before spawn', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
-  let receivedOptions = null;
+  let spawnCalled = false;
   globalThis[MANAGER_SYMBOL] = {
-    spawn: (_pi, _ctx, _type, _prompt, options) => {
-      receivedOptions = options;
+    spawn: () => {
+      spawnCalled = true;
       return 'agent-bg-2';
     },
+    getRecord: () => undefined,
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
-  const ctx = makeMockCtx();
-  await tool.execute(
+  const ctx = makeMockCtx({ modelRegistry: undefined });
+  const result = await tool.execute(
     'id',
     {
       subagent_type: 't',
       prompt: 'p',
       description: 'd',
-      run_in_background: true,
       model: 'anthropic/claude-sonnet-4-5',
-      thinking: 'medium',
-      max_turns: 20,
     },
     new AbortController().signal,
     () => {},
     ctx,
   );
-  assert.equal(receivedOptions.model, 'anthropic/claude-sonnet-4-5');
-  assert.equal(receivedOptions.thinking, 'medium');
-  assert.equal(receivedOptions.max_turns, 20);
+  assert.ok(result.content.includes('### Status — FAIL'));
+  assert.ok(result.content.includes('modelRegistry'));
+  assert.equal(spawnCalled, false);
   sharedTools._pi = null;
   delete globalThis[MANAGER_SYMBOL];
 });
@@ -784,17 +913,23 @@ test('dispatch: background passes model option to spawn', async () => {
 test('dispatch: undefined model and thinking are omitted from spawn options', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
+  const record = {
+    id: 'a',
+    status: 'completed',
+    result: 'ok',
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve('ok'),
+  };
   let receivedOptions = null;
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async (_pi, _ctx, _type, _prompt, options) => {
+    spawn: (_pi, _ctx, _type, _prompt, options) => {
       receivedOptions = options;
-      return {
-        agentId: 'a',
-        status: 'completed',
-        result: 'ok',
-        startedAt: new Date().toISOString(),
-      };
+      return record.id;
     },
+    getRecord: (id) => (id === record.id ? record : undefined),
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -810,8 +945,8 @@ test('dispatch: undefined model and thinking are omitted from spawn options', as
     ctx,
   );
   assert.equal(receivedOptions.model, undefined);
-  assert.equal(receivedOptions.thinking, undefined);
-  assert.equal(receivedOptions.max_turns, undefined);
+  assert.equal(receivedOptions.thinkingLevel, undefined);
+  assert.equal(receivedOptions.maxTurns, undefined);
   sharedTools._pi = null;
   delete globalThis[MANAGER_SYMBOL];
 });
@@ -827,6 +962,9 @@ test('dispatch: background spawn throws returns FAIL with dispatch failed', asyn
     spawn: () => {
       throw new Error('spawn explosion');
     },
+    getRecord: () => undefined,
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -853,13 +991,16 @@ test('dispatch: background spawn throws returns FAIL with dispatch failed', asyn
 // createDispatchTool — spawnAndWait() throws in foreground
 // ──────────────────────────────────────────────────────────
 
-test('dispatch: foreground spawnAndWait throws returns FAIL with dispatch failed', async () => {
+test('dispatch: foreground spawn throws returns FAIL with dispatch failed', async () => {
   resetGlobalState();
   sharedTools._pi = { api: 'fake' };
   globalThis[MANAGER_SYMBOL] = {
-    spawnAndWait: async () => {
-      throw new Error('spawnAndWait explosion');
+    spawn: () => {
+      throw new Error('spawn explosion');
     },
+    getRecord: () => undefined,
+    hasRunning: () => false,
+    waitForAll: async () => {},
   };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -876,7 +1017,7 @@ test('dispatch: foreground spawnAndWait throws returns FAIL with dispatch failed
   );
   assert.ok(result.content.includes('### Status — FAIL'));
   assert.ok(result.content.includes('dispatch failed:'));
-  assert.ok(result.content.includes('spawnAndWait explosion'));
+  assert.ok(result.content.includes('spawn explosion'));
   sharedTools._pi = null;
   delete globalThis[MANAGER_SYMBOL];
 });

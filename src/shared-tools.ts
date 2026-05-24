@@ -1,6 +1,8 @@
 import type {
   ExtensionAPI,
   ExtensionContext,
+  ModelLike,
+  ModelRegistryLike,
   ToolDefinition,
 } from "./types/pi-extensions";
 
@@ -37,6 +39,12 @@ export interface QrspiQuestionParams {
   type: "confirm" | "select";
 }
 
+/** Parameter shape for the qrspi_get_subagent_result tool. */
+export interface QrspiGetSubagentResultParams {
+  agent_id: string;
+  wait?: boolean;
+}
+
 /** Normalised result from a sub-subagent dispatch. */
 export interface DispatchResult {
   agentId: string;
@@ -59,9 +67,24 @@ export interface QuestionResult {
 
 /** Options bag passed to AgentManager spawn methods. */
 export interface SpawnOptions {
-  model?: string;
-  thinking?: string;
-  max_turns?: number;
+  description: string;
+  model?: ModelLike;
+  thinkingLevel?: string;
+  maxTurns?: number;
+  isBackground?: boolean;
+  signal?: AbortSignal;
+}
+
+interface AgentRecordFacade {
+  id: string;
+  status: string;
+  result?: string;
+  error?: string;
+  toolUses?: number;
+  startedAt: number | string;
+  completedAt?: number | string;
+  promise?: Promise<string>;
+  resultConsumed?: boolean;
 }
 
 /** Type contract for the object registered at Symbol.for("pi-subagents:manager"). */
@@ -73,16 +96,9 @@ export interface AgentManagerFacade {
     prompt: string,
     options: SpawnOptions,
   ): string;
-  spawnAndWait(
-    pi: ExtensionAPI,
-    ctx: ExtensionContext,
-    type: string,
-    prompt: string,
-    options: SpawnOptions,
-  ): Promise<DispatchResult>;
   waitForAll(): Promise<void>;
   hasRunning(): boolean;
-  getRecord(id: string): DispatchResult | undefined;
+  getRecord(id: string): AgentRecordFacade | undefined;
 }
 
 // ═══════════════════════════════════════════
@@ -102,20 +118,257 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 }
 
 /** Build SpawnOptions, omitting undefined keys. */
-function buildSpawnOptions(params: Record<string, unknown>): SpawnOptions {
-  const opts: SpawnOptions = {};
-  // Only assign keys that are explicitly defined on the incoming param object;
-  // undefined keys are naturally omitted because we check typeof.
-  if (params.model !== undefined) {
-    opts.model = params.model as string;
+function buildSpawnOptions(
+  params: Record<string, unknown>,
+  description: string,
+  model: ModelLike | undefined,
+  signal: AbortSignal,
+): SpawnOptions {
+  const opts: SpawnOptions = {
+    description,
+    signal,
+  };
+  if (model !== undefined) {
+    opts.model = model;
   }
   if (params.thinking !== undefined) {
-    opts.thinking = params.thinking as string;
+    opts.thinkingLevel = params.thinking as string;
   }
   if (params.max_turns !== undefined) {
-    opts.max_turns = params.max_turns as number;
+    opts.maxTurns = params.max_turns as number;
   }
   return opts;
+}
+
+function isModelRegistryLike(v: unknown): v is ModelRegistryLike {
+  return (
+    isRecord(v) &&
+    (typeof v.find === "function" ||
+      typeof v.getAll === "function" ||
+      typeof v.getAvailable === "function")
+  );
+}
+
+function toModelNames(candidate: ModelLike): string[] {
+  if (typeof candidate === "string") {
+    return [candidate];
+  }
+
+  if (!isRecord(candidate)) {
+    return [];
+  }
+
+  const names = new Set<string>();
+  const provider = candidate.provider;
+  const id = candidate.id ?? candidate.modelId;
+  if (typeof provider === "string" && typeof id === "string") {
+    names.add(`${provider}/${id}`);
+  }
+
+  for (const key of ["id", "modelId", "name", "label", "displayName"]) {
+    const value = candidate[key];
+    if (typeof value === "string") {
+      names.add(value);
+    }
+  }
+
+  return [...names];
+}
+
+function resolveModelFromCandidates(
+  modelInput: string,
+  candidates: ModelLike[],
+): ModelLike | undefined {
+  const needle = modelInput.toLowerCase();
+
+  for (const candidate of candidates) {
+    const names = toModelNames(candidate).map((name) => name.toLowerCase());
+    if (names.includes(needle)) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of candidates) {
+    const names = toModelNames(candidate).map((name) => name.toLowerCase());
+    if (
+      names.some(
+        (name) =>
+          name.endsWith(`/${needle}`) ||
+          name.includes(needle) ||
+          name.replace(/-\d{8}$/, "") === needle,
+      )
+    ) {
+      return candidate;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveModelOverride(
+  modelInput: unknown,
+  ctx: ExtensionContext,
+): { model?: ModelLike; error?: string } {
+  if (modelInput === undefined) {
+    return {};
+  }
+
+  if (!isNonEmptyString(modelInput)) {
+    return {
+      error: "Model override must be a non-empty string.",
+    };
+  }
+
+  if (!isModelRegistryLike(ctx.modelRegistry)) {
+    return {
+      error: `Model override \"${modelInput}\" requires a modelRegistry on the extension context.`,
+    };
+  }
+
+  try {
+    const found = ctx.modelRegistry.find?.(modelInput);
+    if (found !== undefined && found !== null) {
+      return { model: found };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return {
+      error: `Failed to resolve model override \"${modelInput}\": ${message}`,
+    };
+  }
+
+  const candidates = [
+    ...(ctx.modelRegistry.getAvailable?.() ?? []),
+    ...(ctx.modelRegistry.getAll?.() ?? []),
+  ];
+  const resolved = resolveModelFromCandidates(modelInput, candidates);
+  if (resolved !== undefined) {
+    return { model: resolved };
+  }
+
+  return {
+    error: `Unable to resolve model override \"${modelInput}\".`,
+  };
+}
+
+function toIsoTimestamp(v: number | string | undefined): string | undefined {
+  if (typeof v === "number" && Number.isFinite(v)) {
+    return new Date(v).toISOString();
+  }
+
+  if (isNonEmptyString(v)) {
+    return v;
+  }
+
+  return undefined;
+}
+
+function toDispatchStatus(status: string): DispatchResult["status"] {
+  switch (status) {
+    case "completed":
+    case "steered":
+      return "completed";
+    case "running":
+    case "queued":
+      return "running";
+    default:
+      return "failed";
+  }
+}
+
+function isPendingAgentStatus(status: string): boolean {
+  return status === "running" || status === "queued";
+}
+
+function toDispatchResult(record: AgentRecordFacade): DispatchResult {
+  const result: DispatchResult = {
+    agentId: record.id,
+    status: toDispatchStatus(record.status),
+    startedAt: toIsoTimestamp(record.startedAt) ?? new Date().toISOString(),
+  };
+
+  if (record.result !== undefined) {
+    result.result = record.result;
+  }
+  if (record.error !== undefined) {
+    result.error = record.error;
+  }
+  if (record.toolUses !== undefined) {
+    result.toolUses = record.toolUses;
+  }
+  const completedAt = toIsoTimestamp(record.completedAt);
+  if (completedAt !== undefined) {
+    result.completedAt = completedAt;
+  }
+
+  return result;
+}
+
+async function waitForForegroundDispatch(
+  manager: AgentManagerFacade,
+  agentId: string,
+): Promise<DispatchResult> {
+  const initialRecord = manager.getRecord(agentId);
+  if (!initialRecord) {
+    throw new Error(
+      `Agent manager returned no record for agent \"${agentId}\".`,
+    );
+  }
+
+  if (
+    initialRecord.promise === undefined &&
+    (initialRecord.status === "running" || initialRecord.status === "queued")
+  ) {
+    throw new Error(
+      `Agent manager record for \"${agentId}\" has no promise for foreground dispatch.`,
+    );
+  }
+
+  try {
+    await initialRecord.promise;
+  } catch {
+    // The final record carries the terminal status and error details.
+  }
+
+  return toDispatchResult(manager.getRecord(agentId) ?? initialRecord);
+}
+
+async function waitForBackgroundDispatch(
+  manager: AgentManagerFacade,
+  record: AgentRecordFacade,
+): Promise<AgentRecordFacade> {
+  try {
+    if (record.promise !== undefined) {
+      await record.promise;
+    } else if (isPendingAgentStatus(record.status)) {
+      await manager.waitForAll();
+    }
+  } catch {
+    // The final record carries the terminal status and error details.
+  }
+
+  let refreshed = manager.getRecord(record.id) ?? record;
+  if (isPendingAgentStatus(refreshed.status)) {
+    try {
+      await manager.waitForAll();
+    } catch {
+      // Keep the most recent record we can observe.
+    }
+    refreshed = manager.getRecord(record.id) ?? refreshed;
+  }
+
+  return refreshed;
+}
+
+function makeSyntheticDispatchResult(
+  agentId: string,
+  status: DispatchResult["status"] = "running",
+): DispatchResult {
+  return {
+    agentId,
+    status,
+    startedAt: new Date().toISOString(),
+  };
 }
 
 interface ToolResult {
@@ -161,6 +414,21 @@ function dispatchErrorResponse(error: unknown): ToolResult {
   };
 }
 
+function subagentResultFailResponse(
+  reason: string,
+  agentId?: string,
+): ToolResult {
+  return {
+    content: `### Status — FAIL\n**Error:** ${reason}`,
+    details: {
+      agentId: agentId ?? "qrspi_get_subagent_result",
+      status: "failed",
+      error: reason,
+      startedAt: new Date().toISOString(),
+    } as Record<string, unknown>,
+  };
+}
+
 // ═══════════════════════════════════════════
 // createDispatchTool
 // ═══════════════════════════════════════════
@@ -186,7 +454,7 @@ const DISPATCH_PARAM_SCHEMA: Record<string, unknown> = {
     },
     thinking: {
       type: "string",
-      enum: ["low", "medium", "high"],
+      enum: ["off", "minimal", "low", "medium", "high", "xhigh"],
       description: "Optional thinking level",
     },
     max_turns: {
@@ -196,11 +464,32 @@ const DISPATCH_PARAM_SCHEMA: Record<string, unknown> = {
     run_in_background: {
       type: "boolean",
       default: false,
-      description: "When true, dispatch returns immediately without waiting",
+      description:
+        "When true, dispatch returns immediately and the caller can later join with qrspi_get_subagent_result.",
     },
   },
   required: ["subagent_type", "prompt", "description"],
 };
+
+const GET_SUBAGENT_RESULT_PARAM_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  properties: {
+    agent_id: {
+      type: "string",
+      description:
+        "Agent ID returned by qrspi_dispatch when run_in_background is true.",
+    },
+    wait: {
+      type: "boolean",
+      default: false,
+      description:
+        "When true, wait for the background subagent to finish before returning.",
+    },
+  },
+  required: ["agent_id"],
+};
+
+const MANAGER_SYMBOL = Symbol.for("pi-subagents:manager");
 
 /**
  * Factory that returns a ToolDefinition for qrspi_dispatch.
@@ -211,7 +500,7 @@ export function createDispatchTool(): ToolDefinition {
   const execute: ToolDefinition["execute"] = async (
     _toolCallId,
     params,
-    _signal,
+    signal,
     _onUpdate,
     ctx,
   ) => {
@@ -238,10 +527,10 @@ export function createDispatchTool(): ToolDefinition {
       );
     }
 
+    const runInBackground = params.run_in_background === true;
+
     // 2. Resolve pi-subagents manager
-    const manager: AgentManagerFacade | undefined = (
-      globalThis as Record<string, unknown>
-    )[Symbol.for("pi-subagents:manager") as unknown as string] as
+    const manager = Reflect.get(globalThis, MANAGER_SYMBOL) as
       | AgentManagerFacade
       | undefined;
 
@@ -251,60 +540,193 @@ export function createDispatchTool(): ToolDefinition {
       );
     }
 
-    // 3. Build options bag
-    const spawnOpts = buildSpawnOptions(params);
-
-    // 4. Guard: extension must be activated
+    // 3. Guard: extension must be activated
     if (_pi === null) {
       return dispatchFailResponse("Extension not activated.");
     }
 
-    // 5. Background path
-    const runInBg = params.run_in_background === true;
-    if (runInBg) {
-      let agentId: string;
-      try {
-        agentId = manager.spawn(_pi, ctx, subagentType, prompt, spawnOpts);
-      } catch (e: unknown) {
-        console.error("qrspi_dispatch: spawn failed", e);
-        return dispatchErrorResponse(e);
+    // 4. Resolve optional model override before spawn.
+    const resolvedModel = resolveModelOverride(params.model, ctx);
+    if (resolvedModel.error) {
+      return dispatchFailResponse(resolvedModel.error);
+    }
+
+    // 5. Build options bag
+    const spawnOpts = buildSpawnOptions(
+      params,
+      description,
+      resolvedModel.model,
+      signal,
+    );
+
+    if (runInBackground) {
+      spawnOpts.isBackground = true;
+    }
+
+    // 6. Dispatch path
+    try {
+      const agentId = manager.spawn(_pi, ctx, subagentType, prompt, spawnOpts);
+      if (runInBackground) {
+        const record = manager.getRecord(agentId);
+        const dispatched = record
+          ? toDispatchResult(record)
+          : makeSyntheticDispatchResult(agentId);
+        const state = record?.status ?? "running";
+
+        if (dispatched.status === "failed") {
+          return {
+            content: `### Status — FAIL
+**Agent:** ${dispatched.agentId}
+**Type:** ${subagentType}
+**State:** ${state}
+**Error:**
+${dispatched.error ?? "Unknown error"}`,
+            details: dispatched as unknown as Record<string, unknown>,
+          };
+        }
+
+        if (dispatched.status === "completed") {
+          return {
+            content: `### Status — PASS
+**Agent:** ${dispatched.agentId}
+**Type:** ${subagentType}
+**State:** ${state}
+**Result:**
+${dispatched.result ?? ""}`,
+            details: dispatched as unknown as Record<string, unknown>,
+          };
+        }
+
+        return {
+          content: `### Status — RUNNING
+**Agent:** ${agentId}
+**Type:** ${subagentType}
+**State:** ${state}
+**Note:** Use qrspi_get_subagent_result with this agent ID to poll or wait for the background result.`,
+          details: dispatched as unknown as Record<string, unknown>,
+        };
       }
 
-      const result: DispatchResult = {
-        agentId,
-        status: "running",
-        startedAt: new Date().toISOString(),
-      };
+      const dispatched = await waitForForegroundDispatch(manager, agentId);
 
+      if (dispatched.status === "running") {
+        return {
+          content: `### Status — FAIL
+**Agent:** ${dispatched.agentId}
+**Type:** ${subagentType}
+**Error:**
+Foreground dispatch did not reach a terminal state.`,
+          details: {
+            ...dispatched,
+            status: "failed",
+            error: "Foreground dispatch did not reach a terminal state.",
+          } as Record<string, unknown>,
+        };
+      }
+
+      if (dispatched.status === "failed") {
+        return {
+          content: `### Status — FAIL
+**Agent:** ${dispatched.agentId}
+**Type:** ${subagentType}
+**Error:**
+${dispatched.error ?? "Unknown error"}`,
+          details: dispatched as unknown as Record<string, unknown>,
+        };
+      }
+
+      return {
+        content: `### Status — PASS
+**Agent:** ${dispatched.agentId}
+**Type:** ${subagentType}
+**Result:**
+${dispatched.result ?? ""}`,
+        details: dispatched as unknown as Record<string, unknown>,
+      };
+    } catch (e: unknown) {
+      console.error("qrspi_dispatch: spawn failed", e);
+      return dispatchErrorResponse(e);
+    }
+  };
+
+  return {
+    name: "qrspi_dispatch",
+    label: "Dispatch Subagent",
+    description:
+      "Spawn a leaf subagent to perform a scoped task. Use foreground mode to block until completion, or background mode with qrspi_get_subagent_result when the caller needs fire-and-join behavior in child-agent contexts.",
+    parameters: DISPATCH_PARAM_SCHEMA,
+    execute,
+  };
+}
+
+// ═══════════════════════════════════════════
+// createGetSubagentResultTool
+// ═══════════════════════════════════════════
+
+export function createGetSubagentResultTool(): ToolDefinition {
+  const execute: ToolDefinition["execute"] = async (
+    _toolCallId,
+    params,
+    _signal,
+    _onUpdate,
+    _ctx,
+  ) => {
+    if (!isRecord(params)) {
+      return subagentResultFailResponse(
+        "Invalid parameters — expected an object.",
+      );
+    }
+
+    const agentId = params.agent_id;
+    if (!isNonEmptyString(agentId)) {
+      return subagentResultFailResponse(
+        "Missing or empty required parameter: agent_id",
+      );
+    }
+
+    const manager = Reflect.get(globalThis, MANAGER_SYMBOL) as
+      | AgentManagerFacade
+      | undefined;
+
+    if (manager == null) {
+      return subagentResultFailResponse(
+        "`@tintinweb/pi-subagents` is not installed. Install it with:\n  pi install npm:@tintinweb/pi-subagents",
+        agentId,
+      );
+    }
+
+    let record = manager.getRecord(agentId);
+    if (record == null) {
+      return subagentResultFailResponse(`Agent not found: ${agentId}`, agentId);
+    }
+
+    if (params.wait === true && isPendingAgentStatus(record.status)) {
+      record.resultConsumed = true;
+      record = await waitForBackgroundDispatch(manager, record);
+    }
+
+    if (!isPendingAgentStatus(record.status)) {
+      record.resultConsumed = true;
+    }
+
+    const dispatched = toDispatchResult(record);
+    const state = record.status;
+
+    if (dispatched.status === "running") {
       return {
         content: `### Status — RUNNING
 **Agent:** ${agentId}
-**Type:** ${subagentType}
-**Note:** Subagent dispatched in background. Use get_subagent_result to retrieve output.`,
-        details: result as unknown as Record<string, unknown>,
+**State:** ${state}
+**Note:** Background subagent is still in progress. Re-run qrspi_get_subagent_result or pass wait: true.`,
+        details: dispatched as unknown as Record<string, unknown>,
       };
-    }
-
-    // 6. Foreground path
-    let dispatched: DispatchResult;
-    try {
-      dispatched = await manager.spawnAndWait(
-        _pi,
-        ctx,
-        subagentType,
-        prompt,
-        spawnOpts,
-      );
-    } catch (e: unknown) {
-      console.error("qrspi_dispatch: spawnAndWait failed", e);
-      return dispatchErrorResponse(e);
     }
 
     if (dispatched.status === "failed") {
       return {
         content: `### Status — FAIL
-**Agent:** ${dispatched.agentId}
-**Type:** ${subagentType}
+**Agent:** ${agentId}
+**State:** ${state}
 **Error:**
 ${dispatched.error ?? "Unknown error"}`,
         details: dispatched as unknown as Record<string, unknown>,
@@ -313,8 +735,8 @@ ${dispatched.error ?? "Unknown error"}`,
 
     return {
       content: `### Status — PASS
-**Agent:** ${dispatched.agentId}
-**Type:** ${subagentType}
+**Agent:** ${agentId}
+**State:** ${state}
 **Result:**
 ${dispatched.result ?? ""}`,
       details: dispatched as unknown as Record<string, unknown>,
@@ -322,11 +744,11 @@ ${dispatched.result ?? ""}`,
   };
 
   return {
-    name: "qrspi_dispatch",
-    label: "Dispatch Subagent",
+    name: "qrspi_get_subagent_result",
+    label: "Get Subagent Result",
     description:
-      "Spawn a leaf subagent to perform a scoped task. Use this when you need to delegate work that would normally use the Agent tool (which is blocked in subagent contexts). Supports foreground (blocking) and background modes.",
-    parameters: DISPATCH_PARAM_SCHEMA,
+      "Check status or retrieve the result of a background subagent started with qrspi_dispatch. Use wait: true to block until completion.",
+    parameters: GET_SUBAGENT_RESULT_PARAM_SCHEMA,
     execute,
   };
 }

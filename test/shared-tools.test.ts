@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createDispatchTool,
+  createGetSubagentResultTool,
   createQuestionTool,
   setPi,
 } from "../src/shared-tools";
@@ -22,6 +23,18 @@ interface MockResult {
   completedAt?: string;
 }
 
+interface MockRecord {
+  id: string;
+  status: string;
+  result?: string;
+  error?: string;
+  toolUses?: number;
+  startedAt: number;
+  completedAt?: number;
+  promise?: Promise<string>;
+  resultConsumed?: boolean;
+}
+
 function makeMockCtx(
   overrides: Partial<ExtensionContext> = {},
 ): ExtensionContext {
@@ -33,7 +46,11 @@ function makeMockCtx(
     },
     cwd: "/fake/cwd",
     sessionManager: {},
-    modelRegistry: {},
+    modelRegistry: {
+      find: () => undefined,
+      getAll: () => [],
+      getAvailable: () => [],
+    },
     model: "test-model",
     signal: new AbortController().signal,
     abort: () => {},
@@ -162,14 +179,32 @@ test("dispatch: missing pi-subagents manager returns FAIL with install message",
 test("dispatch: foreground success returns PASS with agent ID and result text", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
+  const signal = new AbortController().signal;
+  const record: MockRecord = {
+    id: "agent-fg-1",
+    status: "completed",
+    result: "All tasks done",
+    toolUses: 3,
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve("All tasks done"),
+  };
+  let receivedOptions: Record<string, unknown> | undefined;
   (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
     {
-      spawnAndWait: async (): Promise<MockResult> => ({
-        agentId: "agent-fg-1",
-        status: "completed",
-        result: "All tasks done",
-        startedAt: new Date().toISOString(),
-      }),
+      spawn: (
+        _pi: unknown,
+        _ctx: ExtensionContext,
+        _type: string,
+        _prompt: string,
+        options: Record<string, unknown>,
+      ) => {
+        receivedOptions = options;
+        return record.id;
+      },
+      getRecord: (id: string) => (id === record.id ? record : undefined),
+      hasRunning: () => false,
+      waitForAll: async () => {},
     };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -180,13 +215,15 @@ test("dispatch: foreground success returns PASS with agent ID and result text", 
       prompt: "do work",
       description: "foreground test",
     },
-    new AbortController().signal,
+    signal,
     () => {},
     ctx,
   );
   assert.ok(result.content.includes("### Status — PASS"));
   assert.ok(result.content.includes("agent-fg-1"));
   assert.ok(result.content.includes("All tasks done"));
+  assert.equal(receivedOptions?.description, "foreground test");
+  assert.equal(receivedOptions?.signal, signal);
   const details = asDetails(result.details);
   assert.equal(details.status, "completed");
   assert.equal(details.agentId, "agent-fg-1");
@@ -201,21 +238,31 @@ test("dispatch: foreground success returns PASS with agent ID and result text", 
 // createDispatchTool — background success
 // ---------------------------------------------------------------------------
 
-test("dispatch: background mode returns RUNNING with agent ID", async () => {
+test("dispatch: background mode returns RUNNING and marks the spawn as background", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
-  let spawnCalled = false;
-  let spawnAndWaitCalled = false;
+  const record: MockRecord = {
+    id: "agent-bg-1",
+    status: "running",
+    startedAt: Date.now(),
+    promise: Promise.resolve("done"),
+  };
+  let receivedOptions: Record<string, unknown> | undefined;
   (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
     {
-      spawn: () => {
-        spawnCalled = true;
-        return "agent-bg-1";
+      spawn: (
+        _pi: unknown,
+        _ctx: ExtensionContext,
+        _type: string,
+        _prompt: string,
+        options: Record<string, unknown>,
+      ) => {
+        receivedOptions = options;
+        return record.id;
       },
-      spawnAndWait: async () => {
-        spawnAndWaitCalled = true;
-        return {} as MockResult;
-      },
+      getRecord: (id: string) => (id === record.id ? record : undefined),
+      hasRunning: () => false,
+      waitForAll: async () => {},
     };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -233,16 +280,11 @@ test("dispatch: background mode returns RUNNING with agent ID", async () => {
   );
   assert.ok(result.content.includes("### Status — RUNNING"));
   assert.ok(result.content.includes("agent-bg-1"));
-  assert.ok(result.content.includes("Subagent dispatched in background"));
+  assert.ok(result.content.includes("qrspi_get_subagent_result"));
+  assert.equal(receivedOptions?.isBackground, true);
   const details = asDetails(result.details);
   assert.equal(details.status, "running");
   assert.equal(details.agentId, "agent-bg-1");
-  assert.equal(spawnCalled, true, "spawn should be called for background");
-  assert.equal(
-    spawnAndWaitCalled,
-    false,
-    "spawnAndWait must not be called for background dispatch",
-  );
   setPi(null);
   delete (globalThis as Record<string, unknown>)[
     MANAGER_SYMBOL as unknown as string
@@ -256,14 +298,20 @@ test("dispatch: background mode returns RUNNING with agent ID", async () => {
 test("dispatch: foreground subagent failed returns FAIL with error", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
+  const record: MockRecord = {
+    id: "agent-failed-1",
+    status: "error",
+    error: "Task crashed",
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve(""),
+  };
   (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
     {
-      spawnAndWait: async (): Promise<MockResult> => ({
-        agentId: "agent-failed-1",
-        status: "failed",
-        error: "Task crashed",
-        startedAt: new Date().toISOString(),
-      }),
+      spawn: () => record.id,
+      getRecord: (id: string) => (id === record.id ? record : undefined),
+      hasRunning: () => false,
+      waitForAll: async () => {},
     };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -288,17 +336,20 @@ test("dispatch: foreground subagent failed returns FAIL with error", async () =>
 });
 
 // ---------------------------------------------------------------------------
-// createDispatchTool — spawnAndWait throws (error propagation)
+// createDispatchTool — foreground spawn throws (error propagation)
 // ---------------------------------------------------------------------------
 
-test("dispatch: spawnAndWait throws returns FAIL with error message, no uncaught exception", async () => {
+test("dispatch: spawn throws returns FAIL with error message, no uncaught exception", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
   (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
     {
-      spawnAndWait: async () => {
-        throw new Error("spawnAndWait explosion");
+      spawn: () => {
+        throw new Error("spawn explosion");
       },
+      getRecord: () => undefined,
+      hasRunning: () => false,
+      waitForAll: async () => {},
     };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
@@ -315,8 +366,241 @@ test("dispatch: spawnAndWait throws returns FAIL with error message, no uncaught
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("dispatch failed:"));
-  assert.ok(result.content.includes("spawnAndWait explosion"));
+  assert.ok(result.content.includes("spawn explosion"));
   setPi(null);
+  delete (globalThis as Record<string, unknown>)[
+    MANAGER_SYMBOL as unknown as string
+  ];
+});
+
+test("dispatch: model override resolves to manager model and uses camelCase options", async () => {
+  resetGlobalState();
+  setPi({ api: "fake" } as any);
+  const fakeModel = { id: "anthropic/claude-sonnet-4-5" };
+  const record: MockRecord = {
+    id: "agent-model-1",
+    status: "completed",
+    result: "ok",
+    startedAt: Date.now(),
+    completedAt: Date.now(),
+    promise: Promise.resolve("ok"),
+  };
+  let receivedOptions: Record<string, unknown> | undefined;
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: (
+        _pi: unknown,
+        _ctx: ExtensionContext,
+        _type: string,
+        _prompt: string,
+        options: Record<string, unknown>,
+      ) => {
+        receivedOptions = options;
+        return record.id;
+      },
+      getRecord: (id: string) => (id === record.id ? record : undefined),
+      hasRunning: () => false,
+      waitForAll: async () => {},
+    };
+  const tool = createDispatchTool();
+  const ctx = makeMockCtx({
+    modelRegistry: {
+      find: (query: string) =>
+        query === "anthropic/claude-sonnet-4-5" ? fakeModel : undefined,
+      getAll: () => [],
+      getAvailable: () => [],
+    },
+  });
+  await tool.execute(
+    "id",
+    {
+      subagent_type: "t",
+      prompt: "p",
+      description: "d",
+      model: "anthropic/claude-sonnet-4-5",
+      thinking: "high",
+      max_turns: 40,
+    },
+    new AbortController().signal,
+    () => {},
+    ctx,
+  );
+  assert.equal(receivedOptions?.model, fakeModel);
+  assert.equal(receivedOptions?.thinkingLevel, "high");
+  assert.equal(receivedOptions?.maxTurns, 40);
+  assert.equal(receivedOptions?.description, "d");
+  assert.equal("thinking" in (receivedOptions ?? {}), false);
+  assert.equal("max_turns" in (receivedOptions ?? {}), false);
+  setPi(null);
+  delete (globalThis as Record<string, unknown>)[
+    MANAGER_SYMBOL as unknown as string
+  ];
+});
+
+test("dispatch: unresolved model override fails before spawn", async () => {
+  resetGlobalState();
+  setPi({ api: "fake" } as any);
+  let spawnCalled = false;
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: () => {
+        spawnCalled = true;
+        return "agent-never-runs";
+      },
+      getRecord: () => undefined,
+      hasRunning: () => false,
+      waitForAll: async () => {},
+    };
+  const tool = createDispatchTool();
+  const ctx = makeMockCtx({ modelRegistry: null });
+  const result = await tool.execute(
+    "id",
+    {
+      subagent_type: "t",
+      prompt: "p",
+      description: "d",
+      model: "anthropic/claude-sonnet-4-5",
+    },
+    new AbortController().signal,
+    () => {},
+    ctx,
+  );
+  assert.ok(result.content.includes("### Status — FAIL"));
+  assert.ok(result.content.includes("modelRegistry"));
+  assert.equal(spawnCalled, false);
+  setPi(null);
+  delete (globalThis as Record<string, unknown>)[
+    MANAGER_SYMBOL as unknown as string
+  ];
+});
+
+// ---------------------------------------------------------------------------
+// createGetSubagentResultTool — shape and behavior
+// ---------------------------------------------------------------------------
+
+test("createGetSubagentResultTool returns tool with name 'qrspi_get_subagent_result'", () => {
+  const tool = createGetSubagentResultTool();
+  assert.equal(tool.name, "qrspi_get_subagent_result");
+});
+
+test("get subagent result: running record without wait returns RUNNING", async () => {
+  resetGlobalState();
+  const record: MockRecord = {
+    id: "agent-running-1",
+    status: "running",
+    startedAt: Date.now(),
+    promise: Promise.resolve("done"),
+  };
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: () => record.id,
+      getRecord: (id: string) => (id === record.id ? record : undefined),
+      hasRunning: () => true,
+      waitForAll: async () => {},
+    };
+  const tool = createGetSubagentResultTool();
+  const result = await tool.execute(
+    "id",
+    { agent_id: record.id },
+    new AbortController().signal,
+    () => {},
+    makeMockCtx(),
+  );
+  assert.ok(result.content.includes("### Status — RUNNING"));
+  assert.ok(result.content.includes(record.id));
+  assert.ok(result.content.includes("wait: true"));
+  const details = asDetails(result.details);
+  assert.equal(details.status, "running");
+  delete (globalThis as Record<string, unknown>)[
+    MANAGER_SYMBOL as unknown as string
+  ];
+});
+
+test("get subagent result: wait true joins a running background task", async () => {
+  resetGlobalState();
+  const record: MockRecord = {
+    id: "agent-running-2",
+    status: "running",
+    startedAt: Date.now(),
+    promise: Promise.resolve("done"),
+  };
+  const finalRecord: MockRecord = {
+    id: record.id,
+    status: "completed",
+    result: "Background complete",
+    startedAt: record.startedAt,
+    completedAt: Date.now(),
+    promise: record.promise!,
+  };
+  let phase: "running" | "completed" = "running";
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: () => record.id,
+      getRecord: (id: string) => {
+        if (id !== record.id) return undefined;
+        return phase === "running" ? record : finalRecord;
+      },
+      hasRunning: () => phase === "running",
+      waitForAll: async () => {
+        phase = "completed";
+      },
+    };
+  const tool = createGetSubagentResultTool();
+  const result = await tool.execute(
+    "id",
+    { agent_id: record.id, wait: true },
+    new AbortController().signal,
+    () => {},
+    makeMockCtx(),
+  );
+  assert.ok(result.content.includes("### Status — PASS"));
+  assert.ok(result.content.includes("Background complete"));
+  assert.equal(record.resultConsumed, true);
+  const details = asDetails(result.details);
+  assert.equal(details.status, "completed");
+  delete (globalThis as Record<string, unknown>)[
+    MANAGER_SYMBOL as unknown as string
+  ];
+});
+
+test("get subagent result: queued record without promise waits through waitForAll", async () => {
+  resetGlobalState();
+  const record: MockRecord = {
+    id: "agent-queued-1",
+    status: "queued",
+    startedAt: Date.now(),
+  };
+  const finalRecord: MockRecord = {
+    id: record.id,
+    status: "completed",
+    result: "Queued work finished",
+    startedAt: record.startedAt,
+    completedAt: Date.now(),
+  };
+  let phase: "queued" | "completed" = "queued";
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: () => record.id,
+      getRecord: (id: string) => {
+        if (id !== record.id) return undefined;
+        return phase === "queued" ? record : finalRecord;
+      },
+      hasRunning: () => phase === "queued",
+      waitForAll: async () => {
+        phase = "completed";
+      },
+    };
+  const tool = createGetSubagentResultTool();
+  const result = await tool.execute(
+    "id",
+    { agent_id: record.id, wait: true },
+    new AbortController().signal,
+    () => {},
+    makeMockCtx(),
+  );
+  assert.ok(result.content.includes("### Status — PASS"));
+  assert.ok(result.content.includes("Queued work finished"));
+  assert.equal(record.resultConsumed, true);
   delete (globalThis as Record<string, unknown>)[
     MANAGER_SYMBOL as unknown as string
   ];

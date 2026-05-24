@@ -26,7 +26,12 @@ import type {
   InteractionMode,
   FailurePolicy,
 } from "./pipeline";
-import { createDispatchTool, createQuestionTool, setPi } from "./shared-tools";
+import {
+  createDispatchTool,
+  createGetSubagentResultTool,
+  createQuestionTool,
+  setPi,
+} from "./shared-tools";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -698,6 +703,7 @@ export default function activate(pi: ExtensionAPI): void {
   });
 
   pi.registerTool(createDispatchTool());
+  pi.registerTool(createGetSubagentResultTool());
   pi.registerTool(createQuestionTool());
 
   pi.on("resources_discover", () => ({

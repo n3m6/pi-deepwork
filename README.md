@@ -29,8 +29,9 @@ npm run build
 # 3. Symlink the extension into pi's global extensions directory
 ln -s "$(pwd)" ~/.pi/agent/extensions/deepwork-pi
 
-# 4. Symlink the agent types into pi-subagents' global agent directory
-ln -s "$(pwd)/agents" ~/.pi/agent/agents/qrspi
+# 4. Symlink the agent markdown files into pi-subagents' flat global agent directory
+mkdir -p ~/.pi/agent/agents
+for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done
 ```
 
 What each step does:
@@ -38,7 +39,7 @@ What each step does:
 - Step 1 installs `pi-subagents`, which provides the `Agent` tool and the shared agent manager used by `qrspi_dispatch`.
 - Step 2 clones the repository and compiles the TypeScript source to CommonJS output in `dist/`.
 - Step 3 makes pi discover this extension from `~/.pi/agent/extensions/deepwork-pi`.
-- Step 4 makes pi-subagents discover the 55 agent definitions from `~/.pi/agent/agents/qrspi/*.md`.
+- Step 4 makes pi-subagents discover the 55 agent definitions from the flat `~/.pi/agent/agents/*.md` directory.
 
 ### Method B: `pi install git:`
 
@@ -67,17 +68,21 @@ pi-subagents can discover the agent files in either of these ways:
 
 ### Global discovery
 
-Symlink this repository's `agents/` directory into pi's global agent directory:
+pi-subagents loads custom agents from flat markdown files under `~/.pi/agent/agents/`.
+Symlink or copy this repository's individual agent files into that directory:
 
 ```bash
-ln -s "$(pwd)/agents" ~/.pi/agent/agents/qrspi
+mkdir -p ~/.pi/agent/agents
+for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done
 ```
 
 This makes the QRSPI agent types available system-wide.
 
 ### Project-local discovery
 
-For repository-local use, create a `.pi/agents/qrspi/` directory in the working project and copy or symlink these agent files there. This keeps the agent catalog scoped to that repository instead of the entire pi installation.
+pi-subagents also loads project-scoped custom agents from the flat `.pi/agents/*.md` directory in the active repository. For repository-local use, create `.pi/agents/` in the working project and copy or symlink these agent files there. This keeps the agent catalog scoped to that repository instead of the entire pi installation.
+
+Nested directories such as `.pi/agents/qrspi/` or `~/.pi/agent/agents/qrspi/` are not scanned.
 
 ## Usage
 
@@ -146,6 +151,23 @@ The extension reads `.pipeline/<run-id>/state.md` and resumes from the recorded 
 
 For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`.
 
+### Background subagent orchestration
+
+Child QRSPI agents can now use a fire-and-join pattern when they need to launch a background subagent and continue only after polling or waiting for the result.
+
+- Use `qrspi_dispatch` with `run_in_background: true` to start the child task and capture the returned `agentId`.
+- Use `qrspi_get_subagent_result` with that `agentId` to poll status, or pass `wait: true` to block until completion.
+- Current scope is launch plus result retrieval. There is still no dedicated steering wrapper for child-agent background work, so background flows should be designed as fire-and-join rather than fire-and-steer.
+
+Example wrapper flow inside an orchestrator prompt:
+
+```text
+1. Call qrspi_dispatch with run_in_background:true.
+2. Record the returned agentId.
+3. Re-check with qrspi_get_subagent_result agent_id:"<id>".
+4. If you need the final output in the same turn, call qrspi_get_subagent_result with wait:true.
+```
+
 ## What the Pipeline Produces
 
 Each run writes state and stage artifacts under `.pipeline/<run-id>/`, including:
@@ -174,8 +196,8 @@ The extension degrades gracefully and returns a clear prerequisite message when 
 
 Check agent discovery first:
 
-- confirm `agents/` is symlinked into `~/.pi/agent/agents/qrspi`
-- or confirm the current project has `.pi/agents/qrspi/` with the agent files present
+- confirm the agent `.md` files are present directly under `~/.pi/agent/agents/`
+- or confirm the current project has the agent `.md` files directly under `.pi/agents/`
 - verify that the directory contains the expected `.md` agent definitions
 
 ### `git` is not installed
@@ -203,6 +225,27 @@ npm test
 `npm run lint` checks the repository with ESLint. `npm run typecheck` performs no-emit TypeScript checks for both the runtime and test configs. `npm run format:check` verifies Prettier formatting, and `npm run format` rewrites supported files when you want to apply formatting changes.
 
 `npm run build` compiles runtime source to `dist/`. `npm test` also compiles the test suite and runs the Node test runner against the compiled output.
+
+## Manual pi Smoke-Test Checklist
+
+Use this checklist in a real pi environment after installation. It is the operator flow to verify end-to-end behavior that the repo tests cannot exercise on their own.
+
+1. Install `@tintinweb/pi-subagents >=0.7.3`, build this extension, and place the agent files directly under `~/.pi/agent/agents/` or `.pi/agents/`.
+2. Start pi in a disposable repository with git initialized, Node 18+, and access to the sonnet and haiku model tiers used by the agents.
+3. Confirm `/deepwork` and `/deepwork-resume` are present, and verify the `deepwork` skill is available in the session.
+4. Run `/deepwork task:"Smoke test dry run" dry-run:"true" route:"quick-fix"` and verify `.pipeline/<run-id>/state.md` records `mode: "dry-run"` and `next_stage: "done"`.
+5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/`, writes telemetry, then hands off to Deepwork through `pi.sendUserMessage()`.
+6. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
+7. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
+8. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
+
+Expected operator flow:
+
+1. Install and discover the extension plus flat agent files.
+2. Start a dry-run to confirm artifact generation and route simulation.
+3. Start a live run to confirm scaffold plus `pi.sendUserMessage()` handoff.
+4. Resume a live run to confirm `state.md`-driven re-entry.
+5. Optionally verify background child-agent launch plus join using `qrspi_dispatch` and `qrspi_get_subagent_result`.
 
 ## Development Notes
 

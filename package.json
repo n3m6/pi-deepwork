@@ -23,7 +23,14 @@
     "type": "git",
     "url": "git+https://github.com/n3m6/pi-deepwork.git"
   },
-  "keywords": ["pi", "multi-stage", "orchestration", "agents", "qrspi", "deepwork"],
+  "keywords": [
+    "pi",
+    "multi-stage",
+    "orchestration",
+    "agents",
+    "qrspi",
+    "deepwork"
+  ],
   "author": "Abdulla Faraz <abdulla.faraz@gmail.com>",
   "license": "MIT",
   "type": "commonjs",
@@ -32,7 +39,7 @@
   },
   "homepage": "https://github.com/n3m6/pi-deepwork#readme",
   "peerDependencies": {
-    "@tintinweb/pi-subagents": "*"
+    "@tintinweb/pi-subagents": ">=0.7.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

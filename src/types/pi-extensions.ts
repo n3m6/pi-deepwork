@@ -81,6 +81,14 @@ export interface ReadonlySessionManagerLike {
   getLabel?(id: string): string | undefined;
 }
 
+export type ModelLike = unknown;
+
+export interface ModelRegistryLike {
+  find?(query: string): ModelLike | undefined;
+  getAll?(): ModelLike[];
+  getAvailable?(): ModelLike[];
+}
+
 // Extension Context
 export interface ExtensionContext {
   ui: {
@@ -98,7 +106,7 @@ export interface ExtensionContext {
   hasUI: boolean;
   cwd: string;
   sessionManager?: ReadonlySessionManagerLike | null;
-  modelRegistry: unknown;
+  modelRegistry?: ModelRegistryLike | null;
   model: string;
   signal: AbortSignal;
   abort(): void;

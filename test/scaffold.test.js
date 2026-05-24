@@ -28,11 +28,30 @@ test('package.json description matches QRSPI spec', () => {
   );
 });
 
-test('package.json has @tintinweb/pi-subagents as peer dependency', () => {
+test('package.json pins the minimum compatible @tintinweb/pi-subagents peer version', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
   assert.ok(
     pkg.peerDependencies && '@tintinweb/pi-subagents' in pkg.peerDependencies,
   );
+  assert.equal(pkg.peerDependencies['@tintinweb/pi-subagents'], '>=0.7.3');
+});
+
+test('README documents flat pi-subagents agent discovery paths', () => {
+  const readme = fs.readFileSync(path.join(projectRoot, 'README.md'), 'utf8');
+  assert.ok(readme.includes('~/.pi/agent/agents/'));
+  assert.ok(readme.includes('.pi/agents/'));
+  assert.ok(
+    readme.includes(
+      'for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done',
+    ),
+  );
+  assert.ok(
+    readme.includes(
+      'Nested directories such as `.pi/agents/qrspi/` or `~/.pi/agent/agents/qrspi/` are not scanned.',
+    ),
+  );
+  assert.ok(readme.includes('## Manual pi Smoke-Test Checklist'));
+  assert.ok(readme.includes('qrspi_get_subagent_result'));
 });
 
 test('package.json has test:watch script with correct value', () => {
