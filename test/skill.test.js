@@ -269,11 +269,12 @@ test('SKILL.md contains metrics-summary.md 8-section layout', () => {
   }
 });
 
-// --- state.md 10-field schema ---
+// --- state.md 11-field schema ---
 
-test('SKILL.md documents state.md with all 10 fields', () => {
+test('SKILL.md documents state.md with all 11 fields', () => {
   const stateFields = [
     'run_id',
+    'mode',
     'route',
     'current_phase',
     'total_phases',

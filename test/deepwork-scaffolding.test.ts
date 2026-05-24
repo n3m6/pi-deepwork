@@ -6,6 +6,7 @@ import * as os from "node:os";
 import { mock } from "node:test";
 
 import activate from "../src/index";
+import { getDryRunArtifactPaths } from "../src/pipeline";
 import type { ExtensionAPI, ExtensionContext, CommandDefinition } from "../src/types/pi-extensions";
 
 const childProcess = require("node:child_process");
@@ -149,6 +150,7 @@ test("deepwork handler creates pipeline scaffolding with git available", async (
     assert.ok(stateContent.includes("next_stage:"), "state.md must contain next_stage");
     assert.ok(stateContent.includes("last_completed_stage:"), "state.md must contain last_completed_stage");
     assert.ok(stateContent.includes("resume_source:"), "state.md must contain resume_source");
+    assert.ok(stateContent.includes('mode: "live"'), "state.md must record live mode");
 
     // (c) events.jsonl exists
     const eventsPath = path.join(pipelineDir, "telemetry", "events.jsonl");
@@ -189,6 +191,9 @@ test("deepwork handler creates scaffolding even when git is unavailable", async 
     assert.ok(fs.existsSync(pipelineDir), ".pipeline dir must exist without git");
     assert.ok(fs.existsSync(path.join(pipelineDir, "state.md")), "state.md must exist without git");
     assert.ok(fs.existsSync(path.join(pipelineDir, "telemetry", "events.jsonl")), "events.jsonl must exist without git");
+
+    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
+    assert.ok(stateContent.includes('mode: "live"'), "state.md must record live mode");
 
     const startedCall = confirmCalls.find((c) => c.title === "Deepwork Started");
     assert.ok(startedCall !== undefined, "Confirmation must be shown");
@@ -231,6 +236,106 @@ test("deepwork handler: empty task with No response aborts without artifacts", a
     // No pipeline directory should exist
     const pipelineRoot = path.join(tmpDir, ".pipeline");
     assert.equal(fs.existsSync(pipelineRoot), false, ".pipeline directory must not exist");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler dry-run creates a completed full-route simulation without git side effects", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const spawnCalls: string[][] = [];
+    mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
+      spawnCalls.push(args);
+      return { status: 0, stdout: "", stderr: "" };
+    });
+
+    const { pi, commands } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined);
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler({ task: "Dry-run task", "dry-run": "true" }, ctx);
+    });
+
+    const runId = extractRunId(confirmCalls);
+    assert.ok(runId !== null, "Should extract run ID from dry-run confirmation");
+
+    const completeCall = confirmCalls.find((c) => c.title === "Deepwork Dry Run Complete");
+    assert.ok(completeCall !== undefined, "Dry run should emit a completion confirmation");
+    assert.ok(completeCall!.message.includes("dry-run"), "Completion message must identify dry-run mode");
+    assert.ok(completeCall!.message.includes("full"), "Completion message must include route");
+
+    const pipelineDir = path.join(tmpDir, ".pipeline", runId);
+    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
+    assert.ok(stateContent.includes('mode: "dry-run"'), "state.md must record dry-run mode");
+    assert.ok(stateContent.includes('route: "full"'), "state.md must record the full route");
+    assert.ok(stateContent.includes('next_stage: "done"'), "dry-run state should be complete");
+    assert.ok(stateContent.includes('last_completed_stage: "11"'), "dry-run state should end at report");
+
+    for (const artifact of getDryRunArtifactPaths(runId!, "full")) {
+      assert.ok(fs.existsSync(path.join(tmpDir, artifact)), `${artifact} must exist for full dry-run`);
+    }
+
+    const eventsContent = fs.readFileSync(path.join(pipelineDir, "telemetry", "events.jsonl"), "utf-8");
+    assert.ok(eventsContent.includes('"event_type":"run.completed"'), "events.jsonl must include run.completed");
+    assert.equal(spawnCalls.length, 0, "dry-run must not call git or other child processes");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler dry-run quick-fix skips design, structure, and replan artifacts", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const { pi, commands } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined);
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler(
+        { task: "Quick dry-run task", "dry-run": "true", route: "quick-fix" },
+        ctx,
+      );
+    });
+
+    const runId = extractRunId(confirmCalls);
+    assert.ok(runId !== null, "Should extract run ID from quick-fix dry-run confirmation");
+
+    const pipelineDir = path.join(tmpDir, ".pipeline", runId);
+    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
+    assert.ok(stateContent.includes('route: "quick-fix"'), "state.md must record quick-fix route");
+    assert.ok(stateContent.includes('next_stage: "done"'), "quick-fix dry-run must complete");
+
+    for (const artifact of getDryRunArtifactPaths(runId!, "quick-fix")) {
+      assert.ok(fs.existsSync(path.join(tmpDir, artifact)), `${artifact} must exist for quick-fix dry-run`);
+    }
+
+    assert.equal(fs.existsSync(path.join(pipelineDir, "design.md")), false, "design.md must be skipped on quick-fix dry-run");
+    assert.equal(fs.existsSync(path.join(pipelineDir, "structure.md")), false, "structure.md must be skipped on quick-fix dry-run");
+    assert.equal(
+      fs.existsSync(path.join(pipelineDir, "phases", "phase-01", "replan-summary.md")),
+      false,
+      "replan-summary.md must be skipped on quick-fix dry-run",
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -2,9 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  getDryRunArtifactPaths,
   generateRunId,
   getPipelineDir,
   getGitBranch,
+  getRouteStages,
   getStatePath,
   getTelemetryDir,
   getEventsPath,
@@ -139,12 +141,12 @@ test('getPipelinePaths has exactly 7 keys', () => {
 // makeInitialState
 // ---------------------------------------------------------------------------
 
-test('makeInitialState returns object with all 10 required fields', () => {
+test('makeInitialState returns object with all 11 required fields', () => {
   const state = makeInitialState(testRunId);
   const expectedFields = [
     'run_id', 'route', 'current_phase', 'total_phases',
     'last_completed_stage', 'next_stage', 'stages_completed',
-    'phase_history', 'backward_loops', 'resume_source',
+    'phase_history', 'backward_loops', 'resume_source', 'mode',
   ];
   const keys = Object.keys(state).sort();
   assert.deepEqual(keys, expectedFields.sort());
@@ -189,6 +191,10 @@ test('makeInitialState backward_loops is 0', () => {
 
 test('makeInitialState resume_source is "fresh"', () => {
   assert.equal(makeInitialState(testRunId).resume_source, 'fresh');
+});
+
+test('makeInitialState mode is "live"', () => {
+  assert.equal(makeInitialState(testRunId).mode, 'live');
 });
 
 // ---------------------------------------------------------------------------
@@ -314,6 +320,40 @@ test('STAGE_NAMES is an array of 11 stage names in canonical order', () => {
   ];
   assert.deepEqual(STAGE_NAMES, expected);
   assert.equal(STAGE_NAMES.length, 11);
+});
+
+test('getRouteStages("full") returns canonical full-route order', () => {
+  assert.deepEqual(getRouteStages('full'), STAGE_NAMES);
+});
+
+test('getRouteStages("quick-fix") returns quick-fix order', () => {
+  assert.deepEqual(getRouteStages('quick-fix'), [
+    'goals',
+    'questions',
+    'research',
+    'plan',
+    'implement',
+    'accept',
+    'verify',
+    'report',
+  ]);
+});
+
+test('getDryRunArtifactPaths("full") includes design, structure, replan, and telemetry artifacts', () => {
+  const artifacts = getDryRunArtifactPaths(testRunId, 'full');
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'));
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'));
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan-summary.md'));
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md'));
+});
+
+test('getDryRunArtifactPaths("quick-fix") omits skipped-stage artifacts', () => {
+  const artifacts = getDryRunArtifactPaths(testRunId, 'quick-fix');
+  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'), false);
+  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'), false);
+  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan-summary.md'), false);
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/plan.md'));
+  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/run-log.md'));
 });
 
 // ---------------------------------------------------------------------------

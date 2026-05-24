@@ -8,9 +8,11 @@ import * as path from "node:path";
 import activate from "../src/index";
 import {
   STAGE_NAMES,
+  getDryRunArtifactPaths,
   generateRunId,
   getEventsPath,
   getPipelineDir,
+  getRouteStages,
   getStatePath,
   getTelemetryDir,
   makeInitialState,
@@ -75,9 +77,16 @@ async function writeFile(root: string, relativePath: string, content = "ok\n"): 
   await fs.writeFile(filePath, content, "utf8");
 }
 
-function stateYaml(runId: string, route: "full" | "quick-fix", next: string, last: string): string {
+function stateYaml(
+  runId: string,
+  route: "full" | "quick-fix",
+  next: string,
+  last: string,
+  mode: "live" | "dry-run" = "live",
+): string {
   return `---
 run_id: ${runId}
+mode: "${mode}"
 route: "${route}"
 current_phase: 1
 total_phases: 1
@@ -100,7 +109,7 @@ test("full route simulation walks all 11 stages and produces a canonical artifac
   try {
     await fs.mkdir(telemetryDir, { recursive: true });
     const visited: string[] = [];
-    let current: string | null = STAGE_NAMES[0] ?? null;
+    let current: string | null = getRouteStages("full")[0] ?? null;
 
     while (current) {
       visited.push(current);
@@ -111,26 +120,11 @@ test("full route simulation walks all 11 stages and produces a canonical artifac
 
     const state = makeInitialState(runId);
     state.route = "full";
+    state.mode = "dry-run";
     await writeFile(tmpDir, getStatePath(runId), JSON.stringify(state, null, 2));
     await writeFile(tmpDir, getEventsPath(runId), "\n");
 
-    const representativeArtifacts = [
-      `${getPipelineDir(runId)}/goals.md`,
-      `${getPipelineDir(runId)}/requirements.md`,
-      `${getPipelineDir(runId)}/goal-inventory.md`,
-      `${getPipelineDir(runId)}/questions.md`,
-      `${getPipelineDir(runId)}/research/summary.md`,
-      `${getPipelineDir(runId)}/design.md`,
-      `${getPipelineDir(runId)}/structure.md`,
-      `${getPipelineDir(runId)}/plan.md`,
-      `${getPipelineDir(runId)}/phase-manifest.md`,
-      `${getPipelineDir(runId)}/baseline-results.md`,
-      `${getPipelineDir(runId)}/phases/phase-01/execution-manifest.md`,
-      `${getPipelineDir(runId)}/phases/phase-01/acceptance-results.md`,
-      `${getPipelineDir(runId)}/stage9-summary.md`,
-      `${getPipelineDir(runId)}/stage10-summary.md`,
-      `${getPipelineDir(runId)}/telemetry/metrics-summary.md`,
-    ];
+    const representativeArtifacts = getDryRunArtifactPaths(runId, "full");
 
     for (const artifact of representativeArtifacts) {
       await writeFile(tmpDir, artifact);
@@ -159,16 +153,7 @@ test("quick-fix route skips design, structure, and replan", () => {
     current = next;
   }
 
-  assert.deepEqual(order, [
-    "goals",
-    "questions",
-    "research",
-    "plan",
-    "implement",
-    "accept",
-    "verify",
-    "report",
-  ]);
+  assert.deepEqual(order, [...getRouteStages("quick-fix")]);
   assert.equal(order.includes("design"), false);
   assert.equal(order.includes("structure"), false);
   assert.equal(order.includes("replan"), false);
@@ -254,6 +239,37 @@ test("deepwork-resume reports corrupted state cleanly", async () => {
     assert.equal(confirmCalls.length, 1);
     assert.equal(confirmCalls[0]?.title, "Resume Error");
     assert.match(confirmCalls[0]?.message ?? "", /corrupted/i);
+  } finally {
+    process.chdir(originalCwd);
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork-resume reports completed dry-runs as already complete", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = await makeTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const { pi, commands } = createMockPi();
+    activate(pi);
+
+    const runId = "qrspi-20260524-140000";
+    await writeFile(tmpDir, getStatePath(runId), stateYaml(runId, "quick-fix", "done", "11", "dry-run"));
+
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeCtx(tmpDir, confirmCalls);
+    const handler = commands.find((command) => command.name === "deepwork-resume")?.definition.handler;
+
+    assert.ok(handler, "deepwork-resume handler must exist");
+
+    await handler!({ "run-id": runId }, ctx);
+
+    assert.equal(confirmCalls.length, 1);
+    assert.equal(confirmCalls[0]?.title, "Deepwork Dry Run Complete");
+    assert.match(confirmCalls[0]?.message ?? "", /dry-run/);
+    assert.match(confirmCalls[0]?.message ?? "", /already complete/i);
+    assert.match(confirmCalls[0]?.message ?? "", /quick-fix/);
   } finally {
     process.chdir(originalCwd);
     await fs.rm(tmpDir, { recursive: true, force: true });

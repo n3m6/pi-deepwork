@@ -1,4 +1,7 @@
 export type RunId = string;
+export type PipelineRoute = "" | "full" | "quick-fix";
+export type ExecutableRoute = Exclude<PipelineRoute, "">;
+export type PipelineMode = "live" | "dry-run";
 
 export interface PipelinePaths {
   pipelineDir: string;
@@ -17,7 +20,7 @@ export interface PhaseHistoryEntry {
 
 export interface PipelineState {
   run_id: string;
-  route: "" | "full" | "quick-fix";
+  route: PipelineRoute;
   current_phase: number;
   total_phases: number;
   last_completed_stage: string;
@@ -25,7 +28,8 @@ export interface PipelineState {
   stages_completed: string[];
   phase_history: PhaseHistoryEntry[];
   backward_loops: number;
-  resume_source: "fresh" | "resume";
+  resume_source: "fresh" | "resume" | "artifacts";
+  mode: PipelineMode;
 }
 
 export interface TelemetryEvent {
@@ -38,7 +42,7 @@ export interface TelemetryEvent {
   writer_scope: string;
   event_type: string;
   status: "PASS" | "FAIL" | "SKIP" | "ABORT";
-  route: "" | "full" | "quick-fix";
+  route: PipelineRoute;
   summary: string;
   stage?: number;
   stage_instance?: string;
@@ -72,6 +76,31 @@ export const STAGE_NAMES: ReadonlyArray<string> = [
   "verify",
   "report",
 ];
+
+export const QUICK_FIX_STAGE_NAMES: ReadonlyArray<string> = [
+  "goals",
+  "questions",
+  "research",
+  "plan",
+  "implement",
+  "accept",
+  "verify",
+  "report",
+];
+
+const DRY_RUN_STAGE_ARTIFACTS: Readonly<Record<string, ReadonlyArray<string>>> = {
+  goals: ["config.md", "requirements.md", "goals.md", "goal-inventory.md"],
+  questions: ["questions.md"],
+  research: ["research/summary.md"],
+  design: ["design.md"],
+  structure: ["structure.md"],
+  plan: ["plan.md", "phase-manifest.md", "baseline-results.md"],
+  implement: ["phases/phase-01/execution-manifest.md", "phases/phase-01/stage7-summary.md"],
+  accept: ["phases/phase-01/acceptance-results.md", "phases/phase-01/stage8-summary.md"],
+  replan: ["phases/phase-01/replan-summary.md"],
+  verify: ["stage9-summary.md"],
+  report: ["stage10-summary.md", "telemetry/run-log.md", "telemetry/metrics-summary.md"],
+};
 
 export function generateRunId(): string {
   const now = new Date();
@@ -124,7 +153,31 @@ export function getPipelinePaths(runId: string): PipelinePaths {
   };
 }
 
-export function makeInitialState(runId: string): PipelineState {
+export function getRouteStages(route: ExecutableRoute): ReadonlyArray<string> {
+  return route === "quick-fix" ? QUICK_FIX_STAGE_NAMES : STAGE_NAMES;
+}
+
+export function getDryRunStageArtifactPaths(runId: string, stage: string): string[] {
+  const artifacts = DRY_RUN_STAGE_ARTIFACTS[stage.toLowerCase()] ?? [];
+  return artifacts.map((artifact) => `${getPipelineDir(runId)}/${artifact}`);
+}
+
+export function getDryRunArtifactPaths(runId: string, route: ExecutableRoute): string[] {
+  const artifactPaths = new Set<string>();
+
+  for (const stage of getRouteStages(route)) {
+    for (const artifact of getDryRunStageArtifactPaths(runId, stage)) {
+      artifactPaths.add(artifact);
+    }
+  }
+
+  return [...artifactPaths];
+}
+
+export function makeInitialState(
+  runId: string,
+  overrides: Partial<PipelineState> = {}
+): PipelineState {
   return {
     run_id: runId,
     route: "",
@@ -136,6 +189,8 @@ export function makeInitialState(runId: string): PipelineState {
     phase_history: [],
     backward_loops: 0,
     resume_source: "fresh",
+    mode: "live",
+    ...overrides,
   };
 }
 
@@ -174,29 +229,13 @@ export function stageNumber(name: string): number {
 
 export function nextStage(
   currentStage: string,
-  route: "full" | "quick-fix"
+  route: ExecutableRoute
 ): string | null {
   const lower = currentStage.toLowerCase();
-  const idx = STAGE_NAMES.findIndex((s) => s === lower);
+  const stageOrder = getRouteStages(route);
+  const idx = stageOrder.findIndex((s) => s === lower);
   if (idx === -1) return null;
 
-  if (route === "quick-fix") {
-    const quickFixOrder: string[] = [
-      "goals",
-      "questions",
-      "research",
-      "plan",
-      "implement",
-      "accept",
-      "verify",
-      "report",
-    ];
-    const qIdx = quickFixOrder.findIndex((s) => s === lower);
-    if (qIdx === -1) return null;
-    if (qIdx >= quickFixOrder.length - 1) return null;
-    return quickFixOrder[qIdx + 1]!;
-  }
-
-  if (idx >= STAGE_NAMES.length - 1) return null;
-  return STAGE_NAMES[idx + 1]!;
+  if (idx >= stageOrder.length - 1) return null;
+  return stageOrder[idx + 1]!;
 }

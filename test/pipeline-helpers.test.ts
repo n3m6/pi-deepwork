@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  getDryRunArtifactPaths,
   generateRunId,
   getPipelineDir,
   getGitBranch,
+  getRouteStages,
   getStatePath,
   getTelemetryDir,
   getEventsPath,
@@ -126,13 +128,14 @@ test("getMetricsPath returns .pipeline/<runId>/telemetry/metrics-summary.md", ()
 // makeInitialState
 // ---------------------------------------------------------------------------
 
-test("makeInitialState returns object with all 10 required fields", () => {
+test("makeInitialState returns object with all 11 required fields", () => {
   const state = makeInitialState("qrspi-20260515-143022");
   const keys = Object.keys(state).sort();
   const expected = [
     "backward_loops",
     "current_phase",
     "last_completed_stage",
+    "mode",
     "next_stage",
     "phase_history",
     "resume_source",
@@ -192,6 +195,11 @@ test("makeInitialState backward_loops is 0", () => {
 test("makeInitialState resume_source is 'fresh'", () => {
   const state = makeInitialState("qrspi-20260515-143022");
   assert.equal(state.resume_source, "fresh");
+});
+
+test("makeInitialState mode defaults to 'live'", () => {
+  const state = makeInitialState("qrspi-20260515-143022");
+  assert.equal(state.mode, "live");
 });
 
 // ---------------------------------------------------------------------------
@@ -261,6 +269,40 @@ test("STAGE_NAMES index 0 (Stage 1) is 'goals'", () => {
 
 test("STAGE_NAMES last entry is 'report'", () => {
   assert.equal(STAGE_NAMES[STAGE_NAMES.length - 1], "report");
+});
+
+test("getRouteStages('full') returns the canonical full stage list", () => {
+  assert.deepEqual(getRouteStages("full"), STAGE_NAMES);
+});
+
+test("getRouteStages('quick-fix') returns the quick-fix stage list", () => {
+  assert.deepEqual(getRouteStages("quick-fix"), [
+    "goals",
+    "questions",
+    "research",
+    "plan",
+    "implement",
+    "accept",
+    "verify",
+    "report",
+  ]);
+});
+
+test("getDryRunArtifactPaths('full') includes full-route artifacts", () => {
+  const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "full");
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"));
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"));
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan-summary.md"));
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md"));
+});
+
+test("getDryRunArtifactPaths('quick-fix') omits skipped-stage artifacts", () => {
+  const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "quick-fix");
+  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"), false);
+  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"), false);
+  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan-summary.md"), false);
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/plan.md"));
+  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/run-log.md"));
 });
 
 // ---------------------------------------------------------------------------

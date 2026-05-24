@@ -65,6 +65,20 @@ test("/deepwork command is registered exactly once with description and handler"
   assert.equal(typeof cmd.handler, "function");
 });
 
+test("/deepwork command exposes task, dry-run, and route argument completions", async () => {
+  const { pi, commands } = createMockPi();
+  activate(pi);
+
+  const deepworkCmd = commands.find((c) => c.name === "deepwork");
+  assert.ok(deepworkCmd, "deepwork command must be registered");
+
+  const completions = await deepworkCmd!.definition.getArgumentCompletions?.();
+  assert.ok(completions, "deepwork command must expose argument completions");
+  assert.deepEqual(completions?.task, []);
+  assert.deepEqual(completions?.["dry-run"], ["false", "true"]);
+  assert.deepEqual(completions?.route, ["full", "quick-fix"]);
+});
+
 test("/deepwork-resume command is registered exactly once with description and handler", () => {
   const { pi, commands } = createMockPi();
   activate(pi);
