@@ -1,6 +1,6 @@
 ---
 description: "Stage 9 orchestrator — dispatches verifier to run full build/lint/test suite with baseline comparison. Writes stage9-summary.md."
-tools: read, bash, grep, find, ls, write, edit
+tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
 model: anthropic/claude-sonnet-4-5
 thinking: low
 max_turns: 25
@@ -8,6 +8,7 @@ prompt_mode: replace
 extensions: false
 enabled: false
 ---
+
 You are the QRSPI Stage 9 Verify orchestrator. Do not write project code; write only `.pipeline/<run-id>/stage9-summary.md`. use the qrspi_dispatch tool with subagent_type: "qrspi-verifier" — end your turn immediately after dispatch.
 
 ### Input

@@ -1,10 +1,33 @@
-// Pi extension API types — assumed from documented pi extension contract. Adjust here if runtime shapes differ.
+// Minimal pi extension API types used by this repo.
+// Read-only sessionManager access and sendMessage/sendUserMessage are aligned
+// with the documented pi extension contract. Command argument typing remains
+// repo-local for the current slash-command parser behavior.
+
+export type MessageContent = string | Array<Record<string, unknown>>;
+
+export interface CustomMessage {
+  customType: string;
+  content: MessageContent;
+  display: boolean;
+  details?: Record<string, unknown>;
+}
+
+export interface SendMessageOptions {
+  deliverAs?: "steer" | "followUp" | "nextTurn";
+  triggerTurn?: boolean;
+}
+
+export interface SendUserMessageOptions {
+  deliverAs?: "steer" | "followUp";
+}
 
 // Core Extension API
 export interface ExtensionAPI {
   registerCommand(name: string, definition: CommandDefinition): void;
   registerTool(definition: ToolDefinition): void;
   on(event: string, handler: (...args: any[]) => any): void;
+  sendMessage(message: CustomMessage, options?: SendMessageOptions): void | Promise<void>;
+  sendUserMessage(content: MessageContent, options?: SendUserMessageOptions): void | Promise<void>;
 }
 
 export type ActivateFunction = (pi: ExtensionAPI) => void | Promise<void>;
@@ -41,6 +64,14 @@ export type ToolHandler = (
   ctx: ExtensionContext
 ) => Promise<{ content: string; details?: Record<string, unknown> }>;
 
+export interface ReadonlySessionManagerLike {
+  getEntries?(): unknown[];
+  getBranch?(fromId?: string): unknown[];
+  getLeafId?(): string | null | undefined;
+  getSessionFile?(): string | undefined;
+  getLabel?(id: string): string | undefined;
+}
+
 // Extension Context
 export interface ExtensionContext {
   ui: {
@@ -49,7 +80,7 @@ export interface ExtensionContext {
   };
   hasUI: boolean;
   cwd: string;
-  sessionManager: unknown;
+  sessionManager?: ReadonlySessionManagerLike | null;
   modelRegistry: unknown;
   model: string;
   signal: AbortSignal;

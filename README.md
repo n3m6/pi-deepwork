@@ -1,6 +1,6 @@
 # pi-deepwork (NOT READY FOR PRODUCTION USE)
 
-pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Research + Questions -> Design -> Structure -> Plan -> Implement -> Accept-Test -> Replan -> Verify -> Report). Today it supports two entry modes from a single `/deepwork` prompt: live run scaffolding, which initializes pipeline state for a real run, and `dry-run`, which simulates the route locally and writes placeholder pipeline artifacts without invoking subagents or editing project source files.
+pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Research + Questions -> Design -> Structure -> Plan -> Implement -> Accept-Test -> Replan -> Verify -> Report). Today it supports two entry modes from a single `/deepwork` prompt: live mode, which scaffolds pipeline state and hands the active session back to pi with a Deepwork kickoff prompt, and `dry-run`, which simulates the route locally and writes placeholder pipeline artifacts without invoking subagents or editing project source files.
 
 ## Prerequisites
 
@@ -106,7 +106,9 @@ Current live-mode behavior:
 - scaffold `.pipeline/<run-id>/`
 - write initial `state.md` and telemetry files
 - inject the `deepwork` skill through `resources_discover`
-- prepare the run for subsequent orchestration work
+- send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
+
+The extension does not mutate `ctx.sessionManager` directly. pi documents that surface as read-only; runtime handoff happens through the documented message APIs.
 
 ### Run a dry-run simulation
 
@@ -141,6 +143,8 @@ Dry-run mode will:
 ```
 
 The extension reads `.pipeline/<run-id>/state.md` and resumes from the recorded `next_stage`. If the run is already complete, including a completed dry-run, the UI reports that clearly instead of presenting it as resumable work.
+
+For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`.
 
 ## What the Pipeline Produces
 

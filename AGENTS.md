@@ -10,7 +10,7 @@ Goals → Questions → Research → Design → Structure → Plan → Implement
 
 The extension is loaded by pi, registers the `/deepwork` and `/deepwork-resume` commands, and orchestrates subagents through `@tintinweb/pi-subagents`. It currently supports two entry modes from `/deepwork`:
 
-- **Live mode** — scaffolds `.pipeline/<run-id>/` for a real run.
+- **Live mode** — scaffolds `.pipeline/<run-id>/` for a real run, then hands the active session back to pi with `pi.sendUserMessage()` so Deepwork continues from the recorded state.
 - **Dry-run mode** — simulates a route locally, writing placeholder artifacts without dispatching subagents or editing project source files.
 
 ## Repository layout
@@ -62,6 +62,7 @@ Always run `npm test` before declaring work complete. If you only touched agent 
 - Run IDs follow `qrspi-YYYYMMDD-HHMMSS` (`generateRunId` in [src/pipeline.ts](src/pipeline.ts)).
 - Telemetry lives under `.pipeline/<run-id>/telemetry/` (`events.jsonl`, `run-log.md`, `metrics-summary.md`).
 - Dry-run output must mark `mode: "dry-run"` and advance `next_stage` to `done`; it must not dispatch subagents or modify project source files.
+- Per the documented pi extension contract, `ctx.sessionManager` is read-only in command/event contexts. Live and resume handoff should use `pi.sendUserMessage()` rather than mutating session state directly.
 
 When changing state schema or stage ordering, update `pipeline.ts`, the YAML serializer/parser in `index.ts`, and the relevant tests in [test/pipeline.test.js](test/pipeline.test.js), [test/pipeline-helpers.test.ts](test/pipeline-helpers.test.ts), and [test/deepwork-scaffolding.test.ts](test/deepwork-scaffolding.test.ts) together.
 

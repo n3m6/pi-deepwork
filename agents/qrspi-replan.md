@@ -1,6 +1,6 @@
 ---
 description: "Stage 8 orchestrator — revises the remaining plan after a completed phase, runs automated review rounds, and writes updated remaining-work artifacts. Writes plan.md, phase-manifest.md, next-phase task specs, review artifacts, and a phase-local replan note."
-tools: read, bash, grep, find, ls, write, edit
+tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
 model: anthropic/claude-sonnet-4-5
 thinking: low
 max_turns: 45
@@ -133,7 +133,7 @@ Do not delete completed-phase task files. They remain as audit artifacts.
 
 1. Set `review_round = 1`.
 2. For each round, re-read the current `plan.md`, `phase-manifest.md`, next-phase task files, and replan note.
-3. dispatch `qrspi-replan-reviewer` via qrspi_dispatch:
+3. Use the qrspi_dispatch tool with subagent_type: "qrspi-replan-reviewer":
 
 ```
 === GOALS ===

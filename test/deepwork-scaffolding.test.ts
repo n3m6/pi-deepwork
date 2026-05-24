@@ -7,7 +7,11 @@ import { mock } from "node:test";
 
 import activate from "../src/index";
 import { getDryRunArtifactPaths } from "../src/pipeline";
-import type { ExtensionAPI, ExtensionContext, CommandDefinition } from "../src/types/pi-extensions";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  CommandDefinition,
+} from "../src/types/pi-extensions";
 
 const childProcess = require("node:child_process");
 
@@ -25,16 +29,21 @@ interface ConfirmCall {
   message: string;
 }
 
-function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[] } {
+function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[]; sentUserMessages: string[] } {
   const commands: RecordedCommand[] = [];
+  const sentUserMessages: string[] = [];
   const pi: ExtensionAPI = {
     registerCommand(name: string, definition: CommandDefinition): void {
       commands.push({ name, definition });
     },
     registerTool(): void {},
     on(): void {},
+    sendMessage: async () => {},
+    sendUserMessage: async (content) => {
+      sentUserMessages.push(typeof content === "string" ? content : JSON.stringify(content));
+    },
   };
-  return { pi, commands };
+  return { pi, commands, sentUserMessages };
 }
 
 function createTempDir(): string {
@@ -45,6 +54,7 @@ function makeMockCtx(
   tmpDir: string,
   confirmCalls: ConfirmCall[],
   alwaysReturn: boolean = true,
+  sessionManager: ExtensionContext["sessionManager"] = {},
 ): ExtensionContext {
   return {
     hasUI: true,
@@ -56,7 +66,7 @@ function makeMockCtx(
       select: async () => "default",
     },
     cwd: tmpDir,
-    sessionManager: {},
+    sessionManager,
     modelRegistry: {},
     model: "test-model",
     signal: new AbortController().signal,
@@ -69,6 +79,7 @@ function makeMockCtxWithResponses(
   tmpDir: string,
   confirmCalls: ConfirmCall[],
   responses: boolean[],
+  sessionManager: ExtensionContext["sessionManager"] = {},
 ): ExtensionContext {
   let idx = 0;
   return {
@@ -81,7 +92,7 @@ function makeMockCtxWithResponses(
       select: async () => "default",
     },
     cwd: tmpDir,
-    sessionManager: {},
+    sessionManager,
     modelRegistry: {},
     model: "test-model",
     signal: new AbortController().signal,
@@ -198,6 +209,41 @@ test("deepwork handler creates scaffolding even when git is unavailable", async 
     const startedCall = confirmCalls.find((c) => c.title === "Deepwork Started");
     assert.ok(startedCall !== undefined, "Confirmation must be shown");
     assert.ok(startedCall!.message.includes("Gitless task"), "Confirmation must include task");
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
+      if (Array.isArray(args) && args[0] === "--version") return { status: 0, stdout: "", stderr: "" };
+      if (Array.isArray(args) && args[0] === "checkout") return { status: 0, stdout: "", stderr: "" };
+      return { status: 1, stdout: "", stderr: "" };
+    });
+
+    const { pi, commands, sentUserMessages } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const deepworkCmd = commands.find((c) => c.name === "deepwork");
+    assert.ok(deepworkCmd !== undefined, "deepwork command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await deepworkCmd.definition.handler({ task: "Handoff task" }, ctx);
+    });
+
+    assert.equal(sentUserMessages.length, 1, "deepwork must hand off exactly one kickoff prompt");
+    assert.match(sentUserMessages[0] ?? "", /Continue the existing Deepwork pipeline run/i);
+    assert.match(sentUserMessages[0] ?? "", /=== RUN ID ===\nqrspi-\d{8}-\d{6}/);
+    assert.match(sentUserMessages[0] ?? "", /=== USER TASK ===\nHandoff task/);
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -336,6 +382,44 @@ test("deepwork handler dry-run quick-fix skips design, structure, and replan art
       false,
       "phase-local replan artifact must be skipped on quick-fix dry-run",
     );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () => {
+  const originalCwd = process.cwd();
+  const tmpDir = createTempDir();
+  process.chdir(tmpDir);
+
+  try {
+    const { pi, commands, sentUserMessages } = createMockPi();
+    const confirmCalls: ConfirmCall[] = [];
+    const ctx = makeMockCtx(tmpDir, confirmCalls, true);
+
+    activate(pi);
+
+    const runId = "qrspi-20260524-160000";
+    const statePath = path.join(tmpDir, ".pipeline", runId, "state.md");
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    fs.writeFileSync(
+      statePath,
+      `---\nrun_id: ${runId}\nmode: "live"\nroute: "full"\ncurrent_phase: 1\ntotal_phases: 1\nlast_completed_stage: "5"\nnext_stage: "6"\nstages_completed: []\nphase_history: []\nbackward_loops: 0\nresume_source: "resume"\ninteraction_mode: "interactive"\nfailure_policy: "fail-closed"\n---\n`,
+      "utf-8",
+    );
+
+    const resumeCmd = commands.find((c) => c.name === "deepwork-resume");
+    assert.ok(resumeCmd !== undefined, "deepwork-resume command must be registered");
+
+    await assert.doesNotReject(async () => {
+      await resumeCmd.definition.handler({ "run-id": runId }, ctx);
+    });
+
+    assert.equal(sentUserMessages.length, 1, "resume must hand off exactly one prompt");
+    assert.match(sentUserMessages[0] ?? "", /Resume the existing Deepwork pipeline run/i);
+    assert.match(sentUserMessages[0] ?? "", new RegExp(`=== RUN ID ===\\n${runId}`));
+    assert.match(sentUserMessages[0] ?? "", /=== NEXT STAGE ===\n6/);
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });

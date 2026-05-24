@@ -45,6 +45,8 @@ function createMockPi(): {
     on(event: string, handler: (...args: unknown[]) => unknown): void {
       events.push({ event, handler });
     },
+    sendMessage: () => {},
+    sendUserMessage: () => {},
   };
 
   return { pi, commands, tools, events };

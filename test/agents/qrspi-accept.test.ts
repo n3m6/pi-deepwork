@@ -32,6 +32,10 @@ function getBody(name: string): string {
 const acceptBody = getBody("qrspi-accept.md");
 const testerBody = getBody("qrspi-acceptance-tester.md");
 const detectorBody = getBody("qrspi-backward-loop-detector.md");
+const plannerBody = getBody("qrspi-coverage-planner.md");
+const goalTraceReviewerBody = getBody("qrspi-review-accept-goal-traceability.md");
+const specReviewerBody = getBody("qrspi-review-accept-spec.md");
+const codeQualityReviewerBody = getBody("qrspi-review-accept-code-quality.md");
 
 test("qrspi-accept orchestrator documents Stage 7 lite/full acceptance", () => {
   assert.match(acceptBody, /Stage 7 Accept orchestrator/);
@@ -78,4 +82,39 @@ test("qrspi-backward-loop-detector caps boundary violations at plan-level classi
   assert.match(detectorBody, /`blocking_review`, `reconciliation`, and `boundary_violation`/);
   assert.match(detectorBody, /Maximum classification: `LOOP_PLAN`/);
   assert.match(detectorBody, /Never escalate to `LOOP_STRUCTURE`, `LOOP_DESIGN`, or `LOOP_GOALS` solely from these rows/);
+});
+
+test("qrspi-coverage-planner defines the acceptance planning contract", () => {
+  assert.match(plannerBody, /`Phase-Scoped Criteria` is the authoritative scope/);
+  assert.match(plannerBody, /Action: \[reuse \| revise \| new \| blocked\]/);
+  assert.match(plannerBody, /Test Type: \[acceptance \| integration \| e2e \| boundary\]/);
+  assert.match(plannerBody, /Expected outcomes must be observable through the public surface/);
+  assert.match(plannerBody, /### Coverage Plan/);
+  assert.match(plannerBody, /### Summary/);
+});
+
+test("acceptance reviewers expose pass-fail findings tables for the current phase plan", () => {
+  assert.match(goalTraceReviewerBody, /Mapping/);
+  assert.match(goalTraceReviewerBody, /Trace/);
+  assert.match(goalTraceReviewerBody, /Coverage/);
+  assert.match(goalTraceReviewerBody, /Extra/);
+  assert.match(goalTraceReviewerBody, /Drift/);
+
+  assert.match(specReviewerBody, /Trigger Fidelity/);
+  assert.match(specReviewerBody, /Outcome Fidelity/);
+  assert.match(specReviewerBody, /Assertion Specificity/);
+  assert.match(specReviewerBody, /Boundary Inclusion/);
+  assert.match(specReviewerBody, /Action Consistency/);
+
+  assert.match(codeQualityReviewerBody, /Determinism/);
+  assert.match(codeQualityReviewerBody, /Behavior Focus/);
+  assert.match(codeQualityReviewerBody, /Isolation/);
+  assert.match(codeQualityReviewerBody, /Data Realism/);
+  assert.match(codeQualityReviewerBody, /Anti-Patterns/);
+  assert.match(codeQualityReviewerBody, /Suite Reuse/);
+
+  for (const body of [goalTraceReviewerBody, specReviewerBody, codeQualityReviewerBody]) {
+    assert.match(body, /### Status — PASS or FAIL/);
+    assert.match(body, /### Findings/);
+  }
 });

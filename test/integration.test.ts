@@ -42,6 +42,8 @@ function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[] } {
     },
     registerTool(): void {},
     on(): void {},
+    sendMessage: () => {},
+    sendUserMessage: () => {},
   };
 
   return { pi, commands };

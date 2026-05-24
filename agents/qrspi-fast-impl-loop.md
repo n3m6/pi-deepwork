@@ -1,6 +1,6 @@
 ---
 description: "Per-task code-first loop agent. Sequences qrspi-fast-impl-code → qrspi-fast-impl-test → qrspi-fast-impl-verify (fresh mode), or qrspi-fast-impl-code (code-repair) → qrspi-fast-impl-test (test-sync) → qrspi-fast-impl-verify (fix mode). Routes post-verify failures using the explicit Route Hint from verify. When Stage 7 assigns a task worktree, forwards that execution root to CODE/TEST/VERIFY while continuing to read shared .pipeline artifacts from the primary checkout. Enforces an 8-cycle outer budget with stall detection. Returns the Stage 7 task result contract."
-tools: read, bash, grep, find, ls
+tools: read, bash, grep, find, ls, qrspi_dispatch
 model: anthropic/claude-sonnet-4-5
 thinking: medium
 max_turns: 50

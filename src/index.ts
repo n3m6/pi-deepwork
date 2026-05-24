@@ -33,6 +33,11 @@ import type {
   CommandHandler,
 } from "./types/pi-extensions";
 
+interface RuntimeHandoffResult {
+  delivered: boolean;
+  error?: string;
+}
+
 function yamlify(state: PipelineState): string {
   return `---
 run_id: ${state.run_id}
@@ -143,6 +148,43 @@ function parseFailurePolicyArg(value: unknown): FailurePolicy | null {
   }
 
   return null;
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function buildLiveRunHandoffPrompt(
+  runId: string,
+  task: string,
+  interactionMode: InteractionMode,
+  failurePolicy: FailurePolicy,
+): string {
+  return `Continue the existing Deepwork pipeline run that the runtime already scaffolded. Do not create a new run ID. Use Resume Mode against the existing pipeline directory on disk and continue from the recorded next stage in state.md.\n\n=== RUN ID ===\n${runId}\n\n=== MODE ===\nlive\n\n=== PIPELINE DIR ===\n.pipeline/${runId}\n\n=== USER TASK ===\n${task}\n\n=== INTERACTION MODE ===\n${interactionMode}\n\n=== FAILURE POLICY ===\n${failurePolicy}`;
+}
+
+function buildResumeHandoffPrompt(parsed: {
+  run_id: string;
+  mode: PipelineMode;
+  next_stage: string;
+  last_completed_stage: string;
+  route: string;
+  interaction_mode: InteractionMode;
+  failure_policy: FailurePolicy;
+}): string {
+  return `Resume the existing Deepwork pipeline run from disk. Do not create a new run ID. Use Resume Mode and continue from the recorded next stage.\n\n=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== LAST COMPLETED STAGE ===\n${parsed.last_completed_stage}\n\n=== NEXT STAGE ===\n${parsed.next_stage}\n\n=== PIPELINE DIR ===\n.pipeline/${parsed.run_id}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}`;
+}
+
+async function handoffToSession(
+  pi: ExtensionAPI,
+  prompt: string,
+): Promise<RuntimeHandoffResult> {
+  try {
+    await Promise.resolve(pi.sendUserMessage(prompt));
+    return { delivered: true };
+  } catch (error: unknown) {
+    return { delivered: false, error: describeError(error) };
+  }
 }
 
 function writeTextFile(filePath: string, content: string): void {
@@ -374,10 +416,11 @@ function scanPipelineRunIds(): string[] {
   }
 }
 
-const deepworkHandler: CommandHandler = async (
-  args: Record<string, unknown>,
-  ctx: ExtensionContext
-) => {
+function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
+  return async (
+    args: Record<string, unknown>,
+    ctx: ExtensionContext
+  ) => {
   let task: string | undefined = typeof args.task === "string" ? args.task : undefined;
   const dryRun = parseDryRunArg(args["dry-run"]);
   const routeArg = args.route;
@@ -445,7 +488,7 @@ const deepworkHandler: CommandHandler = async (
   try {
     fs.mkdirSync(telemetryDir, { recursive: true });
   } catch (e: unknown) {
-    const errMsg = e instanceof Error ? e.message : String(e);
+    const errMsg = describeError(e);
     await ctx.ui.confirm("Deepwork Error", `Failed to create pipeline directory: ${errMsg}`);
     return;
   }
@@ -471,7 +514,7 @@ const deepworkHandler: CommandHandler = async (
   try {
     fs.writeFileSync(getStatePath(runId), stateYaml, "utf-8");
   } catch (e: unknown) {
-    const errMsg = e instanceof Error ? e.message : String(e);
+    const errMsg = describeError(e);
     await ctx.ui.confirm("Deepwork Error", `Failed to write state.md: ${errMsg}`);
     return;
   }
@@ -479,21 +522,31 @@ const deepworkHandler: CommandHandler = async (
   try {
     fs.writeFileSync(getEventsPath(runId), "\n", "utf-8");
   } catch (e: unknown) {
-    const errMsg = e instanceof Error ? e.message : String(e);
+    const errMsg = describeError(e);
     await ctx.ui.confirm("Deepwork Error", `Failed to create events.jsonl: ${errMsg}`);
     return;
   }
 
-  await ctx.ui.confirm(
-    "Deepwork Started",
-    `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDeepwork pipeline starting. Stage 1 (Goals) will begin.`
-  );
-};
+    const handoff = await handoffToSession(
+      pi,
+      buildLiveRunHandoffPrompt(runId, task, parsedInteractionMode, parsedFailurePolicy),
+    );
+    const handoffSummary = handoff.delivered
+      ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
+      : `Automatic orchestration handoff failed. The run has been scaffolded on disk, but pi.sendUserMessage() threw: ${handoff.error ?? "unknown error"}`;
 
-const deepworkResumeHandler: CommandHandler = async (
-  args: Record<string, unknown>,
-  ctx: ExtensionContext
-) => {
+    await ctx.ui.confirm(
+      "Deepwork Started",
+      `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\n${handoffSummary}`
+    );
+  };
+}
+
+function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
+  return async (
+    args: Record<string, unknown>,
+    ctx: ExtensionContext
+  ) => {
   const runId: string | undefined = typeof args["run-id"] === "string" ? args["run-id"] : undefined;
 
   if (!runId || runId.trim().length === 0) {
@@ -543,11 +596,17 @@ const deepworkResumeHandler: CommandHandler = async (
     return;
   }
 
-  await ctx.ui.confirm(
-    parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
-    `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nResuming deepwork pipeline. The orchestrator will pick up from the recorded next stage.`
-  );
-};
+    const handoff = await handoffToSession(pi, buildResumeHandoffPrompt(parsed));
+    const handoffSummary = handoff.delivered
+      ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
+      : `Automatic orchestration handoff failed. The recovered run is on disk, but pi.sendUserMessage() threw: ${handoff.error ?? "unknown error"}`;
+
+    await ctx.ui.confirm(
+      parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
+      `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\n${handoffSummary}`
+    );
+  };
+}
 
 export default function activate(pi: ExtensionAPI): void {
   setPi(pi);
@@ -562,14 +621,14 @@ export default function activate(pi: ExtensionAPI): void {
       "interaction-mode": ["interactive", "automated"],
       "failure-policy": ["fail-closed", "best-effort"],
     }),
-    handler: deepworkHandler,
+    handler: createDeepworkHandler(pi),
   });
 
   pi.registerCommand("deepwork-resume", {
     description:
       "Resume a paused or interrupted deepwork pipeline run from the next stage recorded in state.md",
     getArgumentCompletions: async () => ({ "run-id": scanPipelineRunIds() }),
-    handler: deepworkResumeHandler,
+    handler: createDeepworkResumeHandler(pi),
   });
 
   pi.registerTool(createDispatchTool());
