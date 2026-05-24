@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createDispatchTool, createQuestionTool, setPi } from "../src/shared-tools";
+import {
+  createDispatchTool,
+  createQuestionTool,
+  setPi,
+} from "../src/shared-tools";
 import type { ExtensionContext } from "../src/types/pi-extensions";
 
 const MANAGER_SYMBOL = Symbol.for("pi-subagents:manager");
@@ -18,7 +22,9 @@ interface MockResult {
   completedAt?: string;
 }
 
-function makeMockCtx(overrides: Partial<ExtensionContext> = {}): ExtensionContext {
+function makeMockCtx(
+  overrides: Partial<ExtensionContext> = {},
+): ExtensionContext {
   return {
     hasUI: true,
     ui: {
@@ -59,7 +65,9 @@ test("createDispatchTool returns tool with name 'qrspi_dispatch'", () => {
 
 test("createDispatchTool has non-empty description", () => {
   const tool = createDispatchTool();
-  assert.ok(typeof tool.description === "string" && tool.description.length > 0);
+  assert.ok(
+    typeof tool.description === "string" && tool.description.length > 0,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -71,8 +79,11 @@ test("dispatch: non-object params returns FAIL", async () => {
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", "not-an-object" as unknown as Record<string, unknown>,
-    new AbortController().signal, () => {}, ctx
+    "id",
+    "not-an-object" as unknown as Record<string, unknown>,
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("Invalid parameters"));
@@ -83,8 +94,11 @@ test("dispatch: missing subagent_type returns FAIL", async () => {
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", { prompt: "p", description: "d" },
-    new AbortController().signal, () => {}, ctx
+    "id",
+    { prompt: "p", description: "d" },
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("subagent_type"));
@@ -95,8 +109,11 @@ test("dispatch: missing prompt returns FAIL", async () => {
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", { subagent_type: "t", description: "d" },
-    new AbortController().signal, () => {}, ctx
+    "id",
+    { subagent_type: "t", description: "d" },
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("prompt"));
@@ -107,8 +124,11 @@ test("dispatch: missing description returns FAIL", async () => {
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", { subagent_type: "t", prompt: "p" },
-    new AbortController().signal, () => {}, ctx
+    "id",
+    { subagent_type: "t", prompt: "p" },
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("description"));
@@ -124,8 +144,11 @@ test("dispatch: missing pi-subagents manager returns FAIL with install message",
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", { subagent_type: "t", prompt: "p", description: "d" },
-    new AbortController().signal, () => {}, ctx
+    "id",
+    { subagent_type: "t", prompt: "p", description: "d" },
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("@tintinweb/pi-subagents"));
@@ -139,25 +162,27 @@ test("dispatch: missing pi-subagents manager returns FAIL with install message",
 test("dispatch: foreground success returns PASS with agent ID and result text", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
-  (globalThis as Record<string, unknown>)[
-    MANAGER_SYMBOL as unknown as string
-  ] = {
-    spawnAndWait: async (): Promise<MockResult> => ({
-      agentId: "agent-fg-1",
-      status: "completed",
-      result: "All tasks done",
-      startedAt: new Date().toISOString(),
-    }),
-  };
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawnAndWait: async (): Promise<MockResult> => ({
+        agentId: "agent-fg-1",
+        status: "completed",
+        result: "All tasks done",
+        startedAt: new Date().toISOString(),
+      }),
+    };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       subagent_type: "qrspi-goals-synthesizer",
       prompt: "do work",
       description: "foreground test",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — PASS"));
   assert.ok(result.content.includes("agent-fg-1"));
@@ -181,28 +206,30 @@ test("dispatch: background mode returns RUNNING with agent ID", async () => {
   setPi({ api: "fake" } as any);
   let spawnCalled = false;
   let spawnAndWaitCalled = false;
-  (globalThis as Record<string, unknown>)[
-    MANAGER_SYMBOL as unknown as string
-  ] = {
-    spawn: () => {
-      spawnCalled = true;
-      return "agent-bg-1";
-    },
-    spawnAndWait: async () => {
-      spawnAndWaitCalled = true;
-      return {} as MockResult;
-    },
-  };
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawn: () => {
+        spawnCalled = true;
+        return "agent-bg-1";
+      },
+      spawnAndWait: async () => {
+        spawnAndWaitCalled = true;
+        return {} as MockResult;
+      },
+    };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       subagent_type: "qrspi-goals-synthesizer",
       prompt: "do work",
       description: "background test",
       run_in_background: true,
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — RUNNING"));
   assert.ok(result.content.includes("agent-bg-1"));
@@ -211,7 +238,11 @@ test("dispatch: background mode returns RUNNING with agent ID", async () => {
   assert.equal(details.status, "running");
   assert.equal(details.agentId, "agent-bg-1");
   assert.equal(spawnCalled, true, "spawn should be called for background");
-  assert.equal(spawnAndWaitCalled, false, "spawnAndWait must not be called for background dispatch");
+  assert.equal(
+    spawnAndWaitCalled,
+    false,
+    "spawnAndWait must not be called for background dispatch",
+  );
   setPi(null);
   delete (globalThis as Record<string, unknown>)[
     MANAGER_SYMBOL as unknown as string
@@ -225,25 +256,27 @@ test("dispatch: background mode returns RUNNING with agent ID", async () => {
 test("dispatch: foreground subagent failed returns FAIL with error", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
-  (globalThis as Record<string, unknown>)[
-    MANAGER_SYMBOL as unknown as string
-  ] = {
-    spawnAndWait: async (): Promise<MockResult> => ({
-      agentId: "agent-failed-1",
-      status: "failed",
-      error: "Task crashed",
-      startedAt: new Date().toISOString(),
-    }),
-  };
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawnAndWait: async (): Promise<MockResult> => ({
+        agentId: "agent-failed-1",
+        status: "failed",
+        error: "Task crashed",
+        startedAt: new Date().toISOString(),
+      }),
+    };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       subagent_type: "qrspi-goals-synthesizer",
       prompt: "do work",
       description: "failure test",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("agent-failed-1"));
@@ -261,22 +294,24 @@ test("dispatch: foreground subagent failed returns FAIL with error", async () =>
 test("dispatch: spawnAndWait throws returns FAIL with error message, no uncaught exception", async () => {
   resetGlobalState();
   setPi({ api: "fake" } as any);
-  (globalThis as Record<string, unknown>)[
-    MANAGER_SYMBOL as unknown as string
-  ] = {
-    spawnAndWait: async () => {
-      throw new Error("spawnAndWait explosion");
-    },
-  };
+  (globalThis as Record<string, unknown>)[MANAGER_SYMBOL as unknown as string] =
+    {
+      spawnAndWait: async () => {
+        throw new Error("spawnAndWait explosion");
+      },
+    };
   const tool = createDispatchTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       subagent_type: "t",
       prompt: "p",
       description: "d",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("### Status — FAIL"));
   assert.ok(result.content.includes("dispatch failed:"));
@@ -298,7 +333,9 @@ test("createQuestionTool returns tool with name 'qrspi_question'", () => {
 
 test("createQuestionTool has non-empty description", () => {
   const tool = createQuestionTool();
-  assert.ok(typeof tool.description === "string" && tool.description.length > 0);
+  assert.ok(
+    typeof tool.description === "string" && tool.description.length > 0,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -310,18 +347,24 @@ test("question: confirm affirmative returns 'User confirmed: Yes'", async () => 
   const tool = createQuestionTool();
   const ctx = makeMockCtx({
     ui: {
-      confirm: async () => { confirmCalled++; return true; },
+      confirm: async () => {
+        confirmCalled++;
+        return true;
+      },
       select: async () => "unused",
     } as ExtensionContext["ui"],
   });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Proceed?",
       message: "Continue?",
       options: ["Yes", "No"],
       type: "confirm",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("User confirmed: Yes"));
   const d = result.details as Record<string, unknown> | undefined;
@@ -343,13 +386,16 @@ test("question: confirm negative returns 'User confirmed: No'", async () => {
     } as ExtensionContext["ui"],
   });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Proceed?",
       message: "Continue?",
       options: ["Yes", "No"],
       type: "confirm",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("User confirmed: No"));
   const d = result.details as Record<string, unknown> | undefined;
@@ -369,13 +415,16 @@ test("question: select chosen returns 'User selected: <option>'", async () => {
     } as ExtensionContext["ui"],
   });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Pick one",
       message: "Choose an option",
       options: ["A", "Option B", "C"],
       type: "select",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("User selected: Option B"));
   const d = result.details as Record<string, unknown> | undefined;
@@ -396,20 +445,23 @@ test("question: select cancelled returns cancellation message", async () => {
     } as ExtensionContext["ui"],
   });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Pick one",
       message: "Choose",
       options: ["A", "B", "C"],
       type: "select",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   const content = result.content;
   assert.ok(
     content.includes("User cancelled selection") ||
-    content.includes("cancelled") ||
-    content.includes("cancel"),
-    `Expected cancellation message, got: ${content}`
+      content.includes("cancelled") ||
+      content.includes("cancel"),
+    `Expected cancellation message, got: ${content}`,
   );
   const d = result.details as Record<string, unknown> | undefined;
   assert.equal(d?.cancelled, true);
@@ -423,13 +475,16 @@ test("question: invalid type returns error message", async () => {
   const tool = createQuestionTool();
   const ctx = makeMockCtx();
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "h",
       message: "m",
       options: ["A"],
       type: "bogus",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("Error"));
   assert.ok(result.content.includes("Invalid type"));
@@ -443,13 +498,16 @@ test("question: confirm with hasUI:false returns [NO UI — DEFAULT]", async () 
   const tool = createQuestionTool();
   const ctx = makeMockCtx({ hasUI: false });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Proceed?",
       message: "Continue?",
       options: ["Yes", "No"],
       type: "confirm",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("[NO UI — DEFAULT]"));
   const d = result.details as Record<string, unknown> | undefined;
@@ -460,13 +518,16 @@ test("question: select with hasUI:false returns [NO UI — DEFAULT]", async () =
   const tool = createQuestionTool();
   const ctx = makeMockCtx({ hasUI: false });
   const result = await tool.execute(
-    "id", {
+    "id",
+    {
       header: "Pick one",
       message: "Choose",
       options: ["Alpha", "Beta", "Gamma"],
       type: "select",
     },
-    new AbortController().signal, () => {}, ctx
+    new AbortController().signal,
+    () => {},
+    ctx,
   );
   assert.ok(result.content.includes("[NO UI — DEFAULT]"));
   const d = result.details as Record<string, unknown> | undefined;

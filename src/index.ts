@@ -84,7 +84,12 @@ function parseStateYaml(raw: string): {
     }
     map[key] = value;
   }
-  if (!map.run_id || !map.next_stage || !map.last_completed_stage || map.route === undefined) {
+  if (
+    !map.run_id ||
+    !map.next_stage ||
+    !map.last_completed_stage ||
+    map.route === undefined
+  ) {
     return null;
   }
   return {
@@ -93,8 +98,10 @@ function parseStateYaml(raw: string): {
     next_stage: map.next_stage,
     last_completed_stage: map.last_completed_stage,
     route: map.route,
-    interaction_mode: map.interaction_mode === "automated" ? "automated" : "interactive",
-    failure_policy: map.failure_policy === "best-effort" ? "best-effort" : "fail-closed",
+    interaction_mode:
+      map.interaction_mode === "automated" ? "automated" : "interactive",
+    failure_policy:
+      map.failure_policy === "best-effort" ? "best-effort" : "fail-closed",
   };
 }
 
@@ -105,7 +112,12 @@ function parseDryRunArg(value: unknown): boolean {
 
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
-    return normalized === "true" || normalized === "1" || normalized === "yes" || normalized === "on";
+    return (
+      normalized === "true" ||
+      normalized === "1" ||
+      normalized === "yes" ||
+      normalized === "on"
+    );
   }
 
   return false;
@@ -359,26 +371,46 @@ function runDryRun(
 
     updatePhaseHistory(state, stage);
     state.last_completed_stage = String(stageId);
-    state.next_stage = nextStage(stage, route) === null ? "done" : String(stageNumber(nextStage(stage, route)!));
+    state.next_stage =
+      nextStage(stage, route) === null
+        ? "done"
+        : String(stageNumber(nextStage(stage, route)!));
     state.stages_completed.push(stage);
     writeTextFile(getStatePath(runId), yamlify(state));
 
-    pushEvent("stage.completed", `Dry run stage ${stageId} (${stage}) completed.`, {
-      stage: stageId,
-      payload: {
-        context: { mode: "dry-run" },
-        artifacts: stageArtifacts,
+    pushEvent(
+      "stage.completed",
+      `Dry run stage ${stageId} (${stage}) completed.`,
+      {
+        stage: stageId,
+        payload: {
+          context: { mode: "dry-run" },
+          artifacts: stageArtifacts,
+        },
       },
-    });
+    );
   }
 
-  pushEvent("run.completed", `Dry run completed across ${stageOrder.length} stages.`, {
-    payload: { context: { mode: "dry-run" } },
-  });
+  pushEvent(
+    "run.completed",
+    `Dry run completed across ${stageOrder.length} stages.`,
+    {
+      payload: { context: { mode: "dry-run" } },
+    },
+  );
 
-  writeTextFile(getEventsPath(runId), `${events.map((event) => JSON.stringify(event)).join("\n")}\n`);
-  writeTextFile(getRunLogPath(runId), formatDryRunRunLog(runId, route, events, state));
-  writeTextFile(getMetricsPath(runId), formatDryRunMetricsSummary(runId, route, stageOrder));
+  writeTextFile(
+    getEventsPath(runId),
+    `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+  );
+  writeTextFile(
+    getRunLogPath(runId),
+    formatDryRunRunLog(runId, route, events, state),
+  );
+  writeTextFile(
+    getMetricsPath(runId),
+    formatDryRunMetricsSummary(runId, route, stageOrder),
+  );
 
   return { runId, state };
 }
@@ -394,12 +426,19 @@ function isGitAvailable(): boolean {
 
 function tryCreateGitBranch(runId: string): { ok: boolean; error?: string } {
   try {
-    const result = spawnSync("git", ["checkout", "-b", `qrspi/${runId}`, "main"], {
-      encoding: "utf-8",
-    });
+    const result = spawnSync(
+      "git",
+      ["checkout", "-b", `qrspi/${runId}`, "main"],
+      {
+        encoding: "utf-8",
+      },
+    );
     if (result.status !== 0) {
       const err = (result.stderr ?? result.stdout ?? "").trim();
-      return { ok: false, error: err || `git checkout exited with status ${result.status}` };
+      return {
+        ok: false,
+        error: err || `git checkout exited with status ${result.status}`,
+      };
     }
     return { ok: true };
   } catch (e: unknown) {
@@ -417,119 +456,141 @@ function scanPipelineRunIds(): string[] {
 }
 
 function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
-  return async (
-    args: Record<string, unknown>,
-    ctx: ExtensionContext
-  ) => {
-  let task: string | undefined = typeof args.task === "string" ? args.task : undefined;
-  const dryRun = parseDryRunArg(args["dry-run"]);
-  const routeArg = args.route;
-  const parsedRoute = parseRouteArg(routeArg);
-  const interactionModeArg = args["interaction-mode"];
-  const parsedInteractionMode = interactionModeArg === undefined
-    ? "interactive"
-    : parseInteractionModeArg(interactionModeArg);
-  const failurePolicyArg = args["failure-policy"];
-  const parsedFailurePolicy = failurePolicyArg === undefined
-    ? "fail-closed"
-    : parseFailurePolicyArg(failurePolicyArg);
+  return async (args: Record<string, unknown>, ctx: ExtensionContext) => {
+    let task: string | undefined =
+      typeof args.task === "string" ? args.task : undefined;
+    const dryRun = parseDryRunArg(args["dry-run"]);
+    const routeArg = args.route;
+    const parsedRoute = parseRouteArg(routeArg);
+    const interactionModeArg = args["interaction-mode"];
+    const parsedInteractionMode =
+      interactionModeArg === undefined
+        ? "interactive"
+        : parseInteractionModeArg(interactionModeArg);
+    const failurePolicyArg = args["failure-policy"];
+    const parsedFailurePolicy =
+      failurePolicyArg === undefined
+        ? "fail-closed"
+        : parseFailurePolicyArg(failurePolicyArg);
 
-  if (dryRun && routeArg !== undefined && parsedRoute === null) {
-    await ctx.ui.confirm(
-      "Deepwork Error",
-      `Invalid route "${String(routeArg)}". Expected "full" or "quick-fix".`
-    );
-    return;
-  }
-
-  if (parsedInteractionMode === null) {
-    await ctx.ui.confirm(
-      "Deepwork Error",
-      `Invalid interaction-mode "${String(interactionModeArg)}". Expected "interactive" or "automated".`
-    );
-    return;
-  }
-
-  if (parsedFailurePolicy === null) {
-    await ctx.ui.confirm(
-      "Deepwork Error",
-      `Invalid failure-policy "${String(failurePolicyArg)}". Expected "fail-closed" or "best-effort".`
-    );
-    return;
-  }
-
-  if (!task || task.trim().length === 0) {
-    const confirmed = await ctx.ui.confirm(
-      "Deepwork Task",
-      "No task description provided. Run a generic deepwork pipeline?",
-      { signal: ctx.signal }
-    );
-    if (!confirmed) {
-      await ctx.ui.confirm("Deepwork Task", "Deepwork aborted — no task description provided.");
+    if (dryRun && routeArg !== undefined && parsedRoute === null) {
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Invalid route "${String(routeArg)}". Expected "full" or "quick-fix".`,
+      );
       return;
     }
-    task = "Unspecified task — generic deepwork run";
-  }
 
-  if (dryRun) {
-    const route = parsedRoute ?? "full";
-    const { runId, state } = runDryRun(task, route, parsedInteractionMode, parsedFailurePolicy);
+    if (parsedInteractionMode === null) {
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Invalid interaction-mode "${String(interactionModeArg)}". Expected "interactive" or "automated".`,
+      );
+      return;
+    }
 
-    await ctx.ui.confirm(
-      "Deepwork Dry Run Complete",
-      `=== RUN ID ===\n${runId}\n\n=== MODE ===\ndry-run\n\n=== ROUTE ===\n${route}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDry run complete. Simulated artifacts were written to .pipeline/${runId}/ and state.md now points to ${state.next_stage}. No subagents were dispatched and no project files were modified.`
-    );
-    return;
-  }
+    if (parsedFailurePolicy === null) {
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Invalid failure-policy "${String(failurePolicyArg)}". Expected "fail-closed" or "best-effort".`,
+      );
+      return;
+    }
 
-  const runId = generateRunId();
-  const telemetryDir = getTelemetryDir(runId);
+    if (!task || task.trim().length === 0) {
+      const confirmed = await ctx.ui.confirm(
+        "Deepwork Task",
+        "No task description provided. Run a generic deepwork pipeline?",
+        { signal: ctx.signal },
+      );
+      if (!confirmed) {
+        await ctx.ui.confirm(
+          "Deepwork Task",
+          "Deepwork aborted — no task description provided.",
+        );
+        return;
+      }
+      task = "Unspecified task — generic deepwork run";
+    }
 
-  try {
-    fs.mkdirSync(telemetryDir, { recursive: true });
-  } catch (e: unknown) {
-    const errMsg = describeError(e);
-    await ctx.ui.confirm("Deepwork Error", `Failed to create pipeline directory: ${errMsg}`);
-    return;
-  }
+    if (dryRun) {
+      const route = parsedRoute ?? "full";
+      const { runId, state } = runDryRun(
+        task,
+        route,
+        parsedInteractionMode,
+        parsedFailurePolicy,
+      );
 
-  if (isGitAvailable()) {
-    const branchResult = tryCreateGitBranch(runId);
-    if (!branchResult.ok) {
+      await ctx.ui.confirm(
+        "Deepwork Dry Run Complete",
+        `=== RUN ID ===\n${runId}\n\n=== MODE ===\ndry-run\n\n=== ROUTE ===\n${route}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\nDry run complete. Simulated artifacts were written to .pipeline/${runId}/ and state.md now points to ${state.next_stage}. No subagents were dispatched and no project files were modified.`,
+      );
+      return;
+    }
+
+    const runId = generateRunId();
+    const telemetryDir = getTelemetryDir(runId);
+
+    try {
+      fs.mkdirSync(telemetryDir, { recursive: true });
+    } catch (e: unknown) {
+      const errMsg = describeError(e);
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Failed to create pipeline directory: ${errMsg}`,
+      );
+      return;
+    }
+
+    if (isGitAvailable()) {
+      const branchResult = tryCreateGitBranch(runId);
+      if (!branchResult.ok) {
+        console.warn(
+          `Failed to create git branch qrspi/${runId}: ${branchResult.error ?? "unknown error"}`,
+        );
+      }
+    } else {
       console.warn(
-        `Failed to create git branch qrspi/${runId}: ${branchResult.error ?? "unknown error"}`
+        "git not found in PATH — proceeding without git branching. Pipeline state will be tracked in .pipeline/ files only.",
       );
     }
-  } else {
-    console.warn(
-      "git not found in PATH — proceeding without git branching. Pipeline state will be tracked in .pipeline/ files only."
-    );
-  }
 
-  const state = makeInitialState(runId, {
-    interaction_mode: parsedInteractionMode,
-    failure_policy: parsedFailurePolicy,
-  });
-  const stateYaml = yamlify(state);
-  try {
-    fs.writeFileSync(getStatePath(runId), stateYaml, "utf-8");
-  } catch (e: unknown) {
-    const errMsg = describeError(e);
-    await ctx.ui.confirm("Deepwork Error", `Failed to write state.md: ${errMsg}`);
-    return;
-  }
+    const state = makeInitialState(runId, {
+      interaction_mode: parsedInteractionMode,
+      failure_policy: parsedFailurePolicy,
+    });
+    const stateYaml = yamlify(state);
+    try {
+      fs.writeFileSync(getStatePath(runId), stateYaml, "utf-8");
+    } catch (e: unknown) {
+      const errMsg = describeError(e);
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Failed to write state.md: ${errMsg}`,
+      );
+      return;
+    }
 
-  try {
-    fs.writeFileSync(getEventsPath(runId), "\n", "utf-8");
-  } catch (e: unknown) {
-    const errMsg = describeError(e);
-    await ctx.ui.confirm("Deepwork Error", `Failed to create events.jsonl: ${errMsg}`);
-    return;
-  }
+    try {
+      fs.writeFileSync(getEventsPath(runId), "\n", "utf-8");
+    } catch (e: unknown) {
+      const errMsg = describeError(e);
+      await ctx.ui.confirm(
+        "Deepwork Error",
+        `Failed to create events.jsonl: ${errMsg}`,
+      );
+      return;
+    }
 
     const handoff = await handoffToSession(
       pi,
-      buildLiveRunHandoffPrompt(runId, task, parsedInteractionMode, parsedFailurePolicy),
+      buildLiveRunHandoffPrompt(
+        runId,
+        task,
+        parsedInteractionMode,
+        parsedFailurePolicy,
+      ),
     );
     const handoffSummary = handoff.delivered
       ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
@@ -537,73 +598,78 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
 
     await ctx.ui.confirm(
       "Deepwork Started",
-      `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\n${handoffSummary}`
+      `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\n${handoffSummary}`,
     );
   };
 }
 
 function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
-  return async (
-    args: Record<string, unknown>,
-    ctx: ExtensionContext
-  ) => {
-  const runId: string | undefined = typeof args["run-id"] === "string" ? args["run-id"] : undefined;
+  return async (args: Record<string, unknown>, ctx: ExtensionContext) => {
+    const runId: string | undefined =
+      typeof args["run-id"] === "string" ? args["run-id"] : undefined;
 
-  if (!runId || runId.trim().length === 0) {
-    await ctx.ui.confirm(
-      "Resume Error",
-      "No run ID provided. Usage: /deepwork-resume qrspi-YYYYMMDD-HHMMSS"
+    if (!runId || runId.trim().length === 0) {
+      await ctx.ui.confirm(
+        "Resume Error",
+        "No run ID provided. Usage: /deepwork-resume qrspi-YYYYMMDD-HHMMSS",
+      );
+      return;
+    }
+
+    const statePath = getStatePath(runId);
+    if (!fs.existsSync(statePath)) {
+      await ctx.ui.confirm(
+        "Resume Error",
+        `Run ID "${runId}" not found. Check .pipeline/ for valid run IDs.`,
+      );
+      return;
+    }
+
+    let raw: string;
+    try {
+      raw = fs.readFileSync(statePath, "utf-8");
+    } catch {
+      await ctx.ui.confirm(
+        "Resume Error",
+        `state.md for run "${runId}" is corrupted. Cannot resume.`,
+      );
+      return;
+    }
+
+    const parsed = parseStateYaml(raw);
+    if (!parsed) {
+      await ctx.ui.confirm(
+        "Resume Error",
+        `state.md for run "${runId}" is corrupted. Cannot resume.`,
+      );
+      return;
+    }
+
+    if (parsed.next_stage === "done") {
+      const title =
+        parsed.mode === "dry-run"
+          ? "Deepwork Dry Run Complete"
+          : "Resume Pipeline";
+      const kind =
+        parsed.mode === "dry-run" ? "simulated dry run" : "pipeline run";
+      await ctx.ui.confirm(
+        title,
+        `=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nThis ${kind} is already complete. There is no next stage to resume.`,
+      );
+      return;
+    }
+
+    const handoff = await handoffToSession(
+      pi,
+      buildResumeHandoffPrompt(parsed),
     );
-    return;
-  }
-
-  const statePath = getStatePath(runId);
-  if (!fs.existsSync(statePath)) {
-    await ctx.ui.confirm(
-      "Resume Error",
-      `Run ID "${runId}" not found. Check .pipeline/ for valid run IDs.`
-    );
-    return;
-  }
-
-  let raw: string;
-  try {
-    raw = fs.readFileSync(statePath, "utf-8");
-  } catch (e: unknown) {
-    await ctx.ui.confirm(
-      "Resume Error",
-      `state.md for run "${runId}" is corrupted. Cannot resume.`
-    );
-    return;
-  }
-
-  const parsed = parseStateYaml(raw);
-  if (!parsed) {
-    await ctx.ui.confirm(
-      "Resume Error",
-      `state.md for run "${runId}" is corrupted. Cannot resume.`
-    );
-    return;
-  }
-
-  if (parsed.next_stage === "done") {
-    const title = parsed.mode === "dry-run" ? "Deepwork Dry Run Complete" : "Resume Pipeline";
-    const kind = parsed.mode === "dry-run" ? "simulated dry run" : "pipeline run";
-    await ctx.ui.confirm(
-      title,
-      `=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\nThis ${kind} is already complete. There is no next stage to resume.`
-    );
-    return;
-  }
-
-    const handoff = await handoffToSession(pi, buildResumeHandoffPrompt(parsed));
     const handoffSummary = handoff.delivered
       ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
       : `Automatic orchestration handoff failed. The recovered run is on disk, but pi.sendUserMessage() threw: ${handoff.error ?? "unknown error"}`;
 
     await ctx.ui.confirm(
       parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
-      `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\n${handoffSummary}`
+      `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\n${handoffSummary}`,
     );
   };
 }

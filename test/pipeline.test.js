@@ -29,7 +29,10 @@ const testRunId = 'qrspi-20260523-143022';
 
 test('generateRunId returns a string matching qrspi-YYYYMMDD-HHMMSS format', () => {
   const id = generateRunId();
-  assert.ok(/^qrspi-\d{8}-\d{6}$/.test(id), `Expected format qrspi-YYYYMMDD-HHMMSS, got: ${id}`);
+  assert.ok(
+    /^qrspi-\d{8}-\d{6}$/.test(id),
+    `Expected format qrspi-YYYYMMDD-HHMMSS, got: ${id}`,
+  );
 });
 
 test('generateRunId date portion is current UTC date', () => {
@@ -46,7 +49,6 @@ test('generateRunId date portion is current UTC date', () => {
 });
 
 test('generateRunId time portion matches current UTC time within 1 second tolerance', () => {
-  const nowSecs = Math.floor(Date.now() / 1000);
   const id = generateRunId();
   const match = id.match(/^qrspi-(\d{8})-(\d{6})$/);
   const timeStr = match[2];
@@ -56,10 +58,14 @@ test('generateRunId time portion matches current UTC time within 1 second tolera
   const idSecs = hh * 3600 + mm * 60 + ss;
 
   const now = new Date();
-  const actualSecs = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
+  const actualSecs =
+    now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
 
   const diff = Math.abs(idSecs - actualSecs);
-  assert.ok(diff <= 1, `Time diff ${diff}s exceeds 1 second tolerance; id time: ${timeStr}, actual UTC: ${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}`);
+  assert.ok(
+    diff <= 1,
+    `Time diff ${diff}s exceeds 1 second tolerance; id time: ${timeStr}, actual UTC: ${String(now.getUTCHours()).padStart(2, '0')}${String(now.getUTCMinutes()).padStart(2, '0')}${String(now.getUTCSeconds()).padStart(2, '0')}`,
+  );
 });
 
 test('generateRunId called twice in same second returns identical values', () => {
@@ -89,23 +95,38 @@ test('getGitBranch returns qrspi/<runId>', () => {
 // ---------------------------------------------------------------------------
 
 test('getStatePath returns <pipelineDir>/state.md', () => {
-  assert.equal(getStatePath(testRunId), '.pipeline/qrspi-20260523-143022/state.md');
+  assert.equal(
+    getStatePath(testRunId),
+    '.pipeline/qrspi-20260523-143022/state.md',
+  );
 });
 
 test('getTelemetryDir returns <pipelineDir>/telemetry', () => {
-  assert.equal(getTelemetryDir(testRunId), '.pipeline/qrspi-20260523-143022/telemetry');
+  assert.equal(
+    getTelemetryDir(testRunId),
+    '.pipeline/qrspi-20260523-143022/telemetry',
+  );
 });
 
 test('getEventsPath returns <telemetryDir>/events.jsonl', () => {
-  assert.equal(getEventsPath(testRunId), '.pipeline/qrspi-20260523-143022/telemetry/events.jsonl');
+  assert.equal(
+    getEventsPath(testRunId),
+    '.pipeline/qrspi-20260523-143022/telemetry/events.jsonl',
+  );
 });
 
 test('getRunLogPath returns <telemetryDir>/run-log.md', () => {
-  assert.equal(getRunLogPath(testRunId), '.pipeline/qrspi-20260523-143022/telemetry/run-log.md');
+  assert.equal(
+    getRunLogPath(testRunId),
+    '.pipeline/qrspi-20260523-143022/telemetry/run-log.md',
+  );
 });
 
 test('getMetricsPath returns <telemetryDir>/metrics-summary.md', () => {
-  assert.equal(getMetricsPath(testRunId), '.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md');
+  assert.equal(
+    getMetricsPath(testRunId),
+    '.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md',
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -134,7 +155,15 @@ test('getPipelinePaths returns object matching individual path functions', () =>
 
 test('getPipelinePaths has exactly 7 keys', () => {
   const keys = Object.keys(getPipelinePaths(testRunId)).sort();
-  assert.deepEqual(keys, ['eventsPath', 'gitBranch', 'metricsPath', 'pipelineDir', 'runLogPath', 'statePath', 'telemetryDir']);
+  assert.deepEqual(keys, [
+    'eventsPath',
+    'gitBranch',
+    'metricsPath',
+    'pipelineDir',
+    'runLogPath',
+    'statePath',
+    'telemetryDir',
+  ]);
 });
 
 // ---------------------------------------------------------------------------
@@ -144,10 +173,19 @@ test('getPipelinePaths has exactly 7 keys', () => {
 test('makeInitialState returns object with all 13 required fields', () => {
   const state = makeInitialState(testRunId);
   const expectedFields = [
-    'run_id', 'route', 'current_phase', 'total_phases',
-    'last_completed_stage', 'next_stage', 'stages_completed',
-    'phase_history', 'backward_loops', 'resume_source', 'mode',
-    'interaction_mode', 'failure_policy',
+    'run_id',
+    'route',
+    'current_phase',
+    'total_phases',
+    'last_completed_stage',
+    'next_stage',
+    'stages_completed',
+    'phase_history',
+    'backward_loops',
+    'resume_source',
+    'mode',
+    'interaction_mode',
+    'failure_policy',
   ];
   const keys = Object.keys(state).sort();
   assert.deepEqual(keys, expectedFields.sort());
@@ -223,8 +261,14 @@ test('makeTelemetryEvent ts is a valid ISO 8601 string', () => {
 
 test('makeTelemetryEvent event_id contains runId and eventType', () => {
   const event = makeTelemetryEvent(testRunId, 'test.event', {});
-  assert.ok(event.event_id.includes(testRunId), `event_id should contain run ID, got: ${event.event_id}`);
-  assert.ok(event.event_id.includes('test.event'), `event_id should contain event type, got: ${event.event_id}`);
+  assert.ok(
+    event.event_id.includes(testRunId),
+    `event_id should contain run ID, got: ${event.event_id}`,
+  );
+  assert.ok(
+    event.event_id.includes('test.event'),
+    `event_id should contain event type, got: ${event.event_id}`,
+  );
   assert.ok(event.event_id.length > 0, 'event_id should not be empty');
 });
 
@@ -247,7 +291,10 @@ test('makeTelemetryEvent overrides status, stage, and summary', () => {
 });
 
 test('makeTelemetryEvent overrides do not affect subsequent calls', () => {
-  const ev1 = makeTelemetryEvent(testRunId, 'ev.a', { status: 'FAIL', summary: 'Bad' });
+  const ev1 = makeTelemetryEvent(testRunId, 'ev.a', {
+    status: 'FAIL',
+    summary: 'Bad',
+  });
   const ev2 = makeTelemetryEvent(testRunId, 'ev.b', {});
   assert.equal(ev2.status, 'PASS');
   assert.equal(ev2.summary, '');
@@ -259,7 +306,10 @@ test('makeTelemetryEvent payload override replaces entire payload object', () =>
   const event = makeTelemetryEvent(testRunId, 'test.payload', {
     payload: { context: { key: 'value' }, error: 'something went wrong' },
   });
-  assert.deepEqual(event.payload, { context: { key: 'value' }, error: 'something went wrong' });
+  assert.deepEqual(event.payload, {
+    context: { key: 'value' },
+    error: 'something went wrong',
+  });
 });
 
 test('makeTelemetryEvent optional fields default to undefined', () => {
@@ -287,7 +337,10 @@ test('createRunLogEntry formats a bullet line with timestamp, type, status, and 
     status: 'PASS',
     summary: 'Pipeline initialized',
   });
-  assert.equal(entry, '- [2026-05-23T14:30:22.000Z] run.started — PASS: Pipeline initialized');
+  assert.equal(
+    entry,
+    '- [2026-05-23T14:30:22.000Z] run.started — PASS: Pipeline initialized',
+  );
 });
 
 test('createRunLogEntry handles FAIL status', () => {
@@ -297,7 +350,10 @@ test('createRunLogEntry handles FAIL status', () => {
     status: 'FAIL',
     summary: 'Something broke',
   });
-  assert.equal(entry, '- [2026-05-23T14:31:00.000Z] stage.failed — FAIL: Something broke');
+  assert.equal(
+    entry,
+    '- [2026-05-23T14:31:00.000Z] stage.failed — FAIL: Something broke',
+  );
 });
 
 test('createRunLogEntry handles empty summary', () => {
@@ -316,8 +372,16 @@ test('createRunLogEntry handles empty summary', () => {
 
 test('STAGE_NAMES is an array of 10 stage names in canonical order', () => {
   const expected = [
-    'goals', 'research', 'design', 'structure',
-    'plan', 'implement', 'accept', 'replan', 'verify', 'report',
+    'goals',
+    'research',
+    'design',
+    'structure',
+    'plan',
+    'implement',
+    'accept',
+    'replan',
+    'verify',
+    'report',
   ];
   assert.deepEqual(STAGE_NAMES, expected);
   assert.equal(STAGE_NAMES.length, 10);
@@ -343,17 +407,38 @@ test('getDryRunArtifactPaths("full") includes design, structure, replan, and tel
   const artifacts = getDryRunArtifactPaths(testRunId, 'full');
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'));
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'));
-  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md'));
-  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md'));
+  assert.ok(
+    artifacts.includes(
+      '.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md',
+    ),
+  );
+  assert.ok(
+    artifacts.includes(
+      '.pipeline/qrspi-20260523-143022/telemetry/metrics-summary.md',
+    ),
+  );
 });
 
 test('getDryRunArtifactPaths("quick-fix") omits skipped-stage artifacts', () => {
   const artifacts = getDryRunArtifactPaths(testRunId, 'quick-fix');
-  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'), false);
-  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'), false);
-  assert.equal(artifacts.includes('.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md'), false);
+  assert.equal(
+    artifacts.includes('.pipeline/qrspi-20260523-143022/design.md'),
+    false,
+  );
+  assert.equal(
+    artifacts.includes('.pipeline/qrspi-20260523-143022/structure.md'),
+    false,
+  );
+  assert.equal(
+    artifacts.includes(
+      '.pipeline/qrspi-20260523-143022/phases/phase-01/replan/phase-01-replan.md',
+    ),
+    false,
+  );
   assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/plan.md'));
-  assert.ok(artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/run-log.md'));
+  assert.ok(
+    artifacts.includes('.pipeline/qrspi-20260523-143022/telemetry/run-log.md'),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -385,9 +470,24 @@ test('stageNumber("") returns 0', () => {
 });
 
 test('stageNumber returns correct index for all 10 stages', () => {
-  const stages = ['goals', 'research', 'design', 'structure', 'plan', 'implement', 'accept', 'replan', 'verify', 'report'];
+  const stages = [
+    'goals',
+    'research',
+    'design',
+    'structure',
+    'plan',
+    'implement',
+    'accept',
+    'replan',
+    'verify',
+    'report',
+  ];
   stages.forEach((name, idx) => {
-    assert.equal(stageNumber(name), idx + 1, `stageNumber("${name}") should be ${idx + 1}`);
+    assert.equal(
+      stageNumber(name),
+      idx + 1,
+      `stageNumber("${name}") should be ${idx + 1}`,
+    );
   });
 });
 
@@ -519,8 +619,18 @@ test('makeTelemetryEvent is deterministic for given input within same millisecon
 });
 
 test('createRunLogEntry is deterministic', () => {
-  const a = createRunLogEntry({ ts: '2026-05-23T14:30:22.000Z', event_type: 'e', status: 'PASS', summary: 's' });
-  const b = createRunLogEntry({ ts: '2026-05-23T14:30:22.000Z', event_type: 'e', status: 'PASS', summary: 's' });
+  const a = createRunLogEntry({
+    ts: '2026-05-23T14:30:22.000Z',
+    event_type: 'e',
+    status: 'PASS',
+    summary: 's',
+  });
+  const b = createRunLogEntry({
+    ts: '2026-05-23T14:30:22.000Z',
+    event_type: 'e',
+    status: 'PASS',
+    summary: 's',
+  });
   assert.equal(a, b);
 });
 
@@ -547,7 +657,16 @@ test('getPipelinePaths with different runId produces correct paths', () => {
   assert.equal(paths.gitBranch, 'qrspi/qrspi-20260523-999999');
   assert.equal(paths.statePath, '.pipeline/qrspi-20260523-999999/state.md');
   assert.equal(paths.telemetryDir, '.pipeline/qrspi-20260523-999999/telemetry');
-  assert.equal(paths.eventsPath, '.pipeline/qrspi-20260523-999999/telemetry/events.jsonl');
-  assert.equal(paths.runLogPath, '.pipeline/qrspi-20260523-999999/telemetry/run-log.md');
-  assert.equal(paths.metricsPath, '.pipeline/qrspi-20260523-999999/telemetry/metrics-summary.md');
+  assert.equal(
+    paths.eventsPath,
+    '.pipeline/qrspi-20260523-999999/telemetry/events.jsonl',
+  );
+  assert.equal(
+    paths.runLogPath,
+    '.pipeline/qrspi-20260523-999999/telemetry/run-log.md',
+  );
+  assert.equal(
+    paths.metricsPath,
+    '.pipeline/qrspi-20260523-999999/telemetry/metrics-summary.md',
+  );
 });

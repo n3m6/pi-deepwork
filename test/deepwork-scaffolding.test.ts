@@ -29,7 +29,11 @@ interface ConfirmCall {
   message: string;
 }
 
-function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[]; sentUserMessages: string[] } {
+function createMockPi(): {
+  pi: ExtensionAPI;
+  commands: RecordedCommand[];
+  sentUserMessages: string[];
+} {
   const commands: RecordedCommand[] = [];
   const sentUserMessages: string[] = [];
   const pi: ExtensionAPI = {
@@ -40,7 +44,9 @@ function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[]; sentUs
     on(): void {},
     sendMessage: async () => {},
     sendUserMessage: async (content) => {
-      sentUserMessages.push(typeof content === "string" ? content : JSON.stringify(content));
+      sentUserMessages.push(
+        typeof content === "string" ? content : JSON.stringify(content),
+      );
     },
   };
   return { pi, commands, sentUserMessages };
@@ -120,8 +126,10 @@ test("deepwork handler creates pipeline scaffolding with git available", async (
 
   try {
     mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
-      if (Array.isArray(args) && args[0] === "--version") return { status: 0, stdout: "", stderr: "" };
-      if (Array.isArray(args) && args[0] === "checkout") return { status: 0, stdout: "", stderr: "" };
+      if (Array.isArray(args) && args[0] === "--version")
+        return { status: 0, stdout: "", stderr: "" };
+      if (Array.isArray(args) && args[0] === "checkout")
+        return { status: 0, stdout: "", stderr: "" };
       return { status: 1, stdout: "", stderr: "" };
     });
 
@@ -140,28 +148,60 @@ test("deepwork handler creates pipeline scaffolding with git available", async (
 
     // (d) Captured confirmation message includes run ID and task
     const runId = extractRunId(confirmCalls);
-    assert.ok(runId !== null, "Should extract run ID from confirmation message");
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from confirmation message",
+    );
 
-    const startedCall = confirmCalls.find((c) => c.title === "Deepwork Started");
-    assert.ok(startedCall !== undefined, "Should have Deepwork Started confirmation");
-    assert.ok(startedCall!.message.includes(runId), "Confirmation must include run ID");
-    assert.ok(startedCall!.message.includes("Test task"), "Confirmation must include task text");
+    const startedCall = confirmCalls.find(
+      (c) => c.title === "Deepwork Started",
+    );
+    assert.ok(
+      startedCall !== undefined,
+      "Should have Deepwork Started confirmation",
+    );
+    assert.ok(
+      startedCall!.message.includes(runId),
+      "Confirmation must include run ID",
+    );
+    assert.ok(
+      startedCall!.message.includes("Test task"),
+      "Confirmation must include task text",
+    );
 
     // (a) .pipeline/qrspi-<run-id>/ dir exists
     const pipelineDir = path.join(tmpDir, ".pipeline", runId);
-    assert.ok(fs.existsSync(pipelineDir), `.pipeline/${runId} directory must exist`);
+    assert.ok(
+      fs.existsSync(pipelineDir),
+      `.pipeline/${runId} directory must exist`,
+    );
 
     // (b) state.md exists with valid YAML containing required keys
     const statePath = path.join(pipelineDir, "state.md");
     assert.ok(fs.existsSync(statePath), "state.md must exist");
 
     const stateContent = fs.readFileSync(statePath, "utf-8");
-    assert.ok(stateContent.startsWith("---"), "state.md must start with YAML delimiter");
+    assert.ok(
+      stateContent.startsWith("---"),
+      "state.md must start with YAML delimiter",
+    );
     assert.ok(stateContent.includes("run_id:"), "state.md must contain run_id");
-    assert.ok(stateContent.includes("next_stage:"), "state.md must contain next_stage");
-    assert.ok(stateContent.includes("last_completed_stage:"), "state.md must contain last_completed_stage");
-    assert.ok(stateContent.includes("resume_source:"), "state.md must contain resume_source");
-    assert.ok(stateContent.includes('mode: "live"'), "state.md must record live mode");
+    assert.ok(
+      stateContent.includes("next_stage:"),
+      "state.md must contain next_stage",
+    );
+    assert.ok(
+      stateContent.includes("last_completed_stage:"),
+      "state.md must contain last_completed_stage",
+    );
+    assert.ok(
+      stateContent.includes("resume_source:"),
+      "state.md must contain resume_source",
+    );
+    assert.ok(
+      stateContent.includes('mode: "live"'),
+      "state.md must record live mode",
+    );
 
     // (c) events.jsonl exists
     const eventsPath = path.join(pipelineDir, "telemetry", "events.jsonl");
@@ -199,16 +239,36 @@ test("deepwork handler creates scaffolding even when git is unavailable", async 
     assert.ok(runId !== null, "Should extract run ID even without git");
 
     const pipelineDir = path.join(tmpDir, ".pipeline", runId);
-    assert.ok(fs.existsSync(pipelineDir), ".pipeline dir must exist without git");
-    assert.ok(fs.existsSync(path.join(pipelineDir, "state.md")), "state.md must exist without git");
-    assert.ok(fs.existsSync(path.join(pipelineDir, "telemetry", "events.jsonl")), "events.jsonl must exist without git");
+    assert.ok(
+      fs.existsSync(pipelineDir),
+      ".pipeline dir must exist without git",
+    );
+    assert.ok(
+      fs.existsSync(path.join(pipelineDir, "state.md")),
+      "state.md must exist without git",
+    );
+    assert.ok(
+      fs.existsSync(path.join(pipelineDir, "telemetry", "events.jsonl")),
+      "events.jsonl must exist without git",
+    );
 
-    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
-    assert.ok(stateContent.includes('mode: "live"'), "state.md must record live mode");
+    const stateContent = fs.readFileSync(
+      path.join(pipelineDir, "state.md"),
+      "utf-8",
+    );
+    assert.ok(
+      stateContent.includes('mode: "live"'),
+      "state.md must record live mode",
+    );
 
-    const startedCall = confirmCalls.find((c) => c.title === "Deepwork Started");
+    const startedCall = confirmCalls.find(
+      (c) => c.title === "Deepwork Started",
+    );
     assert.ok(startedCall !== undefined, "Confirmation must be shown");
-    assert.ok(startedCall!.message.includes("Gitless task"), "Confirmation must include task");
+    assert.ok(
+      startedCall!.message.includes("Gitless task"),
+      "Confirmation must include task",
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -222,8 +282,10 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
 
   try {
     mock.method(childProcess, "spawnSync", (_cmd: string, args: string[]) => {
-      if (Array.isArray(args) && args[0] === "--version") return { status: 0, stdout: "", stderr: "" };
-      if (Array.isArray(args) && args[0] === "checkout") return { status: 0, stdout: "", stderr: "" };
+      if (Array.isArray(args) && args[0] === "--version")
+        return { status: 0, stdout: "", stderr: "" };
+      if (Array.isArray(args) && args[0] === "checkout")
+        return { status: 0, stdout: "", stderr: "" };
       return { status: 1, stdout: "", stderr: "" };
     });
 
@@ -240,9 +302,19 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
       await deepworkCmd.definition.handler({ task: "Handoff task" }, ctx);
     });
 
-    assert.equal(sentUserMessages.length, 1, "deepwork must hand off exactly one kickoff prompt");
-    assert.match(sentUserMessages[0] ?? "", /Continue the existing Deepwork pipeline run/i);
-    assert.match(sentUserMessages[0] ?? "", /=== RUN ID ===\nqrspi-\d{8}-\d{6}/);
+    assert.equal(
+      sentUserMessages.length,
+      1,
+      "deepwork must hand off exactly one kickoff prompt",
+    );
+    assert.match(
+      sentUserMessages[0] ?? "",
+      /Continue the existing Deepwork pipeline run/i,
+    );
+    assert.match(
+      sentUserMessages[0] ?? "",
+      /=== RUN ID ===\nqrspi-\d{8}-\d{6}/,
+    );
     assert.match(sentUserMessages[0] ?? "", /=== USER TASK ===\nHandoff task/);
   } finally {
     process.chdir(originalCwd);
@@ -274,14 +346,24 @@ test("deepwork handler: empty task with No response aborts without artifacts", a
     assert.equal(confirmCalls.length, 2, "Should have exactly 2 confirm calls");
 
     assert.equal(confirmCalls[0]!.title, "Deepwork Task");
-    assert.ok(confirmCalls[0]!.message.includes("No task description provided"), "First prompt must ask about missing task");
+    assert.ok(
+      confirmCalls[0]!.message.includes("No task description provided"),
+      "First prompt must ask about missing task",
+    );
 
     assert.equal(confirmCalls[1]!.title, "Deepwork Task");
-    assert.ok(confirmCalls[1]!.message.includes("Deepwork aborted"), "Second message must confirm abort");
+    assert.ok(
+      confirmCalls[1]!.message.includes("Deepwork aborted"),
+      "Second message must confirm abort",
+    );
 
     // No pipeline directory should exist
     const pipelineRoot = path.join(tmpDir, ".pipeline");
-    assert.equal(fs.existsSync(pipelineRoot), false, ".pipeline directory must not exist");
+    assert.equal(
+      fs.existsSync(pipelineRoot),
+      false,
+      ".pipeline directory must not exist",
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -310,31 +392,76 @@ test("deepwork handler dry-run creates a completed full-route simulation without
     assert.ok(deepworkCmd !== undefined);
 
     await assert.doesNotReject(async () => {
-      await deepworkCmd.definition.handler({ task: "Dry-run task", "dry-run": "true" }, ctx);
+      await deepworkCmd.definition.handler(
+        { task: "Dry-run task", "dry-run": "true" },
+        ctx,
+      );
     });
 
     const runId = extractRunId(confirmCalls);
-    assert.ok(runId !== null, "Should extract run ID from dry-run confirmation");
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from dry-run confirmation",
+    );
 
-    const completeCall = confirmCalls.find((c) => c.title === "Deepwork Dry Run Complete");
-    assert.ok(completeCall !== undefined, "Dry run should emit a completion confirmation");
-    assert.ok(completeCall!.message.includes("dry-run"), "Completion message must identify dry-run mode");
-    assert.ok(completeCall!.message.includes("full"), "Completion message must include route");
+    const completeCall = confirmCalls.find(
+      (c) => c.title === "Deepwork Dry Run Complete",
+    );
+    assert.ok(
+      completeCall !== undefined,
+      "Dry run should emit a completion confirmation",
+    );
+    assert.ok(
+      completeCall!.message.includes("dry-run"),
+      "Completion message must identify dry-run mode",
+    );
+    assert.ok(
+      completeCall!.message.includes("full"),
+      "Completion message must include route",
+    );
 
     const pipelineDir = path.join(tmpDir, ".pipeline", runId);
-    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
-    assert.ok(stateContent.includes('mode: "dry-run"'), "state.md must record dry-run mode");
-    assert.ok(stateContent.includes('route: "full"'), "state.md must record the full route");
-    assert.ok(stateContent.includes('next_stage: "done"'), "dry-run state should be complete");
-    assert.ok(stateContent.includes('last_completed_stage: "10"'), "dry-run state should end at report");
+    const stateContent = fs.readFileSync(
+      path.join(pipelineDir, "state.md"),
+      "utf-8",
+    );
+    assert.ok(
+      stateContent.includes('mode: "dry-run"'),
+      "state.md must record dry-run mode",
+    );
+    assert.ok(
+      stateContent.includes('route: "full"'),
+      "state.md must record the full route",
+    );
+    assert.ok(
+      stateContent.includes('next_stage: "done"'),
+      "dry-run state should be complete",
+    );
+    assert.ok(
+      stateContent.includes('last_completed_stage: "10"'),
+      "dry-run state should end at report",
+    );
 
     for (const artifact of getDryRunArtifactPaths(runId!, "full")) {
-      assert.ok(fs.existsSync(path.join(tmpDir, artifact)), `${artifact} must exist for full dry-run`);
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, artifact)),
+        `${artifact} must exist for full dry-run`,
+      );
     }
 
-    const eventsContent = fs.readFileSync(path.join(pipelineDir, "telemetry", "events.jsonl"), "utf-8");
-    assert.ok(eventsContent.includes('"event_type":"run.completed"'), "events.jsonl must include run.completed");
-    assert.equal(spawnCalls.length, 0, "dry-run must not call git or other child processes");
+    const eventsContent = fs.readFileSync(
+      path.join(pipelineDir, "telemetry", "events.jsonl"),
+      "utf-8",
+    );
+    assert.ok(
+      eventsContent.includes('"event_type":"run.completed"'),
+      "events.jsonl must include run.completed",
+    );
+    assert.equal(
+      spawnCalls.length,
+      0,
+      "dry-run must not call git or other child processes",
+    );
   } finally {
     process.chdir(originalCwd);
     fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -364,21 +491,52 @@ test("deepwork handler dry-run quick-fix skips design, structure, and replan art
     });
 
     const runId = extractRunId(confirmCalls);
-    assert.ok(runId !== null, "Should extract run ID from quick-fix dry-run confirmation");
+    assert.ok(
+      runId !== null,
+      "Should extract run ID from quick-fix dry-run confirmation",
+    );
 
     const pipelineDir = path.join(tmpDir, ".pipeline", runId);
-    const stateContent = fs.readFileSync(path.join(pipelineDir, "state.md"), "utf-8");
-    assert.ok(stateContent.includes('route: "quick-fix"'), "state.md must record quick-fix route");
-    assert.ok(stateContent.includes('next_stage: "done"'), "quick-fix dry-run must complete");
+    const stateContent = fs.readFileSync(
+      path.join(pipelineDir, "state.md"),
+      "utf-8",
+    );
+    assert.ok(
+      stateContent.includes('route: "quick-fix"'),
+      "state.md must record quick-fix route",
+    );
+    assert.ok(
+      stateContent.includes('next_stage: "done"'),
+      "quick-fix dry-run must complete",
+    );
 
     for (const artifact of getDryRunArtifactPaths(runId!, "quick-fix")) {
-      assert.ok(fs.existsSync(path.join(tmpDir, artifact)), `${artifact} must exist for quick-fix dry-run`);
+      assert.ok(
+        fs.existsSync(path.join(tmpDir, artifact)),
+        `${artifact} must exist for quick-fix dry-run`,
+      );
     }
 
-    assert.equal(fs.existsSync(path.join(pipelineDir, "design.md")), false, "design.md must be skipped on quick-fix dry-run");
-    assert.equal(fs.existsSync(path.join(pipelineDir, "structure.md")), false, "structure.md must be skipped on quick-fix dry-run");
     assert.equal(
-      fs.existsSync(path.join(pipelineDir, "phases", "phase-01", "replan", "phase-01-replan.md")),
+      fs.existsSync(path.join(pipelineDir, "design.md")),
+      false,
+      "design.md must be skipped on quick-fix dry-run",
+    );
+    assert.equal(
+      fs.existsSync(path.join(pipelineDir, "structure.md")),
+      false,
+      "structure.md must be skipped on quick-fix dry-run",
+    );
+    assert.equal(
+      fs.existsSync(
+        path.join(
+          pipelineDir,
+          "phases",
+          "phase-01",
+          "replan",
+          "phase-01-replan.md",
+        ),
+      ),
       false,
       "phase-local replan artifact must be skipped on quick-fix dry-run",
     );
@@ -410,15 +568,28 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     );
 
     const resumeCmd = commands.find((c) => c.name === "deepwork-resume");
-    assert.ok(resumeCmd !== undefined, "deepwork-resume command must be registered");
+    assert.ok(
+      resumeCmd !== undefined,
+      "deepwork-resume command must be registered",
+    );
 
     await assert.doesNotReject(async () => {
       await resumeCmd.definition.handler({ "run-id": runId }, ctx);
     });
 
-    assert.equal(sentUserMessages.length, 1, "resume must hand off exactly one prompt");
-    assert.match(sentUserMessages[0] ?? "", /Resume the existing Deepwork pipeline run/i);
-    assert.match(sentUserMessages[0] ?? "", new RegExp(`=== RUN ID ===\\n${runId}`));
+    assert.equal(
+      sentUserMessages.length,
+      1,
+      "resume must hand off exactly one prompt",
+    );
+    assert.match(
+      sentUserMessages[0] ?? "",
+      /Resume the existing Deepwork pipeline run/i,
+    );
+    assert.match(
+      sentUserMessages[0] ?? "",
+      new RegExp(`=== RUN ID ===\\n${runId}`),
+    );
     assert.match(sentUserMessages[0] ?? "", /=== NEXT STAGE ===\n6/);
   } finally {
     process.chdir(originalCwd);

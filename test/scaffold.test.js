@@ -8,12 +8,10 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // --- Directory creation ---
 
-
 test('skills/deepwork/ directory exists', () => {
   const stat = fs.statSync(path.join(projectRoot, 'skills', 'deepwork'));
   assert.ok(stat.isDirectory());
 });
-
 
 // --- Package identity ---
 
@@ -26,20 +24,22 @@ test('package.json description matches QRSPI spec', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
   assert.equal(
     pkg.description,
-    'QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents'
+    'QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents',
   );
 });
 
 test('package.json has @tintinweb/pi-subagents as peer dependency', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
-  assert.ok(pkg.peerDependencies && '@tintinweb/pi-subagents' in pkg.peerDependencies);
+  assert.ok(
+    pkg.peerDependencies && '@tintinweb/pi-subagents' in pkg.peerDependencies,
+  );
 });
 
 test('package.json has test:watch script with correct value', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
   assert.equal(
     pkg.scripts['test:watch'],
-    'npm run build && tsc -p tsconfig.test.json && node --test --watch ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js'
+    'npm run build && tsc -p tsconfig.test.json && node --test --watch ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js',
   );
 });
 
@@ -50,7 +50,11 @@ test('package.json main entry is dist/index.js', () => {
 
 test('package.json repository.url contains pi-deepwork', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
-  assert.ok(pkg.repository && pkg.repository.url && pkg.repository.url.includes('pi-deepwork'));
+  assert.ok(
+    pkg.repository &&
+      pkg.repository.url &&
+      pkg.repository.url.includes('pi-deepwork'),
+  );
 });
 
 test('package.json bugs.url contains pi-deepwork', () => {
@@ -93,8 +97,8 @@ test('.gitignore contains .pipeline/ entry on its own line', () => {
   const content = fs.readFileSync(path.join(projectRoot, '.gitignore'), 'utf8');
   const lines = content.split('\n');
   assert.ok(
-    lines.some(line => line === '.pipeline/'),
-    'Expected .gitignore to contain .pipeline/ as its own line'
+    lines.some((line) => line === '.pipeline/'),
+    'Expected .gitignore to contain .pipeline/ as its own line',
   );
 });
 
@@ -110,6 +114,6 @@ test('npm install --dry-run succeeds with no peer dependency errors', () => {
   execSync('npm install --dry-run', {
     cwd: projectRoot,
     stdio: 'pipe',
-    timeout: 30000
+    timeout: 30000,
   });
 });

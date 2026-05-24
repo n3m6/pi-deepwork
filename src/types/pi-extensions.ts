@@ -25,9 +25,15 @@ export interface SendUserMessageOptions {
 export interface ExtensionAPI {
   registerCommand(name: string, definition: CommandDefinition): void;
   registerTool(definition: ToolDefinition): void;
-  on(event: string, handler: (...args: any[]) => any): void;
-  sendMessage(message: CustomMessage, options?: SendMessageOptions): void | Promise<void>;
-  sendUserMessage(content: MessageContent, options?: SendUserMessageOptions): void | Promise<void>;
+  on(event: string, handler: (...args: unknown[]) => unknown): void;
+  sendMessage(
+    message: CustomMessage,
+    options?: SendMessageOptions,
+  ): void | Promise<void>;
+  sendUserMessage(
+    content: MessageContent,
+    options?: SendUserMessageOptions,
+  ): void | Promise<void>;
 }
 
 export type ActivateFunction = (pi: ExtensionAPI) => void | Promise<void>;
@@ -39,7 +45,10 @@ export interface CommandDefinition {
   handler: CommandHandler;
 }
 
-export type CommandHandler = (args: Record<string, any>, ctx: ExtensionContext) => Promise<void>;
+export type CommandHandler = (
+  args: Record<string, unknown>,
+  ctx: ExtensionContext,
+) => Promise<void>;
 
 // Tool System
 export interface ToolDefinition {
@@ -52,7 +61,7 @@ export interface ToolDefinition {
     params: Record<string, unknown>,
     signal: AbortSignal,
     onUpdate: (update: { content: string }) => void,
-    ctx: ExtensionContext
+    ctx: ExtensionContext,
   ): Promise<{ content: string; details?: Record<string, unknown> }>;
 }
 
@@ -61,7 +70,7 @@ export type ToolHandler = (
   params: Record<string, unknown>,
   signal: AbortSignal,
   onUpdate: (update: { content: string }) => void,
-  ctx: ExtensionContext
+  ctx: ExtensionContext,
 ) => Promise<{ content: string; details?: Record<string, unknown> }>;
 
 export interface ReadonlySessionManagerLike {
@@ -75,8 +84,16 @@ export interface ReadonlySessionManagerLike {
 // Extension Context
 export interface ExtensionContext {
   ui: {
-    confirm(title: string, message: string, opts?: UIConfirmParams): Promise<boolean>;
-    select(title: string, options: string[], opts?: UISelectParams): Promise<string | undefined>;
+    confirm(
+      title: string,
+      message: string,
+      opts?: UIConfirmParams,
+    ): Promise<boolean>;
+    select(
+      title: string,
+      options: string[],
+      opts?: UISelectParams,
+    ): Promise<string | undefined>;
   };
   hasUI: boolean;
   cwd: string;

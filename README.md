@@ -193,9 +193,14 @@ Make sure your pi installation has access to both model tiers used here:
 
 ```bash
 npm install
+npm run lint
+npm run typecheck
+npm run format:check
 npm run build
 npm test
 ```
+
+`npm run lint` checks the repository with ESLint. `npm run typecheck` performs no-emit TypeScript checks for both the runtime and test configs. `npm run format:check` verifies Prettier formatting, and `npm run format` rewrites supported files when you want to apply formatting changes.
 
 `npm run build` compiles runtime source to `dist/`. `npm test` also compiles the test suite and runs the Node test runner against the compiled output.
 

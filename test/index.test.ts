@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import activate from "../src/index";
-import type { ExtensionAPI, CommandDefinition, ToolDefinition } from "../src/types/pi-extensions";
+import type {
+  ExtensionAPI,
+  CommandDefinition,
+  ToolDefinition,
+} from "../src/types/pi-extensions";
 
 const projectRoot = process.cwd();
 
@@ -97,12 +101,14 @@ test("qrspi_dispatch tool is registered exactly once with required fields", () =
   activate(pi);
 
   const dispatchTools = tools.filter(
-    (t) => t.definition.name === "qrspi_dispatch"
+    (t) => t.definition.name === "qrspi_dispatch",
   );
   assert.equal(dispatchTools.length, 1);
   const tool = dispatchTools[0]!.definition;
   assert.ok(typeof tool.name === "string" && tool.name.length > 0);
-  assert.ok(typeof tool.description === "string" && tool.description.length > 0);
+  assert.ok(
+    typeof tool.description === "string" && tool.description.length > 0,
+  );
   assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
   assert.equal(typeof tool.execute, "function");
 
@@ -119,12 +125,14 @@ test("qrspi_question tool is registered exactly once with required fields", () =
   activate(pi);
 
   const questionTools = tools.filter(
-    (t) => t.definition.name === "qrspi_question"
+    (t) => t.definition.name === "qrspi_question",
   );
   assert.equal(questionTools.length, 1);
   const tool = questionTools[0]!.definition;
   assert.ok(typeof tool.name === "string" && tool.name.length > 0);
-  assert.ok(typeof tool.description === "string" && tool.description.length > 0);
+  assert.ok(
+    typeof tool.description === "string" && tool.description.length > 0,
+  );
   assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
   assert.equal(typeof tool.execute, "function");
 
@@ -140,9 +148,7 @@ test("resources_discover event listener is subscribed", () => {
   const { pi, events } = createMockPi();
   activate(pi);
 
-  const discoverEvents = events.filter(
-    (e) => e.event === "resources_discover"
-  );
+  const discoverEvents = events.filter((e) => e.event === "resources_discover");
   assert.equal(discoverEvents.length, 1);
   assert.equal(typeof discoverEvents[0]!.handler, "function");
 });
@@ -151,27 +157,31 @@ test("resources_discover handler returns skillPaths array with at least one path
   const { pi, events } = createMockPi();
   activate(pi);
 
-  const discoverEvents = events.filter(
-    (e) => e.event === "resources_discover"
-  );
+  const discoverEvents = events.filter((e) => e.event === "resources_discover");
   const handler = discoverEvents[0]!.handler;
   const result = handler() as { skillPaths?: string[] };
 
   assert.ok(
     Array.isArray(result.skillPaths) && result.skillPaths.length > 0,
-    "handler must return skillPaths array with at least one path"
+    "handler must return skillPaths array with at least one path",
   );
   assert.ok(
-    typeof result.skillPaths![0] === "string" && result.skillPaths![0]!.length > 0,
-    "first skillPath must be a non-empty string"
+    typeof result.skillPaths![0] === "string" &&
+      result.skillPaths![0]!.length > 0,
+    "first skillPath must be a non-empty string",
   );
 });
 
 test("skills/deepwork/SKILL.md exists on disk", () => {
-  const skillFilePath = path.join(projectRoot, "skills", "deepwork", "SKILL.md");
+  const skillFilePath = path.join(
+    projectRoot,
+    "skills",
+    "deepwork",
+    "SKILL.md",
+  );
   assert.ok(
     fs.existsSync(skillFilePath),
-    `SKILL.md must exist at: ${skillFilePath}`
+    `SKILL.md must exist at: ${skillFilePath}`,
   );
 });
 
@@ -185,13 +195,19 @@ test("package.json matches expected manifest shape", () => {
 
   const peers = pkg.peerDependencies as Record<string, unknown> | undefined;
   assert.ok(peers !== undefined, "peerDependencies must be defined");
-  assert.ok("@tintinweb/pi-subagents" in peers, "@tintinweb/pi-subagents must be in peerDependencies");
+  assert.ok(
+    "@tintinweb/pi-subagents" in peers,
+    "@tintinweb/pi-subagents must be in peerDependencies",
+  );
 
   const scripts = pkg.scripts as Record<string, unknown> | undefined;
   assert.equal(typeof scripts?.test, "string", "scripts.test must be a string");
 
   const version = pkg.version as string;
-  assert.ok(/^\d+\.\d+\.\d+/.test(version), `version "${version}" must match semver-like pattern`);
+  assert.ok(
+    /^\d+\.\d+\.\d+/.test(version),
+    `version "${version}" must match semver-like pattern`,
+  );
 
   assert.equal(pkg.type, "commonjs");
 });

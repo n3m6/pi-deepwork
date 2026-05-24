@@ -26,7 +26,7 @@ test("generateRunId returns a string matching qrspi-YYYYMMDD-HHMMSS format", () 
   const id = generateRunId();
   assert.ok(
     /^qrspi-\d{8}-\d{6}$/.test(id),
-    `Expected format qrspi-YYYYMMDD-HHMMSS, got: ${id}`
+    `Expected format qrspi-YYYYMMDD-HHMMSS, got: ${id}`,
   );
 });
 
@@ -78,49 +78,49 @@ test("generateRunId across a second boundary returns different IDs", (t, done) =
 test("getPipelineDir returns .pipeline/<runId>", () => {
   assert.equal(
     getPipelineDir("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022"
+    ".pipeline/qrspi-20260515-143022",
   );
 });
 
 test("getGitBranch returns qrspi/<runId>", () => {
   assert.equal(
     getGitBranch("qrspi-20260515-143022"),
-    "qrspi/qrspi-20260515-143022"
+    "qrspi/qrspi-20260515-143022",
   );
 });
 
 test("getStatePath returns .pipeline/<runId>/state.md", () => {
   assert.equal(
     getStatePath("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022/state.md"
+    ".pipeline/qrspi-20260515-143022/state.md",
   );
 });
 
 test("getTelemetryDir returns .pipeline/<runId>/telemetry", () => {
   assert.equal(
     getTelemetryDir("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022/telemetry"
+    ".pipeline/qrspi-20260515-143022/telemetry",
   );
 });
 
 test("getEventsPath returns .pipeline/<runId>/telemetry/events.jsonl", () => {
   assert.equal(
     getEventsPath("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022/telemetry/events.jsonl"
+    ".pipeline/qrspi-20260515-143022/telemetry/events.jsonl",
   );
 });
 
 test("getRunLogPath returns .pipeline/<runId>/telemetry/run-log.md", () => {
   assert.equal(
     getRunLogPath("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022/telemetry/run-log.md"
+    ".pipeline/qrspi-20260515-143022/telemetry/run-log.md",
   );
 });
 
 test("getMetricsPath returns .pipeline/<runId>/telemetry/metrics-summary.md", () => {
   assert.equal(
     getMetricsPath("qrspi-20260515-143022"),
-    ".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md"
+    ".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md",
   );
 });
 
@@ -210,7 +210,9 @@ test("makeInitialState mode defaults to 'live'", () => {
 
 test("makeTelemetryEvent returns all required envelope fields", () => {
   const event = makeTelemetryEvent("qrspi-20260515-143022", "run.started", {});
-  assert.ok(typeof event.schema_version === "string" && event.schema_version.length > 0);
+  assert.ok(
+    typeof event.schema_version === "string" && event.schema_version.length > 0,
+  );
   assert.ok(typeof event.event_id === "string" && event.event_id.length > 0);
   assert.equal(event.sequence, 0);
   assert.ok(typeof event.ts === "string");
@@ -230,7 +232,9 @@ test("makeTelemetryEvent default sequence is 0", () => {
 });
 
 test("makeTelemetryEvent sequence can be overridden via overrides", () => {
-  const event = makeTelemetryEvent("qrspi-test", "test.event", { sequence: 42 });
+  const event = makeTelemetryEvent("qrspi-test", "test.event", {
+    sequence: 42,
+  });
   assert.equal(event.sequence, 42);
 });
 
@@ -248,7 +252,10 @@ test("makeTelemetryEvent overrides merge into returned object", () => {
 });
 
 test("makeTelemetryEvent overrides do not leak to subsequent calls", () => {
-  const ev1 = makeTelemetryEvent("qrspi-test", "ev.a", { status: "FAIL" as const, summary: "Bad" });
+  const ev1 = makeTelemetryEvent("qrspi-test", "ev.a", {
+    status: "FAIL" as const,
+    summary: "Bad",
+  });
   const ev2 = makeTelemetryEvent("qrspi-test", "ev.b", {});
   assert.equal(ev2.status, "PASS");
   assert.equal(ev2.summary, "");
@@ -293,17 +300,41 @@ test("getDryRunArtifactPaths('full') includes full-route artifacts", () => {
   const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "full");
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"));
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"));
-  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md"));
-  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md"));
+  assert.ok(
+    artifacts.includes(
+      ".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md",
+    ),
+  );
+  assert.ok(
+    artifacts.includes(
+      ".pipeline/qrspi-20260515-143022/telemetry/metrics-summary.md",
+    ),
+  );
 });
 
 test("getDryRunArtifactPaths('quick-fix') omits skipped-stage artifacts", () => {
-  const artifacts = getDryRunArtifactPaths("qrspi-20260515-143022", "quick-fix");
-  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"), false);
-  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"), false);
-  assert.equal(artifacts.includes(".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md"), false);
+  const artifacts = getDryRunArtifactPaths(
+    "qrspi-20260515-143022",
+    "quick-fix",
+  );
+  assert.equal(
+    artifacts.includes(".pipeline/qrspi-20260515-143022/design.md"),
+    false,
+  );
+  assert.equal(
+    artifacts.includes(".pipeline/qrspi-20260515-143022/structure.md"),
+    false,
+  );
+  assert.equal(
+    artifacts.includes(
+      ".pipeline/qrspi-20260515-143022/phases/phase-01/replan/phase-01-replan.md",
+    ),
+    false,
+  );
   assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/plan.md"));
-  assert.ok(artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/run-log.md"));
+  assert.ok(
+    artifacts.includes(".pipeline/qrspi-20260515-143022/telemetry/run-log.md"),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -344,14 +375,22 @@ test("nextStage('report', 'full') returns null", () => {
 
 test("nextStage walks all full-route transitions correctly", () => {
   const fullOrder = [
-    "goals", "research", "design", "structure",
-    "plan", "implement", "accept", "replan", "verify", "report",
+    "goals",
+    "research",
+    "design",
+    "structure",
+    "plan",
+    "implement",
+    "accept",
+    "replan",
+    "verify",
+    "report",
   ];
   for (let i = 0; i < fullOrder.length - 1; i++) {
     assert.equal(
       nextStage(fullOrder[i]!, "full"),
       fullOrder[i + 1]!,
-      `nextStage("${fullOrder[i]}", "full") should be "${fullOrder[i + 1]}"`
+      `nextStage("${fullOrder[i]}", "full") should be "${fullOrder[i + 1]}"`,
     );
   }
   assert.equal(nextStage("report", "full"), null);

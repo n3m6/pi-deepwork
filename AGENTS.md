@@ -33,9 +33,14 @@ The extension is loaded by pi, registers the `/deepwork` and `/deepwork-resume` 
 
 ```bash
 npm install
+npm run lint         # eslint across source, tests, and config
+npm run typecheck    # no-emit checks for tsconfig.json and tsconfig.test.json
+npm run format:check # verify prettier formatting without writing changes
 npm run build        # tsc -p tsconfig.json -> dist/
 npm test             # build + tsc -p tsconfig.test.json + node --test
 ```
+
+`npm run format` applies Prettier formatting in place when you need to normalize files before re-running `npm run format:check`.
 
 `npm test` runs:
 
@@ -45,7 +50,7 @@ node --test ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js
 
 The explicit globs are required — shell `**` expansion did not reliably match the nested agent tests. Preserve these globs when adding new test directories; either co-locate new tests under those paths or extend the `test` script.
 
-Always run `npm test` before declaring work complete. If you only touched agent prompts or the skill prompt, still run `npm run build` so packaging assumptions stay valid.
+For code changes, run `npm run lint`, `npm run typecheck`, `npm run format:check`, and `npm test` before declaring work complete. If you only touched agent prompts or the skill prompt, still run `npm run build` so packaging assumptions stay valid.
 
 ## Coding conventions
 
@@ -82,6 +87,7 @@ When changing state schema or stage ordering, update `pipeline.ts`, the YAML ser
 ## When you change things
 
 - Agent prompts or skill prompt → rebuild (`npm run build`) and run `npm test`.
+- Source, test, or config files → run `npm run lint`, `npm run typecheck`, `npm run format:check`, and `npm test`.
 - Pipeline stages, routes, or state schema → update `src/pipeline.ts`, `src/index.ts`, and the corresponding tests in one change.
 - Public command surface (`/deepwork`, `/deepwork-resume` arguments) → update [README.md](README.md) and the integration tests ([test/integration.test.ts](test/integration.test.ts), [test/index.test.ts](test/index.test.ts)).
 - New runtime dependency → reconsider; if truly needed, justify in the PR and update `peerDependencies` vs `dependencies` deliberately.

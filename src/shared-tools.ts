@@ -10,7 +10,9 @@ import type {
 /** Reference to the ExtensionAPI; set by activate() before any tools register. */
 export let _pi: ExtensionAPI | null = null;
 
-export function setPi(pi: ExtensionAPI | null): void { _pi = pi; }
+export function setPi(pi: ExtensionAPI | null): void {
+  _pi = pi;
+}
 
 // ═══════════════════════════════════════════
 // Public types
@@ -69,14 +71,14 @@ export interface AgentManagerFacade {
     ctx: ExtensionContext,
     type: string,
     prompt: string,
-    options: SpawnOptions
+    options: SpawnOptions,
   ): string;
   spawnAndWait(
     pi: ExtensionAPI,
     ctx: ExtensionContext,
     type: string,
     prompt: string,
-    options: SpawnOptions
+    options: SpawnOptions,
   ): Promise<DispatchResult>;
   waitForAll(): Promise<void>;
   hasRunning(): boolean;
@@ -211,7 +213,7 @@ export function createDispatchTool(): ToolDefinition {
     params,
     _signal,
     _onUpdate,
-    ctx
+    ctx,
   ) => {
     // 1. Validate required params
     if (!isRecord(params)) {
@@ -231,18 +233,21 @@ export function createDispatchTool(): ToolDefinition {
       if (!isNonEmptyString(subagentType)) missing.push("subagent_type");
       if (!isNonEmptyString(prompt)) missing.push("prompt");
       if (!isNonEmptyString(description)) missing.push("description");
-      return dispatchFailResponse(`Missing or empty required parameters: ${missing.join(", ")}`);
+      return dispatchFailResponse(
+        `Missing or empty required parameters: ${missing.join(", ")}`,
+      );
     }
 
     // 2. Resolve pi-subagents manager
-    const manager: AgentManagerFacade | undefined =
-      (globalThis as Record<string, unknown>)[
-        Symbol.for("pi-subagents:manager") as unknown as string
-      ] as AgentManagerFacade | undefined;
+    const manager: AgentManagerFacade | undefined = (
+      globalThis as Record<string, unknown>
+    )[Symbol.for("pi-subagents:manager") as unknown as string] as
+      | AgentManagerFacade
+      | undefined;
 
     if (manager == null) {
       return dispatchFailResponse(
-        "`@tintinweb/pi-subagents` is not installed. Install it with:\n  pi install npm:@tintinweb/pi-subagents"
+        "`@tintinweb/pi-subagents` is not installed. Install it with:\n  pi install npm:@tintinweb/pi-subagents",
       );
     }
 
@@ -259,13 +264,7 @@ export function createDispatchTool(): ToolDefinition {
     if (runInBg) {
       let agentId: string;
       try {
-        agentId = manager.spawn(
-          _pi,
-          ctx,
-          subagentType,
-          prompt,
-          spawnOpts
-        );
+        agentId = manager.spawn(_pi, ctx, subagentType, prompt, spawnOpts);
       } catch (e: unknown) {
         console.error("qrspi_dispatch: spawn failed", e);
         return dispatchErrorResponse(e);
@@ -294,7 +293,7 @@ export function createDispatchTool(): ToolDefinition {
         ctx,
         subagentType,
         prompt,
-        spawnOpts
+        spawnOpts,
       );
     } catch (e: unknown) {
       console.error("qrspi_dispatch: spawnAndWait failed", e);
@@ -371,7 +370,7 @@ export function createQuestionTool(): ToolDefinition {
     params,
     _signal,
     _onUpdate,
-    ctx
+    ctx,
   ) => {
     // 1. Validate required params
     if (!isRecord(params)) {
@@ -384,7 +383,10 @@ export function createQuestionTool(): ToolDefinition {
     const qtype = params.type;
 
     if (!isNonEmptyString(header)) {
-      return questionErrorResponse("Missing or empty required parameter: header", qtype as string | undefined);
+      return questionErrorResponse(
+        "Missing or empty required parameter: header",
+        qtype as string | undefined,
+      );
     }
 
     if (!isNonEmptyString(message)) {
@@ -402,7 +404,8 @@ export function createQuestionTool(): ToolDefinition {
 
     if (!isNonEmptyArray(options)) {
       return {
-        content: "Error: Missing or empty required parameter: options (must be a non-empty array)",
+        content:
+          "Error: Missing or empty required parameter: options (must be a non-empty array)",
         details: {
           type: (qtype as QuestionResult["type"]) ?? "confirm",
           header: header,
@@ -414,14 +417,19 @@ export function createQuestionTool(): ToolDefinition {
     }
 
     if (qtype !== "confirm" && qtype !== "select") {
-      return questionErrorResponse('Invalid type parameter — must be "confirm" or "select".', qtype as string | undefined);
+      return questionErrorResponse(
+        'Invalid type parameter — must be "confirm" or "select".',
+        qtype as string | undefined,
+      );
     }
 
     const optsArr = options as string[];
 
     // 2. No-UI guard
     if (!ctx.hasUI) {
-      console.warn("qrspi_question: no UI available — returning default fallback answer");
+      console.warn(
+        "qrspi_question: no UI available — returning default fallback answer",
+      );
       if (qtype === "confirm") {
         return {
           content: "[NO UI — DEFAULT] User confirmed: Yes",
@@ -495,20 +503,20 @@ export function createQuestionTool(): ToolDefinition {
     let selection: string | undefined;
     try {
       selection = await ctx.ui.select(header, optsArr);
-      } catch (e) {
-        console.error("qrspi_question: UI select failed", e);
-        const errMsg = e instanceof Error ? e.message : String(e);
-        return {
-          content: `### Status — FAIL\n**Error:** UI select dialog failed: ${errMsg}`,
-          details: {
-            type: "select",
-            header: header,
-            answer: "",
-            cancelled: true,
-            uiUnavailable: true,
-          } as Record<string, unknown>,
-        };
-      }
+    } catch (e) {
+      console.error("qrspi_question: UI select failed", e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      return {
+        content: `### Status — FAIL\n**Error:** UI select dialog failed: ${errMsg}`,
+        details: {
+          type: "select",
+          header: header,
+          answer: "",
+          cancelled: true,
+          uiUnavailable: true,
+        } as Record<string, unknown>,
+      };
+    }
     if (selection !== undefined && typeof selection === "string") {
       return {
         content: `User selected: ${selection}`,

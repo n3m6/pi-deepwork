@@ -122,7 +122,10 @@ function makeCtx(): ExtensionContext {
 }
 
 test("agents directory contains exactly the expected 55 agent files", () => {
-  const files = fs.readdirSync(agentsDir).filter((name) => name.endsWith(".md")).sort();
+  const files = fs
+    .readdirSync(agentsDir)
+    .filter((name) => name.endsWith(".md"))
+    .sort();
 
   assert.equal(files.length, 55);
   assert.equal(expectedFiles.size, 55);
@@ -140,7 +143,11 @@ test("every agent frontmatter has model and thinking fields", () => {
 test("all sonnet low agents use sonnet-tier with low thinking", () => {
   for (const file of sonnetLowAgents) {
     const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(parsed.model, "anthropic/claude-sonnet-4-5", `${file} model mismatch`);
+    assert.equal(
+      parsed.model,
+      "anthropic/claude-sonnet-4-5",
+      `${file} model mismatch`,
+    );
     assert.equal(parsed.thinking, "low", `${file} thinking mismatch`);
   }
 });
@@ -148,7 +155,11 @@ test("all sonnet low agents use sonnet-tier with low thinking", () => {
 test("all sonnet medium agents use sonnet-tier with medium thinking", () => {
   for (const file of sonnetMediumAgents) {
     const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(parsed.model, "anthropic/claude-sonnet-4-5", `${file} model mismatch`);
+    assert.equal(
+      parsed.model,
+      "anthropic/claude-sonnet-4-5",
+      `${file} model mismatch`,
+    );
     assert.equal(parsed.thinking, "medium", `${file} thinking mismatch`);
   }
 });
@@ -156,7 +167,11 @@ test("all sonnet medium agents use sonnet-tier with medium thinking", () => {
 test("all haiku agents use haiku-tier with low thinking", () => {
   for (const file of haikuLowAgents) {
     const parsed = parseFrontmatter(path.join(agentsDir, file));
-    assert.equal(parsed.model, "anthropic/claude-haiku-4-5", `${file} model mismatch`);
+    assert.equal(
+      parsed.model,
+      "anthropic/claude-haiku-4-5",
+      `${file} model mismatch`,
+    );
     assert.equal(parsed.thinking, "low", `${file} thinking mismatch`);
   }
 });
@@ -173,8 +188,14 @@ test("no agent uses an unexpected model or thinking value", () => {
     const model = parsed.model ?? "";
     const thinking = parsed.thinking ?? "";
 
-    assert.ok(allowedModels.has(model), `${file} has unexpected model ${model}`);
-    assert.ok(allowedThinking.has(thinking), `${file} has unexpected thinking ${thinking}`);
+    assert.ok(
+      allowedModels.has(model),
+      `${file} has unexpected model ${model}`,
+    );
+    assert.ok(
+      allowedThinking.has(thinking),
+      `${file} has unexpected thinking ${thinking}`,
+    );
   }
 });
 
@@ -194,7 +215,7 @@ test("qrspi_dispatch returns a clear prerequisite message when pi-subagents is u
       },
       new AbortController().signal,
       () => {},
-      makeCtx()
+      makeCtx(),
     );
 
     assert.match(result.content, /pi-subagents/i);

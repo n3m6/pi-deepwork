@@ -49,7 +49,10 @@ function createMockPi(): { pi: ExtensionAPI; commands: RecordedCommand[] } {
   return { pi, commands };
 }
 
-function makeCtx(tmpDir: string, confirmCalls: ConfirmCall[]): ExtensionContext {
+function makeCtx(
+  tmpDir: string,
+  confirmCalls: ConfirmCall[],
+): ExtensionContext {
   return {
     hasUI: true,
     ui: {
@@ -73,7 +76,11 @@ async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), "pi-deepwork-integration-"));
 }
 
-async function writeFile(root: string, relativePath: string, content = "ok\n"): Promise<void> {
+async function writeFile(
+  root: string,
+  relativePath: string,
+  content = "ok\n",
+): Promise<void> {
   const filePath = path.join(root, relativePath);
   await fs.mkdir(path.dirname(filePath), { recursive: true });
   await fs.writeFile(filePath, content, "utf8");
@@ -123,7 +130,11 @@ test("full route simulation walks all 10 executable stages and produces a canoni
     const state = makeInitialState(runId);
     state.route = "full";
     state.mode = "dry-run";
-    await writeFile(tmpDir, getStatePath(runId), JSON.stringify(state, null, 2));
+    await writeFile(
+      tmpDir,
+      getStatePath(runId),
+      JSON.stringify(state, null, 2),
+    );
     await writeFile(tmpDir, getEventsPath(runId), "\n");
 
     const representativeArtifacts = getDryRunArtifactPaths(runId, "full");
@@ -133,7 +144,11 @@ test("full route simulation walks all 10 executable stages and produces a canoni
     }
 
     for (const artifact of representativeArtifacts) {
-      assert.equal(fssync.existsSync(path.join(tmpDir, artifact)), true, `${artifact} should exist`);
+      assert.equal(
+        fssync.existsSync(path.join(tmpDir, artifact)),
+        true,
+        `${artifact} should exist`,
+      );
     }
 
     assert.equal(fssync.existsSync(pipelineDir), true);
@@ -171,11 +186,17 @@ test("deepwork-resume reads state.md and resumes from the recorded next stage", 
     activate(pi);
 
     const runId = "qrspi-20260524-123000";
-    await writeFile(tmpDir, getStatePath(runId), stateYaml(runId, "full", "6", "5"));
+    await writeFile(
+      tmpDir,
+      getStatePath(runId),
+      stateYaml(runId, "full", "6", "5"),
+    );
 
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeCtx(tmpDir, confirmCalls);
-    const handler = commands.find((command) => command.name === "deepwork-resume")?.definition.handler;
+    const handler = commands.find(
+      (command) => command.name === "deepwork-resume",
+    )?.definition.handler;
 
     assert.ok(handler, "deepwork-resume handler must exist");
 
@@ -203,7 +224,9 @@ test("deepwork-resume reports a missing run cleanly", async () => {
 
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeCtx(tmpDir, confirmCalls);
-    const handler = commands.find((command) => command.name === "deepwork-resume")?.definition.handler;
+    const handler = commands.find(
+      (command) => command.name === "deepwork-resume",
+    )?.definition.handler;
 
     assert.ok(handler, "deepwork-resume handler must exist");
 
@@ -228,11 +251,17 @@ test("deepwork-resume reports corrupted state cleanly", async () => {
     activate(pi);
 
     const runId = "qrspi-20260524-130000";
-    await writeFile(tmpDir, getStatePath(runId), "this is not valid state content\n");
+    await writeFile(
+      tmpDir,
+      getStatePath(runId),
+      "this is not valid state content\n",
+    );
 
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeCtx(tmpDir, confirmCalls);
-    const handler = commands.find((command) => command.name === "deepwork-resume")?.definition.handler;
+    const handler = commands.find(
+      (command) => command.name === "deepwork-resume",
+    )?.definition.handler;
 
     assert.ok(handler, "deepwork-resume handler must exist");
 
@@ -257,11 +286,17 @@ test("deepwork-resume reports completed dry-runs as already complete", async () 
     activate(pi);
 
     const runId = "qrspi-20260524-140000";
-    await writeFile(tmpDir, getStatePath(runId), stateYaml(runId, "quick-fix", "done", "11", "dry-run"));
+    await writeFile(
+      tmpDir,
+      getStatePath(runId),
+      stateYaml(runId, "quick-fix", "done", "11", "dry-run"),
+    );
 
     const confirmCalls: ConfirmCall[] = [];
     const ctx = makeCtx(tmpDir, confirmCalls);
-    const handler = commands.find((command) => command.name === "deepwork-resume")?.definition.handler;
+    const handler = commands.find(
+      (command) => command.name === "deepwork-resume",
+    )?.definition.handler;
 
     assert.ok(handler, "deepwork-resume handler must exist");
 
