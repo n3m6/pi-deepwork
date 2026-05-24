@@ -165,7 +165,7 @@ test("package.json matches expected manifest shape", () => {
   const pkg = JSON.parse(raw) as Record<string, unknown>;
 
   assert.equal(pkg.name, "deepwork-pi");
-  assert.equal(pkg.main, "dist/src/index.js");
+  assert.equal(pkg.main, "dist/index.js");
 
   const peers = pkg.peerDependencies as Record<string, unknown> | undefined;
   assert.ok(peers !== undefined, "peerDependencies must be defined");

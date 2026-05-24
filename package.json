@@ -1,26 +1,31 @@
 {
   "name": "deepwork-pi",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "npm run build && node --test ./dist/test/**/*.test.js",
-    "test:watch": "npm run build && node --test --watch ./dist/test/**/*.test.js",
+    "test": "npm run build && tsc -p tsconfig.test.json && node --test ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js",
+    "test:watch": "npm run build && tsc -p tsconfig.test.json && node --test --watch ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/src/index.js"
+    "start": "node dist/index.js"
   },
+  "files": [
+    "dist/",
+    "agents/",
+    "skills/"
+  ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/n3m6/deepwork-pi.git"
+    "url": "git+https://github.com/n3m6/pi-deepwork.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/n3m6/deepwork-pi/issues"
+    "url": "https://github.com/n3m6/pi-deepwork/issues"
   },
-      "homepage": "https://github.com/n3m6/deepwork-pi#readme",
+  "homepage": "https://github.com/n3m6/pi-deepwork#readme",
   "peerDependencies": {
     "@tintinweb/pi-subagents": "*"
   },

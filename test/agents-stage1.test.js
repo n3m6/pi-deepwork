@@ -98,7 +98,10 @@ test('qrspi-goals.md frontmatter — exact fields', () => {
 });
 
 test('qrspi-goals.md frontmatter — tools field', () => {
-  assert.equal(orchFM.tools, 'read, bash, grep, find, ls, write, edit');
+  assert.equal(
+    orchFM.tools,
+    'read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question'
+  );
 });
 
 test('qrspi-goals.md frontmatter — model field', () => {
