@@ -8,6 +8,15 @@
  * script bridges the gap by symlinking the bundled `agents/qrspi-*.md`
  * files into whichever scan dir matches the install scope.
  *
+ * On **global installs only** it also plants an npm-path alias symlink at
+ * `<agent_root>/npm/node_modules/@n3m6/pi-deepwork` pointing at the git
+ * clone root. This works around pi's current skill resolver assuming an
+ * npm install layout — without the alias, opening the deepwork skill
+ * via `/deepwork` fails with ENOENT on a git install and the model
+ * burns turns guessing the real path. Project-scope installs do not get
+ * one (kept out of `<workspace>/.pi/` to avoid polluting per-workspace
+ * state).
+ *
  * Heavily gated: runs only when the package lives under a path that
  * contains a `.pi/agent/git/` (global install) or `.pi/git/` (project
  * install) segment. In any other context (e.g. a curious clone someone
@@ -18,7 +27,9 @@
  *
  * Owns the `qrspi-*.md` filename prefix inside the target dir: prunes
  * broken symlinks and stale files matching that glob before relinking.
- * Other filenames are never touched.
+ * Other filenames are never touched. The npm alias is owned only when
+ * it is already a symlink; a real directory or file at the alias path
+ * is left alone (likely a manual npm install we must not clobber).
  */
 
 import { existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, symlinkSync, unlinkSync } from "node:fs";
@@ -57,6 +68,8 @@ function main() {
   const linked = linkAgents(agentsSrcDir, targetDir);
 
   console.log(`pi-deepwork: linked ${linked} qrspi-* agents into ${targetDir}`);
+
+  linkNpmAlias(scope, packageRoot);
 }
 
 /**
@@ -81,14 +94,62 @@ function detectScope(startDir) {
 
 function resolveTargetDir(scope, _packageRoot) {
   if (scope.kind === "global") {
-    const envDir = process.env.PI_CODING_AGENT_DIR;
-    if (envDir && envDir.trim()) {
-      return join(envDir, "agents");
-    }
-    return join(homedir(), ".pi", "agent", "agents");
+    const root = resolveGlobalAgentRoot();
+    return root ? join(root, "agents") : undefined;
   }
   // Project scope: workspace root is the parent of `.pi/`, which is `scope.anchor`.
   return join(scope.anchor, ".pi", "agents");
+}
+
+/**
+ * Returns the global pi agent root (the directory whose `agents/`
+ * subdir pi-subagents scans). Honors `PI_CODING_AGENT_DIR` when set,
+ * falling back to `~/.pi/agent`.
+ */
+function resolveGlobalAgentRoot() {
+  const envDir = process.env.PI_CODING_AGENT_DIR;
+  if (envDir && envDir.trim()) return envDir;
+  return join(homedir(), ".pi", "agent");
+}
+
+/**
+ * Plant `<agent_root>/npm/node_modules/@n3m6/pi-deepwork` as a symlink
+ * to the git clone root so pi's npm-templated skill resolver succeeds.
+ * Global scope only. Idempotent: replaces an existing symlink, leaves a
+ * real directory/file alone.
+ */
+function linkNpmAlias(scope, packageRoot) {
+  if (scope.kind !== "global") return;
+  const agentRoot = resolveGlobalAgentRoot();
+  if (!agentRoot) return;
+  const aliasParent = join(agentRoot, "npm", "node_modules", "@n3m6");
+  const aliasPath = join(aliasParent, "pi-deepwork");
+  try {
+    mkdirSync(aliasParent, { recursive: true });
+  } catch (err) {
+    console.warn(`pi-deepwork: could not create ${aliasParent}: ${err.message}`);
+    return;
+  }
+  let existing;
+  try {
+    existing = lstatSync(aliasPath);
+  } catch {
+    existing = undefined;
+  }
+  if (existing) {
+    if (existing.isSymbolicLink()) {
+      safeUnlink(aliasPath);
+    } else {
+      console.warn(`pi-deepwork: ${aliasPath} exists and is not a symlink; leaving untouched`);
+      return;
+    }
+  }
+  try {
+    symlinkSync(packageRoot, aliasPath);
+    console.log(`pi-deepwork: aliased ${aliasPath} -> ${packageRoot}`);
+  } catch (err) {
+    console.warn(`pi-deepwork: could not create npm alias ${aliasPath}: ${err.message}`);
+  }
 }
 
 /**

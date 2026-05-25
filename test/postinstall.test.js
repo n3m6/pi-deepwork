@@ -157,4 +157,65 @@ describe('postinstall.mjs', () => {
     assert.equal(result.status, 0, 'must exit 0 even when filesystem mutation fails');
     assert.match(result.stderr + result.stdout, /pi-deepwork/);
   });
+
+  it('global scope: plants the npm-path alias symlink at <agent_root>/npm/node_modules/@n3m6/pi-deepwork', () => {
+    const pkgRoot = fakeClone(path.join(sandbox, '.pi', 'agent', 'git'));
+    const agentDir = path.join(sandbox, 'custom-agent-dir');
+
+    const result = runScript(pkgRoot, { PI_CODING_AGENT_DIR: agentDir });
+
+    assert.equal(result.status, 0, result.stderr);
+    const aliasPath = path.join(agentDir, 'npm', 'node_modules', '@n3m6', 'pi-deepwork');
+    assert.equal(fs.lstatSync(aliasPath).isSymbolicLink(), true, `${aliasPath} should be a symlink`);
+    assert.equal(fs.realpathSync(aliasPath), fs.realpathSync(pkgRoot));
+    // The skill body must be readable through the alias path pi templates from.
+    const skillStub = path.join(pkgRoot, 'skills', 'deepwork', 'SKILL.md');
+    fs.mkdirSync(path.dirname(skillStub), { recursive: true });
+    fs.writeFileSync(skillStub, 'stub');
+    const viaAlias = path.join(aliasPath, 'skills', 'deepwork', 'SKILL.md');
+    assert.equal(fs.readFileSync(viaAlias, 'utf8'), 'stub');
+    assert.match(result.stdout, /aliased .+@n3m6\/pi-deepwork -> /);
+  });
+
+  it('npm alias is idempotent — running twice keeps the same symlink target', () => {
+    const pkgRoot = fakeClone(path.join(sandbox, '.pi', 'agent', 'git'));
+    const agentDir = path.join(sandbox, 'custom-agent-dir');
+
+    runScript(pkgRoot, { PI_CODING_AGENT_DIR: agentDir });
+    const aliasPath = path.join(agentDir, 'npm', 'node_modules', '@n3m6', 'pi-deepwork');
+    const firstTarget = fs.realpathSync(aliasPath);
+    const result = runScript(pkgRoot, { PI_CODING_AGENT_DIR: agentDir });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.lstatSync(aliasPath).isSymbolicLink(), true);
+    assert.equal(fs.realpathSync(aliasPath), firstTarget);
+  });
+
+  it('npm alias: leaves a pre-existing real directory at the alias path untouched', () => {
+    const pkgRoot = fakeClone(path.join(sandbox, '.pi', 'agent', 'git'));
+    const agentDir = path.join(sandbox, 'custom-agent-dir');
+    const aliasPath = path.join(agentDir, 'npm', 'node_modules', '@n3m6', 'pi-deepwork');
+    fs.mkdirSync(aliasPath, { recursive: true });
+    fs.writeFileSync(path.join(aliasPath, 'package.json'), '{"name":"manual"}');
+
+    const result = runScript(pkgRoot, { PI_CODING_AGENT_DIR: agentDir });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.lstatSync(aliasPath).isDirectory(), true, 'alias path must still be a real directory');
+    assert.equal(fs.readFileSync(path.join(aliasPath, 'package.json'), 'utf8'), '{"name":"manual"}');
+    assert.match(result.stderr + result.stdout, /leaving untouched/);
+  });
+
+  it('project scope: does NOT plant the npm-path alias', () => {
+    const workspace = path.join(sandbox, 'workspace');
+    const pkgRoot = fakeClone(path.join(workspace, '.pi', 'git'));
+
+    const result = runScript(pkgRoot, { PI_CODING_AGENT_DIR: '' });
+
+    assert.equal(result.status, 0, result.stderr);
+    // No npm alias should appear anywhere under the workspace.
+    const projectAlias = path.join(workspace, '.pi', 'npm', 'node_modules', '@n3m6', 'pi-deepwork');
+    assert.equal(fs.existsSync(projectAlias), false);
+    assert.doesNotMatch(result.stdout, /aliased/);
+  });
 });
