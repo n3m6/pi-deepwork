@@ -456,3 +456,327 @@ test("/deepwork live handler writes telemetry/bootstrap.json and includes AGENTS
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 });
+
+// ---------------------------------------------------------------------------
+// deepwork_bootstrap tool
+// ---------------------------------------------------------------------------
+
+test("deepwork_bootstrap tool is registered with name, label, description, parameters", () => {
+  const { pi, tools } = createMockPi();
+  activate(pi);
+
+  const bootstrap = tools.find(
+    (t) => t.definition.name === "deepwork_bootstrap",
+  );
+  assert.ok(bootstrap, "deepwork_bootstrap tool must be registered");
+  assert.equal(bootstrap!.definition.label, "Deepwork Bootstrap");
+  assert.ok(
+    typeof bootstrap!.definition.description === "string" &&
+      bootstrap!.definition.description.length > 0,
+  );
+  assert.equal(typeof bootstrap!.definition.execute, "function");
+  assert.equal(
+    typeof bootstrap!.definition.parameters,
+    "object",
+    "parameters must be an object schema",
+  );
+});
+
+test("deepwork_bootstrap.execute mirrors agents into a fresh tmpdir cwd and returns ok=true", async () => {
+  const { pi, tools } = createMockPi();
+  activate(pi);
+  const bootstrap = tools.find(
+    (t) => t.definition.name === "deepwork_bootstrap",
+  )!;
+
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-tool-"),
+  );
+  try {
+    const controller = new AbortController();
+    const ctx = {
+      cwd: tmpRoot,
+      ui: {
+        confirm: async () => true,
+        select: async () => undefined,
+        hasUI: true,
+      },
+      signal: controller.signal,
+    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
+
+    const result = await bootstrap.definition.execute(
+      "test-call-1",
+      {},
+      controller.signal,
+      () => {},
+      ctx,
+    );
+
+    assert.ok(
+      result.content.includes("=== AGENTS ==="),
+      "tool content must include AGENTS block",
+    );
+    assert.ok(
+      result.content.includes("=== RUNTIME ==="),
+      "tool content must include RUNTIME block",
+    );
+    assert.ok(
+      result.content.includes("=== SKILL ==="),
+      "tool content must include SKILL block",
+    );
+    assert.equal(result.details?.ok, true);
+    assert.equal(result.details?.cwd, tmpRoot);
+    assert.ok(
+      typeof result.details?.mirrored_files === "number" &&
+        (result.details.mirrored_files as number) > 0,
+      "tool must report mirrored_files > 0 after a fresh mirror",
+    );
+
+    const agentsDir = path.join(tmpRoot, ".pi", "agents");
+    assert.ok(fs.existsSync(agentsDir), "tool must create .pi/agents/");
+    const mirrored = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
+    assert.ok(
+      mirrored.length > 0,
+      "tool must mirror at least one qrspi-*.md file",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("deepwork_bootstrap.execute honors explicit workspace_cwd parameter", async () => {
+  const { pi, tools } = createMockPi();
+  activate(pi);
+  const bootstrap = tools.find(
+    (t) => t.definition.name === "deepwork_bootstrap",
+  )!;
+
+  const ctxCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-ctx-"),
+  );
+  const paramCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-param-"),
+  );
+
+  try {
+    const controller = new AbortController();
+    const ctx = {
+      cwd: ctxCwd,
+      ui: {
+        confirm: async () => true,
+        select: async () => undefined,
+        hasUI: true,
+      },
+      signal: controller.signal,
+    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
+
+    const result = await bootstrap.definition.execute(
+      "test-call-2",
+      { workspace_cwd: paramCwd },
+      controller.signal,
+      () => {},
+      ctx,
+    );
+
+    assert.equal(result.details?.cwd, paramCwd);
+    assert.ok(
+      fs.existsSync(path.join(paramCwd, ".pi", "agents")),
+      "tool must mirror into the workspace_cwd parameter",
+    );
+    assert.ok(
+      !fs.existsSync(path.join(ctxCwd, ".pi", "agents")),
+      "tool must NOT mirror into ctx.cwd when workspace_cwd is provided",
+    );
+  } finally {
+    fs.rmSync(ctxCwd, { recursive: true, force: true });
+    fs.rmSync(paramCwd, { recursive: true, force: true });
+  }
+});
+
+test("deepwork_bootstrap.execute updates diagnosticsRecord.lastDiscover with tool reason", async () => {
+  const { pi, tools, commands } = createMockPi();
+  activate(pi);
+  const bootstrap = tools.find(
+    (t) => t.definition.name === "deepwork_bootstrap",
+  )!;
+
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-diag-"),
+  );
+  try {
+    const controller = new AbortController();
+    const toolCtx = {
+      cwd: tmpRoot,
+      ui: {
+        confirm: async () => true,
+        select: async () => undefined,
+        hasUI: true,
+      },
+      signal: controller.signal,
+    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
+
+    await bootstrap.definition.execute(
+      "test-call-3",
+      {},
+      controller.signal,
+      () => {},
+      toolCtx,
+    );
+
+    // Read it back via /deepwork-doctor: the report includes the last discover reason
+    const doctorCmd = commands.find((c) => c.name === "deepwork-doctor");
+    assert.ok(doctorCmd);
+    const { ctx: doctorCtx, captured } = makeDoctorCtx(tmpRoot);
+    await doctorCmd!.definition.handler(
+      {},
+      doctorCtx as unknown as Parameters<
+        typeof doctorCmd.definition.handler
+      >[1],
+    );
+
+    const message = captured[0]!.message;
+    assert.ok(
+      message.includes("reason=tool:deepwork_bootstrap"),
+      "/deepwork-doctor must surface the tool invocation as the last discover reason",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// /deepwork-doctor file artifact
+// ---------------------------------------------------------------------------
+
+test("/deepwork-doctor writes .pi/deepwork-doctor-report.md alongside the confirm dialog", async () => {
+  const { pi, commands } = createMockPi();
+  activate(pi);
+
+  const doctorCmd = commands.find((c) => c.name === "deepwork-doctor")!;
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-doctor-artifact-"),
+  );
+  try {
+    const { ctx, captured } = makeDoctorCtx(tmpRoot);
+    await doctorCmd.definition.handler(
+      {},
+      ctx as unknown as Parameters<typeof doctorCmd.definition.handler>[1],
+    );
+
+    const reportPath = path.join(tmpRoot, ".pi", "deepwork-doctor-report.md");
+    assert.ok(
+      fs.existsSync(reportPath),
+      `doctor must write a file artifact at ${reportPath}`,
+    );
+    const reportContent = fs.readFileSync(reportPath, "utf-8");
+    for (const section of [
+      "=== EXTENSION ===",
+      "=== BUNDLED SKILL ===",
+      "=== AGENTS ===",
+      "=== GIT ===",
+    ]) {
+      assert.ok(
+        reportContent.includes(section),
+        `report file must include "${section}"`,
+      );
+    }
+
+    assert.equal(captured.length, 1, "confirm dialog must still fire");
+    assert.ok(
+      captured[0]!.message.includes(reportPath),
+      "confirm message must reference the report file path",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Activation-time mirror guard
+// ---------------------------------------------------------------------------
+
+test("activate() skips the activation-time mirror when process.cwd() is not a workspace root", () => {
+  const { pi, commands } = createMockPi();
+
+  // Use an empty tmpdir with no workspace markers (no package.json, no .git, etc.)
+  const nonWorkspaceCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-nonworkspace-"),
+  );
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(nonWorkspaceCwd);
+    activate(pi);
+
+    // No .pi/agents/ should have been created in the non-workspace dir
+    assert.equal(
+      fs.existsSync(path.join(nonWorkspaceCwd, ".pi", "agents")),
+      false,
+      "activate() must not mirror agents into a non-workspace cwd",
+    );
+
+    // /deepwork-doctor invoked here should surface the skip reason
+    const doctorCmd = commands.find((c) => c.name === "deepwork-doctor")!;
+    const { ctx, captured } = makeDoctorCtx(nonWorkspaceCwd);
+    return doctorCmd.definition
+      .handler(
+        {},
+        ctx as unknown as Parameters<typeof doctorCmd.definition.handler>[1],
+      )
+      .then(() => {
+        const message = captured[0]!.message;
+        assert.ok(
+          message.includes("LAST ACTIVATE-TIME MIRROR"),
+          "doctor must include the activate-time mirror section",
+        );
+        assert.ok(
+          /skipped/i.test(message),
+          "doctor must surface that the activate-time mirror was skipped",
+        );
+      });
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(nonWorkspaceCwd, { recursive: true, force: true });
+  }
+});
+
+test("activate() runs the activation-time mirror when process.cwd() looks like a workspace root", () => {
+  const { pi, commands } = createMockPi();
+
+  const workspaceCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-workspace-"),
+  );
+  // Drop a package.json marker so looksLikeWorkspaceRoot returns true
+  fs.writeFileSync(
+    path.join(workspaceCwd, "package.json"),
+    '{"name":"smoke","version":"0.0.0"}\n',
+    "utf-8",
+  );
+
+  const originalCwd = process.cwd();
+  try {
+    process.chdir(workspaceCwd);
+    activate(pi);
+
+    const doctorCmd = commands.find((c) => c.name === "deepwork-doctor")!;
+    const { ctx, captured } = makeDoctorCtx(workspaceCwd);
+    return doctorCmd.definition
+      .handler(
+        {},
+        ctx as unknown as Parameters<typeof doctorCmd.definition.handler>[1],
+      )
+      .then(() => {
+        const message = captured[0]!.message;
+        assert.ok(
+          message.includes("LAST ACTIVATE-TIME MIRROR"),
+          "doctor must include the activate-time mirror section",
+        );
+        assert.ok(
+          !/skipped/i.test(message.split("LAST ACTIVATE-TIME MIRROR")[1] ?? ""),
+          "doctor must NOT report skip when cwd has a workspace marker",
+        );
+      });
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(workspaceCwd, { recursive: true, force: true });
+  }
+});

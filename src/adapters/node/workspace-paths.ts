@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 import {
@@ -7,6 +8,38 @@ import {
   getStatePath,
   getTelemetryDir,
 } from "../../domain/pipeline";
+
+const WORKSPACE_ROOT_MARKERS = [
+  "package.json",
+  ".git",
+  "pyproject.toml",
+  "Cargo.toml",
+  "go.mod",
+  ".pi",
+] as const;
+
+/**
+ * Returns true when `candidate` contains at least one marker that suggests it
+ * is a real project workspace root (rather than e.g. `$HOME` or the directory
+ * pi was launched from). Used to guard best-effort activation-time agent
+ * mirroring so we never write `.pi/agents/` into a parent directory of the
+ * user's actual workspace.
+ */
+export function looksLikeWorkspaceRoot(candidate: string): boolean {
+  if (typeof candidate !== "string" || candidate.trim().length === 0) {
+    return false;
+  }
+  for (const marker of WORKSPACE_ROOT_MARKERS) {
+    try {
+      if (fs.existsSync(path.join(candidate, marker))) {
+        return true;
+      }
+    } catch {
+      // ignore and keep checking other markers
+    }
+  }
+  return false;
+}
 
 export interface WorkspacePipelinePaths {
   statePath: string;

@@ -10,6 +10,7 @@ import {
 import { isGitAvailable, tryCreateGitBranch } from "./adapters/node/git-cli";
 import { scanPipelineRunIds } from "./adapters/node/pipeline-runs";
 import {
+  looksLikeWorkspaceRoot,
   resolveWorkspacePath,
   resolveWorkspacePaths,
 } from "./adapters/node/workspace-paths";
@@ -45,6 +46,7 @@ import type {
   ExtensionContext,
   CommandHandler,
   ResourcesDiscoverEvent,
+  ToolDefinition,
 } from "./types/pi-extensions";
 
 type AgentPrepResult =
@@ -640,7 +642,127 @@ function formatDoctorReport(workspaceRoot: string): string {
 function createDeepworkDoctorHandler(): CommandHandler {
   return async (_args: Record<string, unknown>, ctx: ExtensionContext) => {
     const report = formatDoctorReport(ctx.cwd);
-    await ctx.ui.confirm("Deepwork Doctor", report);
+    const reportPath = path.join(ctx.cwd, ".pi", "deepwork-doctor-report.md");
+    let writeNote = `Report also written to ${reportPath} so the assistant can read it.`;
+    try {
+      fs.mkdirSync(path.dirname(reportPath), { recursive: true });
+      fs.writeFileSync(reportPath, report + "\n", "utf-8");
+    } catch (e: unknown) {
+      writeNote = `Note: failed to write report to ${reportPath} (${describeError(e)}).`;
+    }
+    await ctx.ui.confirm("Deepwork Doctor", `${report}\n\n${writeNote}`);
+  };
+}
+
+function formatSkillBlock(): string {
+  const skill = diagnosticsRecord?.skillCompat;
+  const bundledPath = diagnosticsRecord?.bundledSkillPath ?? "unknown";
+  const bundledExists = diagnosticsRecord?.bundledSkillExists
+    ? "true"
+    : "false";
+  const lines = [
+    "=== SKILL ===",
+    `bundled_path=${bundledPath}`,
+    `bundled_exists=${bundledExists}`,
+  ];
+  if (skill?.applied) {
+    lines.push(`compat_mode=${skill.mode ?? "unknown"}`);
+    lines.push(`compat_skill_path=${skill.skillPath ?? "unknown"}`);
+    lines.push(
+      `compat_skill_path_readable=${skill.skillPathReadable === false ? "false" : "true"}`,
+    );
+  } else {
+    lines.push(
+      `compat_applied=false${skill?.error ? ` (error: ${skill.error})` : ""}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+function createDeepworkBootstrapTool(): ToolDefinition {
+  return {
+    name: "deepwork_bootstrap",
+    label: "Deepwork Bootstrap",
+    description:
+      "Idempotently mirror the bundled qrspi-* subagents into <workspace>/.pi/agents/ and refresh the pi-subagents registry. Call this FIRST in the deepwork skill pre-flight before any subagent inventory check or stage dispatch. Returns the AGENTS/RUNTIME/SKILL diagnostic blocks. The pi-deepwork extension owns <workspace>/.pi/agents/ — call this tool instead of mirroring manually.",
+    parameters: {
+      type: "object",
+      properties: {
+        workspace_cwd: {
+          type: "string",
+          description:
+            "Absolute path to the workspace root. Defaults to ctx.cwd when omitted.",
+        },
+      },
+      additionalProperties: false,
+    },
+    async execute(
+      _toolCallId: string,
+      params: Record<string, unknown>,
+      _signal: AbortSignal,
+      _onUpdate: (update: { content: string }) => void,
+      ctx: ExtensionContext,
+    ): Promise<{ content: string; details?: Record<string, unknown> }> {
+      const rawCwd = params["workspace_cwd"];
+      const cwd =
+        typeof rawCwd === "string" && rawCwd.trim().length > 0
+          ? rawCwd
+          : ctx.cwd;
+
+      const attempt = runMirrorAttempt(cwd, {
+        reason: "tool:deepwork_bootstrap",
+      });
+      if (diagnosticsRecord) {
+        diagnosticsRecord.lastDiscover = attempt;
+      }
+
+      const prep = ensureWorkspaceQrsiAgents(cwd);
+
+      if (!prep.ok) {
+        const errorContent = [
+          "=== AGENTS ===",
+          "status=error",
+          `cwd=${cwd}`,
+          `mirrored_files=${attempt.mirroredFileCount}`,
+          `error=${prep.error}`,
+          "",
+          formatRuntimeBlock(null),
+          "",
+          formatSkillBlock(),
+        ].join("\n");
+        return {
+          content: errorContent,
+          details: {
+            ok: false,
+            error: prep.error,
+            cwd,
+            mirrored_files: attempt.mirroredFileCount,
+          },
+        };
+      }
+
+      const content = [
+        formatAgentsBlock(prep, cwd),
+        "",
+        formatRuntimeBlock(null),
+        "",
+        formatSkillBlock(),
+      ].join("\n");
+
+      return {
+        content,
+        details: {
+          ok: true,
+          cwd,
+          mirrored_files: countMirroredAgentFiles(cwd),
+          synced: prep.discovery.syncedAgents,
+          skipped: prep.discovery.skippedAgents,
+          registered_qrspi: prep.discovery.registeredQrspiAgents.length,
+          project_agents_dir: prep.discovery.projectAgentsDir,
+          skill_path: prep.discovery.skillPath,
+        },
+      };
+    },
   };
 }
 
@@ -677,13 +799,34 @@ export default function activate(pi: ExtensionAPI): void {
 
   // Best-effort agent mirror + registry refresh on activation so qrspi-* agents
   // are visible before the user invokes /deepwork for the first time.
-  const activateMirror = runMirrorAttempt(process.cwd(), {
-    reason: "activate",
-  });
-  if (!activateMirror.ok && activateMirror.error) {
-    console.warn(
-      `[pi-deepwork] Best-effort agent registration on activate() failed: ${activateMirror.error}`,
-    );
+  //
+  // IMPORTANT: pi often launches the runtime from a directory that is NOT the
+  // active workspace (e.g. `$HOME`). Mirroring to `process.cwd()` in that case
+  // pollutes the parent directory with `.pi/agents/` and leaves the real
+  // workspace empty. Guard with `looksLikeWorkspaceRoot` and skip otherwise;
+  // the `resources_discover` event and the `deepwork_bootstrap` tool will
+  // mirror to the correct cwd later.
+  const activateCwd = process.cwd();
+  let activateMirror: MirrorAttempt & { reason?: string };
+  if (looksLikeWorkspaceRoot(activateCwd)) {
+    activateMirror = runMirrorAttempt(activateCwd, { reason: "activate" });
+    if (!activateMirror.ok && activateMirror.error) {
+      console.warn(
+        `[pi-deepwork] Best-effort agent registration on activate() failed: ${activateMirror.error}`,
+      );
+    }
+  } else {
+    activateMirror = {
+      cwd: activateCwd,
+      ok: false,
+      projectAgentsDir: getProjectAgentsDir(activateCwd),
+      mirroredFileCount: 0,
+      registeredQrspiCount: 0,
+      error:
+        "skipped: process.cwd() does not look like a workspace root (no package.json/.git/.pi/etc.); deferring mirror to resources_discover or deepwork_bootstrap tool",
+      at: new Date().toISOString(),
+      reason: "activate",
+    };
   }
 
   diagnosticsRecord = {
@@ -718,10 +861,12 @@ export default function activate(pi: ExtensionAPI): void {
 
   pi.registerCommand("deepwork-doctor", {
     description:
-      "Print a diagnostic report (extension version, resolved paths, agent mirror status, skill compat, git availability, last resources_discover event) without starting or resuming a run",
+      "Print a diagnostic report (extension version, resolved paths, agent mirror status, skill compat, git availability, last resources_discover event) without starting or resuming a run. The report is also written to <workspace>/.pi/deepwork-doctor-report.md so the assistant can read it.",
     getArgumentCompletions: async () => ({}),
     handler: createDeepworkDoctorHandler(),
   });
+
+  pi.registerTool(createDeepworkBootstrapTool());
 
   pi.on("resources_discover", (...args: unknown[]) => {
     // Re-mirror agents and refresh registry on every session start so qrspi-*

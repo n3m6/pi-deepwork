@@ -687,3 +687,29 @@ test('SKILL.md branch example includes the qrspi- prefix in the run id', () => {
     'SKILL.md must show the qrspi/qrspi-<timestamp> branch form in the Pre-Flight example',
   );
 });
+
+test('SKILL.md references the deepwork_bootstrap tool in Pre-Flight and rule #4', () => {
+  assert.ok(
+    skillContent.includes('deepwork_bootstrap'),
+    'SKILL.md must mention the deepwork_bootstrap tool',
+  );
+  assert.ok(
+    /Pre-Flight[\s\S]*?deepwork_bootstrap/i.test(skillContent),
+    'SKILL.md Pre-Flight must reference the deepwork_bootstrap tool',
+  );
+  assert.ok(
+    /CHECK YOUR SUBAGENT INVENTORY[\s\S]*?deepwork_bootstrap/i.test(
+      skillContent,
+    ),
+    'Rule #4 (CHECK YOUR SUBAGENT INVENTORY) must reference the deepwork_bootstrap tool',
+  );
+});
+
+test('SKILL.md no longer asks the user to reload the extension as a recovery path', () => {
+  assert.ok(
+    !/reload the pi-deepwork extension or restart pi so the extension can mirror/i.test(
+      skillContent,
+    ),
+    'Old "reload the pi-deepwork extension or restart pi" wording must be removed in favor of the deepwork_bootstrap tool',
+  );
+});
