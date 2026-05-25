@@ -488,7 +488,12 @@ Phase handling rules:
    **Install verification recipe** — print exactly this block when the agents are missing:
 
    ```bash
-   # One-time global install (all workspaces, recommended)
+   # Recommended: single-command install via pi (clones + symlinks via postinstall hook)
+   pi install git:github.com/n3m6/pi-deepwork@main
+   # Already installed? Reconcile the clone and re-run the postinstall hook:
+   pi update --extension git:github.com/n3m6/pi-deepwork
+
+   # Manual fallback (no pi, or pi install unavailable):
    git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork 2>/dev/null \
      || git -C ~/.pi/agent/git/github.com/n3m6/pi-deepwork pull --ff-only
    mkdir -p ~/.pi/agent/agents

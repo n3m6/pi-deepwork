@@ -2,7 +2,7 @@
 
 A markdown prompt pack for [pi](https://github.com/mariozechner/pi-coding-agent) that adds a `/deepwork` skill: a structured QRSPI pipeline (**G**oals → **Q**uestions → **R**esearch → **D**esign → **S**tructure → **P**lan → **I**mplement → **A**ccept-Test → **R**eplan → **V**erify → **R**eport) executed by 55 specialised `qrspi-*` subagents.
 
-This used to be a TypeScript extension. It is now plain markdown — no build step, no `dist/`, nothing to compile. pi auto-discovers the skill from the git path and [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) auto-discovers the agents from `~/.pi/agent/agents/`.
+This used to be a TypeScript extension. It is now plain markdown — no build step, no `dist/`, nothing to compile. pi auto-discovers the skill from the git clone path, and a tiny zero-dependency `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the bundled `qrspi-*` agents into the directory [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) scans.
 
 ## Prerequisites
 
@@ -18,6 +18,24 @@ This used to be a TypeScript extension. It is now plain markdown — no build st
 - `git` available on `PATH` for stage-boundary checkpoint commits (optional — the pipeline degrades gracefully without it).
 
 ## Install
+
+With pi (recommended — single command):
+
+```bash
+pi install git:github.com/n3m6/pi-deepwork@main
+```
+
+Pi clones the repo into `~/.pi/agent/git/github.com/n3m6/pi-deepwork/` and auto-runs `npm install`, which triggers the bundled `postinstall` hook. The hook detects it is running inside a pi clone and symlinks `agents/qrspi-*.md` into `~/.pi/agent/agents/` (or `$PI_CODING_AGENT_DIR/agents/` if that env var is set). After install, restart pi or open a new pi session so `pi-subagents` rescans agents.
+
+For project-scope installs:
+
+```bash
+pi install -l git:github.com/n3m6/pi-deepwork@main
+```
+
+The hook then links into `<workspace>/.pi/agents/` instead.
+
+### Without pi (manual)
 
 ```bash
 git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork
@@ -93,10 +111,22 @@ See [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md) for the full stage spec
 
 - [agents/](agents/) — 55 `qrspi-*.md` stage and leaf subagent definitions.
 - [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md) — the orchestrator skill.
-- [test/](test/) — structural `node --test` checks on the markdown files. No build step, no dependencies.
-- [install.sh](install.sh), [uninstall.sh](uninstall.sh) — one-shot install/remove scripts.
+- [scripts/postinstall.mjs](scripts/postinstall.mjs) — zero-dep Node hook that symlinks agents on `pi install` / `pi update`.
+- [test/](test/) — structural `node --test` checks on the markdown files plus subprocess coverage of the postinstall hook. No build step, no dependencies.
+- [install.sh](install.sh), [uninstall.sh](uninstall.sh) — one-shot install/remove scripts for users without pi.
 
 ## Uninstall
+
+If you installed with pi:
+
+```bash
+pi remove git:github.com/n3m6/pi-deepwork
+rm -f ~/.pi/agent/agents/qrspi-*.md
+```
+
+The explicit `rm -f` is needed because `pi remove` deletes the clone but does not clean the symlinks the postinstall hook created. Any leftover `qrspi-*` symlinks become broken at that point; the next `pi install`/`pi update` of pi-deepwork would also prune them automatically.
+
+Without pi:
 
 ```bash
 rm -f ~/.pi/agent/agents/qrspi-*.md

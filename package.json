@@ -9,6 +9,7 @@
     "url": "https://github.com/n3m6/pi-deepwork.git"
   },
   "scripts": {
-    "test": "node --test test/agents-stage1.test.js test/agents-stage6.test.js test/skill.test.js"
+    "postinstall": "node scripts/postinstall.mjs",
+    "test": "node --test test/agents-stage1.test.js test/agents-stage6.test.js test/skill.test.js test/postinstall.test.js"
   }
 }

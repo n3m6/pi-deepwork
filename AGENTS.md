@@ -8,15 +8,16 @@ Guidance for AI coding agents working in this repository.
 
 Goals → Questions → Research → Design → Structure → Plan → Implement → Accept-Test → Replan → Verify → Report
 
-It used to be a TypeScript extension. It is now plain markdown only. There is no compiled code, no `dist/`, no `package.json` runtime layer, no extension `activate()`. pi auto-discovers the skill from a git clone under `~/.pi/agent/git/`, and `@tintinweb/pi-subagents` auto-discovers the agent definitions from `~/.pi/agent/agents/` (global) or `<workspace>/.pi/agents/` (project-local).
+It used to be a TypeScript extension. It is now plain markdown plus a single zero-dependency Node script. There is no compiled code, no `dist/`, no `package.json` runtime layer, no extension `activate()`. pi auto-discovers the skill from a git clone under `~/.pi/agent/git/`. `@tintinweb/pi-subagents` auto-discovers the agent definitions from `~/.pi/agent/agents/` (global) or `<workspace>/.pi/agents/` (project-local) — a bundled `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the package's `agents/qrspi-*.md` into whichever of those dirs matches the install scope.
 
 ## Repository layout
 
 - [agents/](agents/) — 55 `qrspi-*.md` files. Each is YAML frontmatter + a body prompt consumed by `pi-subagents`.
 - [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md) — the orchestrator skill loaded by pi when `/deepwork` is invoked.
-- [test/](test/) — structural `node --test` checks against the `.md` files. Three suites: agent stage1 frontmatter, agent stage6 frontmatter, and SKILL.md contract.
-- [install.sh](install.sh), [uninstall.sh](uninstall.sh) — one-shot install scripts.
-- [package.json](package.json) — zero-deps manifest, only used to expose `npm test`.
+- [scripts/postinstall.mjs](scripts/postinstall.mjs) — the **single** approved install-time script. Pure Node, zero deps, fail-open, heavily gated. Detects whether the package lives under a `.pi/agent/git/` (global) or `.pi/git/` (project) ancestor and symlinks `agents/qrspi-*.md` into the matching pi-subagents scan dir. Outside a pi clone it is a no-op. See `## Operational safety` for the policy that bounds it.
+- [test/](test/) — structural `node --test` checks against the `.md` files plus subprocess coverage of the postinstall hook. Four suites: agent stage1 frontmatter, agent stage6 frontmatter, SKILL.md contract, postinstall hook.
+- [install.sh](install.sh), [uninstall.sh](uninstall.sh) — manual fallback install scripts for users without pi.
+- [package.json](package.json) — zero-deps manifest. Exposes `npm test` and wires the `postinstall` hook.
 - [.gitignore](.gitignore) — excludes `.pipeline/` (per-run artifacts, never commit).
 
 ## Build, test, and run
@@ -33,8 +34,8 @@ That is the entire local quality gate.
 
 - **Agents are markdown with YAML frontmatter.** Frontmatter keys follow the `pi-subagents` schema: `name`, `description`, `model`, `thinking`, `tools`, `systemPromptMode`, `extensions`, plus the legacy `prompt_mode`, `enabled`, `max_turns` fields the suite asserts on. Keep the field set consistent across agents.
 - **The skill is markdown with YAML frontmatter.** Frontmatter keys: `name`, `description`. The body follows the pi-coding-agent skill schema.
-- **No runtime code.** Do not reintroduce a `src/` directory, a `package.json` with `main`, a TypeScript compiler, or any kind of extension `activate()` entry. The prior cycle of "pi extension with `dist/` + `prepare` hook + skill-compat symlink" failed to load reliably; we deliberately stripped it.
-- **No runtime dependencies in `package.json`.** `npm test` must succeed with zero `node_modules/`. Tests use only the `node:` built-ins.
+- **No runtime code.** Do not reintroduce a `src/` directory, a `package.json` with `main`, a TypeScript compiler, or any kind of extension `activate()` entry. The prior cycle of "pi extension with `dist/` + `prepare` hook + skill-compat symlink" failed to load reliably; we deliberately stripped it. The `scripts/postinstall.mjs` hook is **not** runtime code — it runs once at install time, has zero dependencies, and exits cleanly when not inside a pi clone.
+- **No runtime dependencies in `package.json`.** `npm test` must succeed with zero `node_modules/`. Tests use only the `node:` built-ins; the postinstall hook does the same.
 - **Keep diffs minimal.** Edit only the agent or skill you intend to change. Do not reformat or refactor the others.
 
 ## Pipeline state and artifacts
@@ -57,7 +58,15 @@ When changing state schema or stage ordering, update [skills/deepwork/SKILL.md](
 
 ## Install model (for your reference)
 
-The install is three shell lines (see [README.md](README.md) and [install.sh](install.sh)):
+The headline install path is a single pi command:
+
+```bash
+pi install git:github.com/n3m6/pi-deepwork@main
+```
+
+pi clones to `~/.pi/agent/git/github.com/n3m6/pi-deepwork/` (or `<workspace>/.pi/git/...` with `-l`), runs `npm install`, and the `postinstall` hook symlinks `agents/qrspi-*.md` into the matching pi-subagents scan dir. pi discovers the skill from the git path automatically. There is no `dist/`, no compile step, no extension to register.
+
+The manual fallback (used by [install.sh](install.sh) and documented in [README.md](README.md)) is three shell lines:
 
 ```bash
 git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork
@@ -65,10 +74,10 @@ mkdir -p ~/.pi/agent/agents
 ln -sf ~/.pi/agent/git/github.com/n3m6/pi-deepwork/agents/qrspi-*.md ~/.pi/agent/agents/
 ```
 
-pi discovers the skill from the git path. `pi-subagents` discovers the agents from `~/.pi/agent/agents/`. Both directories are flat — nested subdirectories are not scanned. There is no `dist/`, no compile step, no extension to register.
+Both scan directories are flat — nested subdirectories are not scanned.
 
 ## Operational safety
 
 - **Never commit `.pipeline/`.** It contains per-run scratch state that is meaningless outside the originating session.
-- **Do not add a `prepare` or `postinstall` script to `package.json`.** The prior install regression (`sh: 1: tsc: not found` under `npm install --omit=dev`) came from one. There is no need for either — the install is `git clone` + `ln -s`, not `npm install`.
-- **Do not add devDependencies.** They invite the toolchain back in. If a future change genuinely needs a dev tool, prefer a one-shot `npx` invocation over a persistent dep.
+- **Postinstall scripts are tightly bounded.** The single allowed instance is [scripts/postinstall.mjs](scripts/postinstall.mjs), which exists because pi auto-discovers `skills/` of installed packages but not `agents/`. Any other install-time script — `prepare`, additional `postinstall` steps, anything that requires a build toolchain or dev dependencies — is forbidden. The prior regression (`sh: 1: tsc: not found` under `npm install --omit=dev`) came from a toolchain-dependent `prepare`; the rule that prevents it is: install-time scripts must be pure Node, zero-deps, fail-open (never exit nonzero), and a no-op when not running inside a pi clone (detected by walking ancestors for `.pi/agent/git/` or `.pi/git/`).
+- **Do not add devDependencies.** They invite the toolchain back in. If a future change genuinely needs a dev tool, prefer a one-shot `npx` invocation over a persistent dep. The postinstall hook and its tests both stay on `node:` built-ins only.
