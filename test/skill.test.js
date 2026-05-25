@@ -60,11 +60,15 @@ test('SKILL.md contains the required top-level headers', () => {
   }
 });
 
-test('SKILL.md uses the native Agent tool with subagent_type for dispatch', () => {
-  assert.ok(/native Agent tool/i.test(skillBody),
-    'SKILL.md must dispatch via the native Agent tool');
-  assert.ok(/subagent_type:\s*"qrspi-/.test(skillBody),
-    'SKILL.md must reference qrspi-* via subagent_type');
+test('SKILL.md uses the subagent tool for stage dispatch', () => {
+  assert.ok(/subagent\(\{/.test(skillBody),
+    'SKILL.md must dispatch via the subagent tool');
+  assert.ok(/agent:\s*"qrspi-/.test(skillBody),
+    'SKILL.md must reference qrspi-* via agent');
+  assert.ok(!/native Agent tool/i.test(skillBody),
+    'SKILL.md must not require the native Agent tool');
+  assert.ok(!/subagent_type:\s*"qrspi-/.test(skillBody),
+    'SKILL.md must not require subagent_type-based stage dispatch');
 });
 
 test('SKILL.md uses ask_user with required parameters', () => {
@@ -104,6 +108,10 @@ test('SKILL.md does NOT reference legacy/deprecated tools or paths', () => {
 test('SKILL.md Pre-Flight Step 0 documents the install verification recipe', () => {
   assert.ok(/Install verification recipe/i.test(skillBody),
     'Pre-Flight Step 0 must reference the install verification recipe');
+  assert.ok(/pi install npm:pi-subagents/.test(skillBody),
+    'recipe must install npm:pi-subagents');
+  assert.ok(/pi install npm:pi-intercom/.test(skillBody),
+    'recipe must install npm:pi-intercom');
   assert.ok(/git clone https:\/\/github\.com\/n3m6\/pi-deepwork/.test(skillBody),
     'recipe must contain the git clone command');
   assert.ok(/~\/.pi\/agent\/agents/.test(skillBody),
@@ -134,19 +142,21 @@ test('SKILL.md documents inbound intercom forwarding', () => {
     'SKILL.md must reference intercom({ action: "reply" ... }) for replying to child asks');
   assert.ok(/responses/.test(skillBody),
     'SKILL.md intercom reply must include responses shape');
+  assert.ok(/progress_update/.test(skillBody),
+    'SKILL.md must document progress_update handling');
 });
 
-test('SKILL.md documents the spawn_request handle protocol', () => {
-  assert.ok(/reason: "spawn_request"/.test(skillBody),
-    'SKILL.md Rule 7 must handle reason: "spawn_request"');
-  assert.ok(/reason: "spawn_poll"/.test(skillBody),
-    'SKILL.md Rule 7 must handle reason: "spawn_poll"');
-  assert.ok(/ok: true/.test(skillBody) || /"ok":.*true/.test(skillBody),
-    'SKILL.md spawn_request reply must include ok: true');
-  assert.ok(/handle/.test(skillBody),
-    'SKILL.md spawn_request reply must include handle field');
-  assert.ok(/spawn\.requested/.test(skillBody),
-    'SKILL.md telemetry event types must include spawn.requested');
+test('SKILL.md documents direct child-safe subagent fanout', () => {
+  assert.ok(/child-safe `subagent` tool/.test(skillBody),
+    'SKILL.md must document child-safe subagent fanout');
+  assert.ok(/tasks: \[/.test(skillBody),
+    'SKILL.md fanout contract must show parallel tasks');
+  assert.ok(!/reason: "spawn_request"/.test(skillBody),
+    'SKILL.md must not document spawn_request');
+  assert.ok(!/reason: "spawn_poll"/.test(skillBody),
+    'SKILL.md must not document spawn_poll');
+  assert.ok(!/get_subagent_result/.test(skillBody),
+    'SKILL.md must not document get_subagent_result-based polling');
 });
 
 test('SKILL.md preflight checks pi-intercom connectivity', () => {

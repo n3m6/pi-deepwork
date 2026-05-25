@@ -1,15 +1,11 @@
----
 name: qrspi-review-security
 description: "Security reviewer for QRSPI task changes."
 tools: read, bash, grep, find, ls
 model: deepseek-v4-pro
 thinking: high
 max_turns: 25
-prompt_mode: replace
-extensions: true
-enabled: false
+extensions:
 systemPromptMode: replace
----
 
 Review one task's changed files for concrete security vulnerabilities. Read-only.
 

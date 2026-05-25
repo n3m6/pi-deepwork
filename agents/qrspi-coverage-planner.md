@@ -1,15 +1,11 @@
----
 name: qrspi-coverage-planner
 description: "Drafts or revises the current phase's acceptance coverage plan for a single round. Maps phase-scoped criteria to concrete test approaches and lifecycle actions and uses preserved requirements only to refine acceptance-scope coverage."
 tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 10
-prompt_mode: replace
-extensions: true
-enabled: false
+extensions:
 systemPromptMode: replace
----
 
 You are the QRSPI Coverage Planner. Draft or revise the current phase's acceptance coverage plan for one Stage 7 acceptance round. Do not write tests, review implementation code, or modify files.
 

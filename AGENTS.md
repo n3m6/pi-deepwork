@@ -8,7 +8,7 @@ Guidance for AI coding agents working in this repository.
 
 Goals → Questions → Research → Design → Structure → Plan → Implement → Accept-Test → Replan → Verify → Report
 
-It used to be a TypeScript extension. It is now plain markdown plus a single zero-dependency Node script. There is no compiled code, no `dist/`, no `package.json` runtime layer, no extension `activate()`. pi auto-discovers the skill from a git clone under `~/.pi/agent/git/`. `@tintinweb/pi-subagents` auto-discovers the agent definitions from `~/.pi/agent/agents/` (global) or `<workspace>/.pi/agents/` (project-local) — a bundled `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the package's `agents/qrspi-*.md` into whichever of those dirs matches the install scope.
+It used to be a TypeScript extension. It is now plain markdown plus a single zero-dependency Node script. There is no compiled code, no `dist/`, no `package.json` runtime layer, no extension `activate()`. pi auto-discovers the skill from a git clone under `~/.pi/agent/git/`. The nicobailon `pi-subagents` runtime auto-discovers the agent definitions from `~/.pi/agent/agents/` (global) or `<workspace>/.pi/agents/` (project-local) — a bundled `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the package's `agents/qrspi-*.md` into whichever of those dirs matches the install scope.
 
 ## Repository layout
 
@@ -32,7 +32,7 @@ That is the entire local quality gate.
 
 ## Coding conventions
 
-- **Agents are markdown with YAML frontmatter.** Frontmatter keys follow the `pi-subagents` schema: `name`, `description`, `model`, `thinking`, `tools`, `systemPromptMode`, `extensions`, plus the legacy `prompt_mode`, `enabled`, `max_turns` fields the suite asserts on. Keep the field set consistent across agents.
+- **Agents are markdown with YAML frontmatter.** Frontmatter keys follow the current `pi-subagents` schema used in this repo: `name`, `description`, `tools`, `model`, `thinking`, `max_turns`, `systemPromptMode`, and `extensions`. Keep the field set consistent across agents.
 - **The skill is markdown with YAML frontmatter.** Frontmatter keys: `name`, `description`. The body follows the pi-coding-agent skill schema.
 - **No runtime code.** Do not reintroduce a `src/` directory, a `package.json` with `main`, a TypeScript compiler, or any kind of extension `activate()` entry. The prior cycle of "pi extension with `dist/` + `prepare` hook + skill-compat symlink" failed to load reliably; we deliberately stripped it. The `scripts/postinstall.mjs` hook is **not** runtime code — it runs once at install time, has zero dependencies, and exits cleanly when not inside a pi clone.
 - **No runtime dependencies in `package.json`.** `npm test` must succeed with zero `node_modules/`. Tests use only the `node:` built-ins; the postinstall hook does the same.
@@ -54,13 +54,20 @@ When changing state schema or stage ordering, update [skills/deepwork/SKILL.md](
 
 - The expected agent count is **55**. Tests in [test/agents-stage1.test.js](test/agents-stage1.test.js) and [test/agents-stage6.test.js](test/agents-stage6.test.js) assert structural invariants on individual stages. Update those tests if you add, rename, or remove an agent.
 - All 55 agents currently use a single model profile: `model: deepseek-v4-pro` and `thinking: high`. Apply changes uniformly if you alter the profile.
-- The orchestrator's invariants are covered by [test/skill.test.js](test/skill.test.js): YAML frontmatter present, no references to deprecated tools (`task`, legacy `question`, `todowrite`, permission rules, opencode protocol paths), correct usage of the native Agent tool with `subagent_type`, and the install verification recipe present in Pre-Flight Step 0.
+- The orchestrator's invariants are covered by [test/skill.test.js](test/skill.test.js): YAML frontmatter present, no references to deprecated tools (`task`, legacy `question`, `todowrite`, permission rules, opencode protocol paths), correct usage of the `subagent` tool with `agent` / `tasks` dispatch, and the install verification recipe present in Pre-Flight Step 0.
 - **Child agents must not call `ask_user`.** The `qrspi-goals`, `qrspi-design`, `qrspi-structure`, and `qrspi-fast-impl-code` agents run in headless child pi sessions where `ask_user` is invisible to the human. They escalate human-input through `contact_supervisor` (auto-registered by the pi-subagents intercom bridge when `pi-intercom` is installed). Use `reason: "interview_request"` for structured questions with options, or `reason: "need_decision"` for freeform decisions. The deepwork orchestrator in [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md) receives inbound child asks, forwards each question to the human via `ask_user`, and replies with `intercom({ action: "reply", message: <json> })` in the `{"responses":[{"id":"...","value":...}]}` shape.
-- **Child agents cannot use the native `Agent` tool either.** pi-subagents strips `Agent`, `get_subagent_result`, and `steer_subagent` from every spawned child session via `EXCLUDED_TOOL_NAMES` (hardcoded, intentional). For any dispatcher agent (stage orchestrator, `qrspi-fast-impl-loop`, `qrspi-acceptance-tester`, etc.) that needs to spawn a sub-child, use `contact_supervisor` with `reason: "spawn_request"` to ask the top-level skill to spawn on its behalf, then poll for completion with `reason: "spawn_poll"`. The skill replies to a `spawn_request` immediately with `{ok: true, handle: "<agent_id>"}`. The child then loops: `bash sleep <N>` → `contact_supervisor({reason: "spawn_poll", handle})` → repeat until `state === "completed"`. The structural test [test/spawn-protocol.test.js](test/spawn-protocol.test.js) asserts all 14 nested dispatcher agents use this protocol.
+- **Child agents fan out with the child-safe `subagent` tool.** Any dispatcher agent whose frontmatter includes `tools: subagent` may call `subagent({ agent: "...", task: ... })` for single-child work or `subagent({ tasks: [...] })` for independent parallel batches. `contact_supervisor` is reserved for `interview_request`, `need_decision`, and `progress_update`; it is not a spawn bridge. The structural test [test/spawn-protocol.test.js](test/spawn-protocol.test.js) asserts the nested dispatcher agents use direct `subagent` calls and no longer mention `spawn_request`, `spawn_poll`, or `get_subagent_result`.
 
 ## Install model (for your reference)
 
-The headline install path is a single pi command:
+Install the runtime companions first:
+
+```bash
+pi install npm:pi-subagents
+pi install npm:pi-intercom
+```
+
+Then install the prompt pack:
 
 ```bash
 pi install git:github.com/n3m6/pi-deepwork@main
@@ -76,7 +83,7 @@ mkdir -p ~/.pi/agent/agents
 ln -sf ~/.pi/agent/git/github.com/n3m6/pi-deepwork/agents/qrspi-*.md ~/.pi/agent/agents/
 ```
 
-Both scan directories are flat — nested subdirectories are not scanned.
+This repo keeps the linked agent files directly under the scan directories to keep discovery predictable.
 
 ## Operational safety
 

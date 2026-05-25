@@ -1,15 +1,11 @@
----
 name: qrspi-review-goal-traceability
 description: "Checks full-route QRSPI traceability: goals ↔ expectations ↔ tests ↔ code."
 tools: read, bash, grep, find, ls
 model: deepseek-v4-pro
 thinking: high
 max_turns: 25
-prompt_mode: replace
-extensions: true
-enabled: false
+extensions:
 systemPromptMode: replace
----
 
 You are the QRSPI Goal Traceability Reviewer. Read-only. Review only the provided changed files and provided task/goals/context.
 

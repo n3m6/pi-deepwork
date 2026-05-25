@@ -1,12 +1,11 @@
 ---
 name: qrspi-design
 description: "Stage 3 orchestrator — conducts interactive or automated design selection, dispatches the design synthesizer, runs automated review rounds, and runs or auto-resolves the approval gate. Writes design.md and review artifacts."
-tools: read, bash, grep, find, ls, write, edit
+tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 60
-prompt_mode: replace
-extensions: true
+extensions: pi-intercom
 systemPromptMode: replace
 ---
 
@@ -78,22 +77,30 @@ Read `details.structuredReply.responses[]` keyed by `id`. If the user proposes h
 
 ### Step C — Dispatch Synthesizer
 
-Send a spawn request for `qrspi-design-synthesizer` via `contact_supervisor`:
+Call `subagent` for `qrspi-design-synthesizer`:
 
 ```
-contact_supervisor({
-  reason: "spawn_request",
-  message: "Delegating design synthesis to qrspi-design-synthesizer.",
-  spawn: {
-    subagent_type: "qrspi-design-synthesizer",
-    description: "Synthesize design document",
-    prompt: "=== GOALS ===\n[contents of goals.md]\n\n=== REQUIREMENTS ===\n[contents of requirements.md]\n\n=== RESEARCH SUMMARY ===\n[contents of research/summary.md]\n\n=== DESIGN DISCUSSION ===\n[decision log from Step B]\n\n=== INSTRUCTIONS ===\nSynthesize a design document from the above inputs.",
-    run_id: "<run-id>"
-  }
+subagent({
+  agent: "qrspi-design-synthesizer",
+  context: "fresh",
+  task: `=== GOALS ===
+[contents of goals.md]
+
+=== REQUIREMENTS ===
+[contents of requirements.md]
+
+=== RESEARCH SUMMARY ===
+[contents of research/summary.md]
+
+=== DESIGN DISCUSSION ===
+[decision log from Step B]
+
+=== INSTRUCTIONS ===
+Synthesize a design document from the above inputs.`
 })
 ```
 
-Capture `handle` and poll (cadence: `bash sleep 10`) until `state === "completed"`. Use `result` as the return text. Write the result to `.pipeline/<run-id>/design.md`.
+Use the returned subagent result as the return text. Write the result to `.pipeline/<run-id>/design.md`.
 
 ### Step D — Automated Review Loop
 
@@ -101,27 +108,29 @@ Set `review_round = 1`. Create the reviews directory: `bash: mkdir -p .pipeline/
 
 Each iteration:
 
-1. Send a spawn request for `qrspi-design-reviewer` via `contact_supervisor`:
+1. Call `subagent` for `qrspi-design-reviewer`:
 
    ```
-   contact_supervisor({
-     reason: "spawn_request",
-     message: "Delegating design review to qrspi-design-reviewer.",
-     spawn: {
-       subagent_type: "qrspi-design-reviewer",
-       description: "Review design document",
-       prompt: "=== GOALS ===\n[contents of goals.md]\n\n=== RESEARCH SUMMARY ===\n[contents of research/summary.md]\n\n=== DESIGN ===\n[contents of design.md]",
-       run_id: "<run-id>"
-     }
+   subagent({
+     agent: "qrspi-design-reviewer",
+     context: "fresh",
+     task: `=== GOALS ===
+[contents of goals.md]
+
+=== RESEARCH SUMMARY ===
+[contents of research/summary.md]
+
+=== DESIGN ===
+[contents of design.md]`
    })
    ```
 
-   Capture `handle` and poll (cadence: `bash sleep 10`) until completed. Use `result` as the return text.
+   Use the returned subagent result as the return text.
 
 2. Write output to `.pipeline/<run-id>/reviews/design-review-round-{NN}.md`.
 3. Branch:
    - **PASS** → exit loop, `terminal_state = clean`
-   - **FAIL and `review_round < 5`** → send spawn request for synthesizer with original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output]; overwrite `design.md`; `review_round++`; repeat
+  - **FAIL and `review_round < 5`** → call `subagent` for the synthesizer with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output]; overwrite `design.md`; `review_round++`; repeat
    - **FAIL and `review_round == 5`** → exit loop, `terminal_state = unclean-cap`
 
 ### Step E — Approval Gate

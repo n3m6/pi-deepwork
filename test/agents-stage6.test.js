@@ -103,9 +103,7 @@ const REQUIRED_FIELDS = [
   'model',
   'thinking',
   'max_turns',
-  'prompt_mode',
   'extensions',
-  'enabled',
   'name',
   'systemPromptMode',
 ];
@@ -192,7 +190,7 @@ test('qrspi-baseline-checker.md frontmatter — exact fields', () => {
 // ---------------------------------------------------------------------------
 
 test('qrspi-plan.md frontmatter — tools field', () => {
-  assert.equal(planFM.tools, 'read, bash, grep, find, ls, write, edit');
+  assert.equal(planFM.tools, 'subagent, read, bash, grep, find, ls, write, edit');
 });
 
 test('qrspi-plan-writer.md frontmatter — tools includes write and edit', () => {
@@ -276,7 +274,7 @@ test('qrspi-baseline-checker.md frontmatter — max_turns field', () => {
 });
 
 // ---------------------------------------------------------------------------
-// F. Cross-file: thinking, extensions, enabled, prompt_mode
+// F. Cross-file: thinking, extensions, systemPromptMode
 // ---------------------------------------------------------------------------
 
 test('All 6 agents — thinking field is high', () => {
@@ -308,94 +306,61 @@ test('All 6 agents — thinking field is high', () => {
   );
 });
 
-test('All 6 agents — extensions field is true', () => {
-  assert.equal(planFM.extensions, 'true', 'qrspi-plan extensions must be true');
+test('All 6 agents — extensions field matches the nicobailon allowlist', () => {
+  assert.equal(planFM.extensions, 'pi-intercom', 'qrspi-plan extensions must allow pi-intercom');
   assert.equal(
     planWriterFM.extensions,
-    'true',
-    'qrspi-plan-writer extensions must be true',
+    '',
+    'qrspi-plan-writer extensions must be empty',
   );
   assert.equal(
     taskSpecWriterFM.extensions,
-    'true',
-    'qrspi-task-spec-writer extensions must be true',
+    '',
+    'qrspi-task-spec-writer extensions must be empty',
   );
   assert.equal(
     taskSpecReviewerFM.extensions,
-    'true',
-    'qrspi-task-spec-reviewer extensions must be true',
+    '',
+    'qrspi-task-spec-reviewer extensions must be empty',
   );
   assert.equal(
     planReviewerFM.extensions,
-    'true',
-    'qrspi-plan-reviewer extensions must be true',
+    '',
+    'qrspi-plan-reviewer extensions must be empty',
   );
   assert.equal(
     baselineCheckerFM.extensions,
-    'true',
-    'qrspi-baseline-checker extensions must be true',
+    '',
+    'qrspi-baseline-checker extensions must be empty',
   );
 });
 
-test('All 6 agents — enabled field is false', () => {
-  assert.equal(planFM.enabled, 'false', 'qrspi-plan enabled must be false');
+test('All 6 agents — systemPromptMode field is replace', () => {
+  assert.equal(planFM.systemPromptMode, 'replace', 'qrspi-plan systemPromptMode must be replace');
   assert.equal(
-    planWriterFM.enabled,
-    'false',
-    'qrspi-plan-writer enabled must be false',
-  );
-  assert.equal(
-    taskSpecWriterFM.enabled,
-    'false',
-    'qrspi-task-spec-writer enabled must be false',
-  );
-  assert.equal(
-    taskSpecReviewerFM.enabled,
-    'false',
-    'qrspi-task-spec-reviewer enabled must be false',
-  );
-  assert.equal(
-    planReviewerFM.enabled,
-    'false',
-    'qrspi-plan-reviewer enabled must be false',
-  );
-  assert.equal(
-    baselineCheckerFM.enabled,
-    'false',
-    'qrspi-baseline-checker enabled must be false',
-  );
-});
-
-test('All 6 agents — prompt_mode field is replace', () => {
-  assert.equal(
-    planFM.prompt_mode,
+    planWriterFM.systemPromptMode,
     'replace',
-    'qrspi-plan prompt_mode must be replace',
+    'qrspi-plan-writer systemPromptMode must be replace',
   );
   assert.equal(
-    planWriterFM.prompt_mode,
+    taskSpecWriterFM.systemPromptMode,
     'replace',
-    'qrspi-plan-writer prompt_mode must be replace',
+    'qrspi-task-spec-writer systemPromptMode must be replace',
   );
   assert.equal(
-    taskSpecWriterFM.prompt_mode,
+    taskSpecReviewerFM.systemPromptMode,
     'replace',
-    'qrspi-task-spec-writer prompt_mode must be replace',
+    'qrspi-task-spec-reviewer systemPromptMode must be replace',
   );
   assert.equal(
-    taskSpecReviewerFM.prompt_mode,
+    planReviewerFM.systemPromptMode,
     'replace',
-    'qrspi-task-spec-reviewer prompt_mode must be replace',
+    'qrspi-plan-reviewer systemPromptMode must be replace',
   );
   assert.equal(
-    planReviewerFM.prompt_mode,
+    baselineCheckerFM.systemPromptMode,
     'replace',
-    'qrspi-plan-reviewer prompt_mode must be replace',
-  );
-  assert.equal(
-    baselineCheckerFM.prompt_mode,
-    'replace',
-    'qrspi-baseline-checker prompt_mode must be replace',
+    'qrspi-baseline-checker systemPromptMode must be replace',
   );
 });
 
@@ -403,32 +368,36 @@ test('All 6 agents — prompt_mode field is replace', () => {
 // G. Orchestrator body: dispatch references
 // ---------------------------------------------------------------------------
 
-test('qrspi-plan.md body — uses spawn_request protocol for subagent dispatch', () => {
-  assert.ok(planBody.includes('spawn_request'), 'body must contain spawn_request');
+test('qrspi-plan.md body — uses direct subagent protocol for child dispatch', () => {
+  assert.ok(planBody.includes('subagent({'), 'body must contain subagent({');
   assert.ok(
     !planBody.includes('the task tool'),
     'body must not contain "the task tool"',
   );
+  assert.ok(!planBody.includes('spawn_request'), 'body must not contain spawn_request');
+  assert.ok(!planBody.includes('spawn_poll'), 'body must not contain spawn_poll');
+  assert.ok(!planBody.includes('get_subagent_result'), 'body must not contain get_subagent_result');
+  assert.ok(!planBody.includes('subagent_type:'), 'body must not contain subagent_type dispatch');
 });
 
-test('qrspi-plan.md body — contains subagent_type: "qrspi-plan-writer"', () => {
-  assert.ok(planBody.includes('subagent_type: "qrspi-plan-writer"'));
+test('qrspi-plan.md body — contains agent: "qrspi-plan-writer"', () => {
+  assert.ok(planBody.includes('agent: "qrspi-plan-writer"'));
 });
 
-test('qrspi-plan.md body — contains subagent_type: "qrspi-plan-reviewer"', () => {
-  assert.ok(planBody.includes('subagent_type: "qrspi-plan-reviewer"'));
+test('qrspi-plan.md body — contains agent: "qrspi-plan-reviewer"', () => {
+  assert.ok(planBody.includes('agent: "qrspi-plan-reviewer"'));
 });
 
-test('qrspi-plan.md body — contains subagent_type: "qrspi-task-spec-writer"', () => {
-  assert.ok(planBody.includes('subagent_type: "qrspi-task-spec-writer"'));
+test('qrspi-plan.md body — contains agent: "qrspi-task-spec-writer"', () => {
+  assert.ok(planBody.includes('agent: "qrspi-task-spec-writer"'));
 });
 
-test('qrspi-plan.md body — contains subagent_type: "qrspi-task-spec-reviewer"', () => {
-  assert.ok(planBody.includes('subagent_type: "qrspi-task-spec-reviewer"'));
+test('qrspi-plan.md body — contains agent: "qrspi-task-spec-reviewer"', () => {
+  assert.ok(planBody.includes('agent: "qrspi-task-spec-reviewer"'));
 });
 
-test('qrspi-plan.md body — contains subagent_type: "qrspi-baseline-checker"', () => {
-  assert.ok(planBody.includes('subagent_type: "qrspi-baseline-checker"'));
+test('qrspi-plan.md body — contains agent: "qrspi-baseline-checker"', () => {
+  assert.ok(planBody.includes('agent: "qrspi-baseline-checker"'));
 });
 
 // ---------------------------------------------------------------------------

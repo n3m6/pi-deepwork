@@ -92,7 +92,6 @@ const EXPECTED_FIELDS = [
   'model',
   'thinking',
   'max_turns',
-  'prompt_mode',
   'extensions',
   'name',
   'systemPromptMode',
@@ -110,8 +109,12 @@ test('qrspi-goals.md frontmatter — exact fields', () => {
 test('qrspi-goals.md frontmatter — tools field', () => {
   assert.equal(
     orchFM.tools,
-    'read, bash, grep, find, ls, write, edit',
+    'subagent, read, bash, grep, find, ls, write, edit',
   );
+});
+
+test('qrspi-goals.md frontmatter — extensions field', () => {
+  assert.equal(orchFM.extensions, 'pi-intercom');
 });
 
 test('qrspi-goals.md frontmatter — model field', () => {
@@ -141,6 +144,10 @@ test('qrspi-goals-synthesizer.md frontmatter — model field', () => {
   assert.equal(synthFM.model, 'deepseek-v4-pro');
 });
 
+test('qrspi-goals-synthesizer.md frontmatter — extensions field', () => {
+  assert.equal(synthFM.extensions, '');
+});
+
 test('qrspi-goals-synthesizer.md frontmatter — max_turns field', () => {
   assert.equal(parseInt(synthFM.max_turns, 10), 40);
 });
@@ -162,6 +169,10 @@ test('qrspi-goals-reviewer.md frontmatter — model field', () => {
   assert.equal(reviewFM.model, 'deepseek-v4-pro');
 });
 
+test('qrspi-goals-reviewer.md frontmatter — extensions field', () => {
+  assert.equal(reviewFM.extensions, '');
+});
+
 test('qrspi-goals-reviewer.md frontmatter — max_turns field', () => {
   assert.equal(parseInt(reviewFM.max_turns, 10), 20);
 });
@@ -170,8 +181,8 @@ test('qrspi-goals-reviewer.md frontmatter — max_turns field', () => {
 // qrspi-goals.md — Body: dispatch, question, and read conventions
 // ---------------------------------------------------------------------------
 
-test('qrspi-goals.md body — uses spawn_request protocol for subagent dispatch', () => {
-  assert.ok(orchBody.includes('spawn_request'), 'body must contain spawn_request');
+test('qrspi-goals.md body — uses direct subagent protocol for child dispatch', () => {
+  assert.ok(orchBody.includes('subagent({'), 'body must contain subagent({');
   // Verify "task" is not used as a dispatch tool reference
   // "the task tool" and "via task" are opencode-isms that should not appear
   assert.ok(
@@ -182,14 +193,17 @@ test('qrspi-goals.md body — uses spawn_request protocol for subagent dispatch'
     !/via\s+task\b/i.test(orchBody),
     'body must not use "via task" as dispatch reference',
   );
+  assert.ok(!orchBody.includes('spawn_request'), 'body must not contain spawn_request');
+  assert.ok(!orchBody.includes('spawn_poll'), 'body must not contain spawn_poll');
+  assert.ok(!orchBody.includes('get_subagent_result'), 'body must not contain get_subagent_result');
 });
 
-test('qrspi-goals.md body — contains subagent_type: "qrspi-goals-synthesizer"', () => {
-  assert.ok(orchBody.includes('subagent_type: "qrspi-goals-synthesizer"'));
+test('qrspi-goals.md body — contains agent: "qrspi-goals-synthesizer"', () => {
+  assert.ok(orchBody.includes('agent: "qrspi-goals-synthesizer"'));
 });
 
-test('qrspi-goals.md body — contains subagent_type: "qrspi-goals-reviewer"', () => {
-  assert.ok(orchBody.includes('subagent_type: "qrspi-goals-reviewer"'));
+test('qrspi-goals.md body — contains agent: "qrspi-goals-reviewer"', () => {
+  assert.ok(orchBody.includes('agent: "qrspi-goals-reviewer"'));
 });
 
 test('qrspi-goals.md body — uses contact_supervisor for human gate', () => {

@@ -2,16 +2,15 @@
 
 A markdown prompt pack for [pi](https://github.com/mariozechner/pi-coding-agent) that adds a `/deepwork` skill: a structured QRSPI pipeline (**G**oals → **Q**uestions → **R**esearch → **D**esign → **S**tructure → **P**lan → **I**mplement → **A**ccept-Test → **R**eplan → **V**erify → **R**eport) executed by 55 specialised `qrspi-*` subagents.
 
-This used to be a TypeScript extension. It is now plain markdown — no build step, no `dist/`, nothing to compile. pi auto-discovers the skill from the git clone path, and a tiny zero-dependency `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the bundled `qrspi-*` agents into the directory [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) scans.
+This used to be a TypeScript extension. It is now plain markdown — no build step, no `dist/`, nothing to compile. pi auto-discovers the skill from the git clone path, and a tiny zero-dependency `postinstall` hook ([scripts/postinstall.mjs](scripts/postinstall.mjs)) symlinks the bundled `qrspi-*` agents into the directory the nicobailon [`pi-subagents`](https://github.com/nicobailon/pi-subagents) runtime scans.
 
 ## Prerequisites
 
 - [`pi`](https://github.com/mariozechner/pi-coding-agent) installed and on `PATH`.
-- The [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) extension installed and active:
+- The [`pi-subagents`](https://github.com/nicobailon/pi-subagents) extension installed and active:
   ```bash
-  pi install npm:@tintinweb/pi-subagents
+  pi install npm:pi-subagents
   ```
-  Do not substitute the older `pi install npm:pi-subagents`; deepwork relies on the tintinweb runtime's agent frontmatter and intercom behavior.
 - The [`pi-ask-user`](https://github.com/mariozechner/pi-ask-user) extension installed and active for interactive human gates:
   ```bash
   pi install npm:pi-ask-user
@@ -20,7 +19,7 @@ This used to be a TypeScript extension. It is now plain markdown — no build st
   ```bash
   pi install npm:pi-intercom
   ```
-  `pi-intercom` must remain enabled (`enabled: true` in `~/.pi/agent/intercom/config.json`, which is the default). The pi-subagents intercom bridge auto-registers a `contact_supervisor` tool in each deepwork child agent. When a child needs a decision from you, it sends a structured question to the top-level orchestrator session, which forwards it to you via `ask_user` and relays your answer back. Naming your top-level pi session with `/name <something>` before running `/deepwork` improves recipient clarity in multi-session setups, but is not required — pi-intercom provides a fallback alias automatically.
+  `pi-intercom` must remain enabled (`enabled: true` in `~/.pi/agent/intercom/config.json`, which is the default). Deepwork child agents use the child-safe `subagent` tool for nested fanout and use `contact_supervisor` only when they need a decision, interview answer, or progress update relayed through the top-level orchestrator. Naming your top-level pi session with `/name <something>` before running `/deepwork` improves recipient clarity in multi-session setups, but is not required — pi-intercom provides a fallback alias automatically.
 - `git` available on `PATH` for stage-boundary checkpoint commits (optional — the pipeline degrades gracefully without it).
 
 ## Install
@@ -63,11 +62,7 @@ curl -sSL https://raw.githubusercontent.com/n3m6/pi-deepwork/main/install.sh | b
 ls ~/.pi/agent/agents/qrspi-*.md | wc -l   # should print 55
 ```
 
-Inside pi:
-
-```text
-subagent list | grep qrspi-                # should list 55 qrspi-* agents
-```
+Inside pi, verify that the `subagent` tool can list the 55 `qrspi-*` agents before you run `/deepwork`.
 
 ## Use
 

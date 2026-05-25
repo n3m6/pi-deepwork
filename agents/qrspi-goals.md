@@ -1,12 +1,11 @@
 ---
 name: qrspi-goals
 description: "Stage 1 orchestrator — captures user intent via interactive dialogue or automated policy, dispatches goals synthesizer and reviewer, and runs or auto-resolves the approval gate. Writes requirements.md, goals.md, and config.md."
-tools: read, bash, grep, find, ls, write, edit
+tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 80
-prompt_mode: replace
-extensions: true
+extensions: pi-intercom
 systemPromptMode: replace
 ---
 
@@ -159,22 +158,24 @@ Assemble the **Interview Record** — every branch, its source tag (`user-answer
 
 ### Step B — Dispatch Synthesizer
 
-Send a spawn request for `qrspi-goals-synthesizer` via `contact_supervisor`:
+Call `subagent` for `qrspi-goals-synthesizer`:
 
 ```
-contact_supervisor({
-  reason: "spawn_request",
-  message: "Delegating goals synthesis to qrspi-goals-synthesizer.",
-  spawn: {
-    subagent_type: "qrspi-goals-synthesizer",
-    description: "Synthesize goals from interview record",
-    prompt: "=== RUN ID ===\n[paste the run ID verbatim]\n\n=== USER TASK ===\n[paste the user's original task description verbatim]\n\n=== INTERVIEW RECORD ===\n[paste the full interview record verbatim \u2014 each branch, its source tag, and its resolved content]",
-    run_id: "<run-id>"
-  }
+subagent({
+  agent: "qrspi-goals-synthesizer",
+  context: "fresh",
+  task: `=== RUN ID ===
+[paste the run ID verbatim]
+
+=== USER TASK ===
+[paste the user's original task description verbatim]
+
+=== INTERVIEW RECORD ===
+[paste the full interview record verbatim — each branch, its source tag, and its resolved content]`
 })
 ```
 
-Capture `handle` and poll (cadence: `bash sleep 10`) until `state === "completed"`. Use `result` as the return text.
+Use the returned subagent result as the synthesizer return text.
 
 ### Step C — Write Artifacts
 
@@ -187,29 +188,31 @@ When `qrspi-goals-synthesizer` completes:
 
 Set `review_round = 1`. Create `.pipeline/<run-id>/reviews/` if needed (`bash: mkdir -p`).
 
-**Each round:** Send a spawn request for `qrspi-goals-reviewer` via `contact_supervisor`:
+**Each round:** Call `subagent` for `qrspi-goals-reviewer`:
 
 ```
-contact_supervisor({
-  reason: "spawn_request",
-  message: "Delegating goals review to qrspi-goals-reviewer.",
-  spawn: {
-    subagent_type: "qrspi-goals-reviewer",
-    description: "Review goals artifacts",
-    prompt: "=== REQUIREMENTS ===\n[paste contents of requirements.md verbatim]\n\n=== INTERVIEW RECORD ===\n[paste the full interview record verbatim]\n\n=== GOALS ===\n[paste contents of goals.md verbatim]",
-    run_id: "<run-id>"
-  }
+subagent({
+  agent: "qrspi-goals-reviewer",
+  context: "fresh",
+  task: `=== REQUIREMENTS ===
+[paste contents of requirements.md verbatim]
+
+=== INTERVIEW RECORD ===
+[paste the full interview record verbatim]
+
+=== GOALS ===
+[paste contents of goals.md verbatim]`
 })
 ```
 
-Capture `handle` and poll (cadence: `bash sleep 10`) until completed. Use `result` as the return text.
+Use the returned subagent result as the reviewer return text.
 
 Write the reviewer output to `.pipeline/<run-id>/reviews/goals-review-round-{NN}.md`.
 
 **Loop decision (apply in order):**
 
 - PASS → stop; terminal state `clean`.
-- FAIL and `review_round < 5` → send a spawn request for `qrspi-goals-synthesizer` with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output verbatim]; capture handle and poll until completed; overwrite `goals.md` and `config.md`; increment `review_round`; continue.
+- FAIL and `review_round < 5` → call `subagent` for `qrspi-goals-synthesizer` with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output verbatim]; use the returned subagent result to overwrite `goals.md` and `config.md`; increment `review_round`; continue.
 - FAIL and `review_round = 5` → stop; terminal state `unclean-cap`.
 
 `requirements.md` is never overwritten during this loop.
@@ -284,7 +287,7 @@ Select **approve** to proceed, or provide feedback for revision.
 
    Do not include `### Rejected Artifact` blocks.
 
-   f. Re-dispatch `qrspi-goals-synthesizer` via Agent with Run ID, User Task, original Interview Record, and `=== FEEDBACK HISTORY ===` [all feedback files verbatim].
+  f. Re-dispatch `qrspi-goals-synthesizer` via `subagent` with Run ID, User Task, original Interview Record, and `=== FEEDBACK HISTORY ===` [all feedback files verbatim].
    g. On return, overwrite `goals.md` and `config.md`, reset `review_round = 1`, return to Step D.
 
 ### Return

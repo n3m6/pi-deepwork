@@ -5,9 +5,7 @@ tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 40
-prompt_mode: replace
-extensions: true
-enabled: false
+extensions:
 systemPromptMode: replace
 ---
 
