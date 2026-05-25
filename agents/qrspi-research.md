@@ -242,7 +242,8 @@ Write the output to `.pipeline/<run-id>/reviews/research-review-round-{NN}.md`.
 3. If `### Routing Recommendation — generate-follow-up-questions`:
    - If `### Open Questions — None.` or `### Follow-Up Scope — None.`, treat that as a stall and return PASS with `terminal_review_state = "stable-cap"`.
    - Compare a whitespace-normalized form of `### Open Questions` with `prior_open_questions_normalized`. If identical, return PASS with `terminal_review_state = "stable-cap"`.
-  - Update `research/open-questions.md`, set `prior_open_questions_normalized`, increment `current_round`, create the next round directory, and call `subagent` for `qrspi-questions` in follow-up mode.
+
+- Update `research/open-questions.md`, set `prior_open_questions_normalized`, increment `current_round`, create the next round directory, and call `subagent` for `qrspi-questions` in follow-up mode.
 
 Follow-up question call:
 

@@ -199,16 +199,17 @@ Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 - PASS: stop. Terminal state: `clean`.
 - FAIL and `review_round >= 2` and the current round's `### Fix Guidance` is identical to the prior round's `### Fix Guidance` after whitespace normalization (collapse runs of whitespace, strip leading/trailing whitespace per line): stop. Terminal state: `stable-cap`. Do not regenerate the plan again — the writer is not converging.
 - FAIL and `review_round < 6`:
-  1. Extract the single most important defect as `ROOT CAUSE OF FAILURE`. Tie-break order: blocking correctness > missing coverage > vague outlines > style.
-  2. Write one sentence on what must change as `MUTATION INSTRUCTION`.
-  3. Call `subagent` for `qrspi-plan-writer` with the mutation prompt:
+  1.  Extract the single most important defect as `ROOT CAUSE OF FAILURE`. Tie-break order: blocking correctness > missing coverage > vague outlines > style.
+  2.  Write one sentence on what must change as `MUTATION INSTRUCTION`.
+  3.  Call `subagent` for `qrspi-plan-writer` with the mutation prompt:
 
-     ```
-     subagent({
-       agent: "qrspi-plan-writer",
-       context: "fresh",
-       task: `=== RUN ID ===
-[run ID]
+           ```
+           subagent({
+             agent: "qrspi-plan-writer",
+             context: "fresh",
+             task: `=== RUN ID ===
+
+      [run ID]
 
 === CURRENT PLAN ===
 [contents of plan.md verbatim]
@@ -232,14 +233,14 @@ Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 
 === REVIEW FEEDBACK ===
 [the ### Fix Guidance section from the reviewer output verbatim]`
-     })
-     ```
+})
+```
 
      Use the returned subagent result as the return text.
 
-  4. Archive any `tasks/outlines/task-NN.outline` files absent from the returned outline set into `tasks/outlines/inactive/`.
-  5. Write updated `plan.md`, `phase-manifest.md`, and `tasks/outlines/task-NN.outline` files.
-  6. Increment `review_round` and continue the loop.
+4. Archive any `tasks/outlines/task-NN.outline` files absent from the returned outline set into `tasks/outlines/inactive/`.
+5. Write updated `plan.md`, `phase-manifest.md`, and `tasks/outlines/task-NN.outline` files.
+6. Increment `review_round` and continue the loop.
 
 - FAIL and `review_round = 6`: stop. Terminal state: `unclean-cap`. Continue to task-spec generation; deepwork escalates this state via the Stage 6 unclean-cap question gate.
 

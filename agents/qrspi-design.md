@@ -115,23 +115,25 @@ Each iteration:
      agent: "qrspi-design-reviewer",
      context: "fresh",
      task: `=== GOALS ===
-[contents of goals.md]
+   [contents of goals.md]
+   ```
 
 === RESEARCH SUMMARY ===
 [contents of research/summary.md]
 
 === DESIGN ===
 [contents of design.md]`
-   })
-   ```
+})
 
-   Use the returned subagent result as the return text.
+```
+
+Use the returned subagent result as the return text.
 
 2. Write output to `.pipeline/<run-id>/reviews/design-review-round-{NN}.md`.
 3. Branch:
-   - **PASS** → exit loop, `terminal_state = clean`
-  - **FAIL and `review_round < 5`** → call `subagent` for the synthesizer with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output]; overwrite `design.md`; `review_round++`; repeat
-   - **FAIL and `review_round == 5`** → exit loop, `terminal_state = unclean-cap`
+- **PASS** → exit loop, `terminal_state = clean`
+- **FAIL and `review_round < 5`** → call `subagent` for the synthesizer with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output]; overwrite `design.md`; `review_round++`; repeat
+- **FAIL and `review_round == 5`** → exit loop, `terminal_state = unclean-cap`
 
 ### Step E — Approval Gate
 
@@ -140,7 +142,9 @@ If `interaction_mode = automated`, do not call `ask_user` or `contact_supervisor
 Before each `contact_supervisor` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the supervisor replies, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
+
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
+
 ```
 
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
@@ -148,19 +152,22 @@ Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-g
 Read `.pipeline/<run-id>/design.md` using the Read tool and present via `contact_supervisor` with `reason: "interview_request"`, `message` containing the review status, artifact path, and full design artifact, and:
 
 ```
+
 interview: {
-  title: "Design approval",
-  questions: [
-    {id: "decision", type: "single", question: "Approve this design or provide revision feedback?", options: ["approve", "provide feedback"]},
-    {id: "feedback", type: "text", question: "If providing feedback, enter it here (leave blank if approving):"},
-    {id: "comment", type: "text", question: "Optional comment:"}
-  ]
+title: "Design approval",
+questions: [
+{id: "decision", type: "single", question: "Approve this design or provide revision feedback?", options: ["approve", "provide feedback"]},
+{id: "feedback", type: "text", question: "If providing feedback, enter it here (leave blank if approving):"},
+{id: "comment", type: "text", question: "Optional comment:"}
+]
 }
+
 ```
 
 Message body:
 
 ```
+
 ### Design — Review
 
 Review status: [clean → "Automated reviews passed clean in round {NN}." / unclean-cap → "Automated reviews reached the 5-round cap; remaining concerns are documented in reviews/design-review-round-05.md."]
@@ -168,6 +175,7 @@ Review status: [clean → "Automated reviews passed clean in round {NN}." / uncl
 Review the full artifact at `.pipeline/<run-id>/design.md`.
 
 Select **approve** to proceed, or **provide feedback** for revision.
+
 ```
 
 On approval (response `id: "decision"` value is "approve"): proceed to Return.
@@ -177,13 +185,19 @@ On feedback (response `id: "decision"` value is "provide feedback", or non-empty
 1. Increment rejection counter (first = round 1).
 2. `bash: mkdir -p .pipeline/<run-id>/feedback`
 3. Write `.pipeline/<run-id>/feedback/design-round-{NN}.md`:
-   ```
-   ## Round {NN} Feedback
-   ### User Feedback
-   [verbatim feedback]
-   ### Rejected Artifact
-   [full content of the rejected design.md]
-   ```
+```
+
+## Round {NN} Feedback
+
+### User Feedback
+
+[verbatim feedback]
+
+### Rejected Artifact
+
+[full content of the rejected design.md]
+
+```
 4. Read `.pipeline/<run-id>/feedback/design-round-*.md` using the Read tool.
 5. Send a spawn request for synthesizer with original inputs plus `=== FEEDBACK HISTORY ===` [all feedback content]. Capture handle and poll until completed.
 6. Overwrite `design.md`, reset `review_round = 1`, return to Step D.
@@ -193,17 +207,29 @@ On feedback (response `id: "decision"` value is "provide feedback", or non-empty
 On success:
 
 ```
+
 ### Status — PASS
+
 ### Files Written — design.md, reviews/design-review-round-{NN}.md
+
 ### Summary — Design approved. Approach: [name]. Final review state: [clean|unclean-cap].
+
 ### Telemetry — {"review_rounds": <N>, "gate_status": "approved", "gate_mode": "interactive|automated", "gate_rounds": <rejections before approval>, "gate_wait_time_s": <seconds>, "gate_round_details": [{"round": 1, "decision": "approved", "presented_at": "<ts>", "responded_at": "<ts>"}]}
+
 ```
 
 On unrecoverable failure (missing required input, malformed child return, or failed file operation):
 
 ```
+
 ### Status — FAIL
+
 ### Files Written — [files written before failure]
+
 ### Summary — [description of what failed]
+
 ### Telemetry — {"review_rounds": <N completed>, "gate_status": "none", "gate_rounds": 0, "gate_wait_time_s": 0, "gate_round_details": []}
+
+```
+
 ```

@@ -18,10 +18,12 @@ You are a **thin dispatcher**. Each stage subagent handles its own internal logi
 5. **STOP AFTER SUBAGENT DISPATCH.** After invoking a subagent with the `subagent` tool, do not write anything further — end your turn and wait for the subagent response. All other tool calls (edit, bash, write) do NOT end your turn — continue executing.
 6. **USE `ask_user` ONLY AT INTERACTIVE HUMAN GATES.** Do not probe `ask_user` before stage dispatch. When `interaction_mode: interactive` reaches a human gate, call `ask_user` directly. Use `displayMode: "inline"`, `allowMultiple: false`, `allowFreeform: true`, and `allowComment: true` for decision gates unless the gate text says otherwise. If `ask_user` is unavailable at that point, report `Deepwork configuration error` and stop.
 7. **FORWARD INBOUND CHILD INTERCOM ASKS.** If a turn is triggered by an inbound `intercom` message from a deepwork child subagent (heuristic: message body contains a `Run:` metadata line), do not answer from skill knowledge. Handle each documented `contact_supervisor` reason as follows:
-  - `reason: "interview_request"` — map each `interview.questions[]` entry to one `ask_user` call (use `displayMode: "inline"`, `allowFreeform: true`, and `allowComment: true` per gate conventions). Collect all answers, then call `intercom({ action: "reply", message: "{\"responses\":[{\"id\":\"<qid>\",\"value\":<answer>},...]}" })`. On user cancellation, reply `{"responses":[],"cancelled":true}`.
-  - `reason: "need_decision"` — call one `ask_user` with the supervisor message as `question` and `allowFreeform: true`. Collect the answer, then reply via `intercom({ action: "reply", ... })` in the same `{"responses":[...]}` envelope. On cancellation reply `{"responses":[],"cancelled":true}`.
-  - `reason: "progress_update"` — do NOT call `ask_user` and do NOT invent a reply. Treat the message as informational: if this turn exists only to surface the update, acknowledge it briefly and stop; if you are already at a stage boundary, carry the update into the next user-facing status summary. Never convert a progress update into a human gate.
-     Never fabricate answers. Never invent intercom targets. Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
+
+- `reason: "interview_request"` — map each `interview.questions[]` entry to one `ask_user` call (use `displayMode: "inline"`, `allowFreeform: true`, and `allowComment: true` per gate conventions). Collect all answers, then call `intercom({ action: "reply", message: "{\"responses\":[{\"id\":\"<qid>\",\"value\":<answer>},...]}" })`. On user cancellation, reply `{"responses":[],"cancelled":true}`.
+- `reason: "need_decision"` — call one `ask_user` with the supervisor message as `question` and `allowFreeform: true`. Collect the answer, then reply via `intercom({ action: "reply", ... })` in the same `{"responses":[...]}` envelope. On cancellation reply `{"responses":[],"cancelled":true}`.
+- `reason: "progress_update"` — do NOT call `ask_user` and do NOT invent a reply. Treat the message as informational: if this turn exists only to surface the update, acknowledge it briefly and stop; if you are already at a stage boundary, carry the update into the next user-facing status summary. Never convert a progress update into a human gate.
+  Never fabricate answers. Never invent intercom targets. Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
+
 8. **PARSE STAGE RETURNS.** Every stage subagent returns a structured response with `### Status`, `### Files Written`, and `### Summary`. Some stages also return `### Route` or `### Backward Loop Request`. Parse these to decide next action.
 9. **WRITE `state.md` AFTER EVERY TRANSITION.** Deepwork owns pipeline recovery. After each successful stage transition, overwrite `.pipeline/qrspi-<run-id>/state.md` so a later resume can recover the next stage and current phase. Preserve `interaction_mode` and `failure_policy` on every rewrite.
 10. **COMMIT AFTER EVERY STAGE BOUNDARY.** After each successful stage completion or quick-fix skip, once `state.md` reflects the new stage boundary, run `git status --short`. If the worktree is dirty, run `git add -A` and `git commit -m "qrspi: stage <N> <name> <complete|skipped>"` before proceeding. If the worktree is already clean, skip the commit without error.
@@ -281,8 +283,8 @@ subagent({
 <run-id>
 
 === INPUT ===
-...`
-})
+...`,
+});
 ```
 
 **Parallel batch example:**
@@ -292,9 +294,9 @@ subagent({
   context: "fresh",
   tasks: [
     { agent: "qrspi-question-leakage-reviewer", task: `...` },
-    { agent: "qrspi-question-quality-reviewer", task: `...` }
-  ]
-})
+    { agent: "qrspi-question-quality-reviewer", task: `...` },
+  ],
+});
 ```
 
 Use `tasks` for independent parallel fanout, `chain` only when a later child needs `{previous}` from an earlier child, and reserve `contact_supervisor` for `need_decision`, `interview_request`, or `progress_update`. Do not invent `spawn_request`, `spawn_poll`, or custom child-handle protocols.
@@ -602,8 +604,8 @@ subagent({
 [fail-closed or best-effort from state.md]
 
 === USER TASK ===
-[paste the user's original task description verbatim]`
-})
+[paste the user's original task description verbatim]`,
+});
 ```
 
 When `qrspi-goals` completes:
@@ -634,8 +636,8 @@ subagent({
 [interactive or automated from state.md]
 
 === FAILURE POLICY ===
-[fail-closed or best-effort from state.md]`
-})
+[fail-closed or best-effort from state.md]`,
+});
 ```
 
 When `qrspi-research` completes:
@@ -667,8 +669,8 @@ subagent({
 [interactive or automated from state.md]
 
 === FAILURE POLICY ===
-[fail-closed or best-effort from state.md]`
-})
+[fail-closed or best-effort from state.md]`,
+});
 ```
 
 When `qrspi-design` completes:
@@ -700,8 +702,8 @@ subagent({
 [interactive or automated from state.md]
 
 === FAILURE POLICY ===
-[fail-closed or best-effort from state.md]`
-})
+[fail-closed or best-effort from state.md]`,
+});
 ```
 
 When `qrspi-structure` completes:
@@ -806,8 +808,8 @@ subagent({
 [current phase number]
 
 === PHASE DIR ===
-phases/phase-[NN]`
-})
+phases/phase-[NN]`,
+});
 ```
 
 For quick-fix route, always pass:
@@ -855,8 +857,8 @@ subagent({
 [fail-closed or best-effort from state.md]
 
 === PHASE DIR ===
-phases/phase-[NN]`
-})
+phases/phase-[NN]`,
+});
 ```
 
 For quick-fix route, always pass:
@@ -919,8 +921,8 @@ subagent({
 phases/phase-[NN]
 
 === NEXT PHASE DIR ===
-phases/phase-[NN+1]`
-})
+phases/phase-[NN+1]`,
+});
 ```
 
 When `qrspi-replan` completes:
@@ -964,8 +966,8 @@ subagent({
   context: "fresh",
   task: `
 === RUN ID ===
-<run-id>`
-})
+<run-id>`,
+});
 ```
 
 When `qrspi-verify` completes:
@@ -1001,8 +1003,8 @@ subagent({
   context: "fresh",
   task: `
 === RUN ID ===
-<run-id>`
-})
+<run-id>`,
+});
 ```
 
 When `qrspi-report` completes:

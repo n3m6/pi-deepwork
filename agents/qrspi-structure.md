@@ -97,11 +97,11 @@ Use the returned subagent result as the return text.
 4. Write the reviewer output to `.pipeline/<run-id>/reviews/structure-review-round-{NN}.md`.
 5. Apply this routing in order:
 
-| Condition                    | Action                                                                                                                                                                 |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PASS                         | Terminal state: `clean`. Proceed to human gate                                                                                                                         |
+| Condition                    | Action                                                                                                                                                                      |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PASS                         | Terminal state: `clean`. Proceed to human gate                                                                                                                              |
 | FAIL and `review_round < 5`  | Call `subagent` for the mapper with the original inputs plus `=== REVIEW FEEDBACK === [reviewer output]`. Overwrite `structure.md`, increment `review_round`, continue loop |
-| FAIL and `review_round == 5` | Terminal state: `unclean-cap`. Proceed to human gate                                                                                                                   |
+| FAIL and `review_round == 5` | Terminal state: `unclean-cap`. Proceed to human gate                                                                                                                        |
 
 ### Step D — Approval Gate
 

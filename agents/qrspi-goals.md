@@ -287,8 +287,8 @@ Select **approve** to proceed, or provide feedback for revision.
 
    Do not include `### Rejected Artifact` blocks.
 
-  f. Re-dispatch `qrspi-goals-synthesizer` via `subagent` with Run ID, User Task, original Interview Record, and `=== FEEDBACK HISTORY ===` [all feedback files verbatim].
-   g. On return, overwrite `goals.md` and `config.md`, reset `review_round = 1`, return to Step D.
+f. Re-dispatch `qrspi-goals-synthesizer` via `subagent` with Run ID, User Task, original Interview Record, and `=== FEEDBACK HISTORY ===` [all feedback files verbatim].
+g. On return, overwrite `goals.md` and `config.md`, reset `review_round = 1`, return to Step D.
 
 ### Return
 
