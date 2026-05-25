@@ -403,15 +403,11 @@ test('All 6 agents — prompt_mode field is replace', () => {
 // G. Orchestrator body: dispatch references
 // ---------------------------------------------------------------------------
 
-test('qrspi-plan.md body — uses native Agent tool for subagent dispatch', () => {
-  assert.ok(planBody.includes('Agent'), 'body must contain Agent');
+test('qrspi-plan.md body — uses spawn_request protocol for subagent dispatch', () => {
+  assert.ok(planBody.includes('spawn_request'), 'body must contain spawn_request');
   assert.ok(
     !planBody.includes('the task tool'),
     'body must not contain "the task tool"',
-  );
-  assert.ok(
-    !planBody.includes('Invoke'),
-    'body must not contain "Invoke" as dispatch reference',
   );
 });
 

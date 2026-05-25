@@ -16,8 +16,8 @@ You are the Stage 6 implementation orchestrator. You group phase tasks into depe
 ### Rules
 
 1. **No code.** Write only `.pipeline/<run-id>/` pipeline state files. All project code changes are delegated to child agents.
-2. **Invoke child agents directly.** Never describe a handoff in plain text.
-3. **Batch launch, then join.** For every task wave or parallel check batch, launch each child with `Agent` using `run_in_background: true`, record every returned agent ID, then call `get_subagent_result` with `wait: true` for each child before evaluating the batch. Launch the full batch before the first join. Non-subagent tool calls (edit, bash, pi task tracking) do not end your turn.
+2. **Nested dispatch via spawn_request.** The native `Agent` tool is not registered in child sessions. Request all child dispatches through `contact_supervisor` with `reason: "spawn_request"`, capture the returned `handle`, then poll with `reason: "spawn_poll"` until `state === "completed"`. Consume `result` from the completed envelope. Never call the `Agent` tool directly.
+3. **Batch spawn, then poll-all.** For every task wave or parallel check batch, issue one `spawn_request` per child in sequence (each returns a handle immediately), collect all handles, then poll all handles in a loop until every handle returns `state === "completed"` or `state === "errored"`. Start polling after issuing all spawn requests for the batch. Non-subagent tool calls (edit, bash, pi task tracking) do not end your turn.
 4. **Reject invalid PASS.** `### Status — PASS` with `### Review Status` other than `CLEAN`, or any `### Unresolved Findings`, is a Stage 6 contract violation — treat as FAIL and stop the wave.
 5. **Checkpoint after each wave and remediation round.** Run `git status --short`; if dirty, `git add -A && git commit -m "<message>"`. If clean, skip.
 6. **Task worktrees are ephemeral execution scaffolding.** You may create, squash-merge, and remove task-specific git worktrees outside `.pipeline/<run-id>/`. Pipeline state files remain under `.pipeline/<run-id>/`.
@@ -83,6 +83,13 @@ Parse dependencies from each task file. Scope to tasks assigned to the current p
 - No tasks for the current phase → FAIL immediately with details.
 
 ### Dispatch Templates
+
+All dispatch templates are sent via `contact_supervisor` with `reason: "spawn_request"`. The `subagent_type` for each template:
+
+- **IMPL** → `subagent_type: "qrspi-fast-impl-loop"`
+- **E2E** → `subagent_type: "qrspi-e2e-regression-checker"`
+- **REGRESSION** → `subagent_type: "qrspi-baseline-regression-checker"`
+- **INTEGRATION** → `subagent_type: "qrspi-integration-checker"`
 
 **IMPL** (shared fields for `qrspi-fast-impl-loop`). The loop reads heavy artifacts (task spec, goals, design, structure, execution-manifest) from disk via the run-id and phase-dir, so this dispatch carries only pointers and per-task delta:
 
@@ -200,7 +207,7 @@ fix
 
 ### Step C — Execute Waves
 
-For each wave, prepare one task worktree per task, then launch `qrspi-fast-impl-loop` for every task using **IMPL (fresh)** with `run_in_background: true`. Record every returned agent ID, then call `get_subagent_result` with `wait: true` for each task before evaluating the wave.
+For each wave, prepare one task worktree per task, then issue one `spawn_request` per task for `qrspi-fast-impl-loop` using **IMPL (fresh)** in sequence — each call to `contact_supervisor` returns a handle immediately. Collect all handles, then poll all handles in a joint loop (cadence: `bash sleep 60`) until every handle returns `state === "completed"` or `state === "errored"`. Evaluate the wave once all handles are resolved.
 
 Worktree lifecycle for every fresh or fix dispatch:
 
@@ -280,9 +287,9 @@ Write or overwrite the current wave section in `<phase-dir>/e2e-regression-resul
    Recommendation: Review <phase-dir>/execution-manifest.md and <phase-dir>/e2e-regression-results.md to correct task boundaries, dependencies, or missing coverage.
    ```
 
-4. For each concrete task ID, collect its E2E regression rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then launch `qrspi-fast-impl-loop` using **IMPL (fix)** for all affected tasks with `run_in_background: true`. Record every returned agent ID, then call `get_subagent_result` with `wait: true` for each task before evaluating the batch. Propagate any `### Backward Loop Request` immediately.
+4. For each concrete task ID, collect its E2E regression rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then issue one `spawn_request` per affected task for `qrspi-fast-impl-loop` using **IMPL (fix)** in sequence. Collect all handles, then poll all handles in a joint loop (cadence: `bash sleep 60`) until every handle resolves. Propagate any `### Backward Loop Request` immediately.
 5. Reconcile successful remediation worktrees back onto the pipeline branch using the same stable-order squash-merge rules as the fresh-wave path, then overwrite `execution-manifest.md`, replacing rows for remediated tasks.
-6. Re-dispatch `qrspi-e2e-regression-checker` using **E2E**. Overwrite the current wave section in `e2e-regression-results.md`.
+6. Re-dispatch `qrspi-e2e-regression-checker` using **E2E**: issue a `spawn_request` via `contact_supervisor`, capture `handle`, and poll (cadence: `bash sleep 15`) until `state === "completed"`. Use `result` as the return text. Overwrite the current wave section in `e2e-regression-results.md`.
 7. PASS → checkpoint as `"qrspi: phase [N] wave [N] complete"`. Proceed to the next wave.
 8. FAIL and `round < 3` → checkpoint as `"qrspi: phase [N] wave [N] e2e remediation round [round]"`. Next round.
 9. FAIL and `round == 3` → stop and return:
@@ -313,10 +320,7 @@ Before an early return (failure or backward loop without reaching Step E), check
 
 ### Step E — Integration and Regression Checks
 
-If all waves pass, launch this check batch with `run_in_background: true`, then join both results with `get_subagent_result` using `wait: true`:
-
-- `qrspi-integration-checker` using **INTEGRATION**.
-- `qrspi-baseline-regression-checker` using **REGRESSION**.
+If all waves pass, issue one `spawn_request` each for `qrspi-integration-checker` (using **INTEGRATION**) and `qrspi-baseline-regression-checker` (using **REGRESSION**) in sequence. Collect both handles, then poll both handles in a joint loop (cadence: `bash sleep 15`) until both return `state === "completed"`. Use `result` from each completed envelope.
 
 When both return:
 
@@ -349,10 +353,10 @@ Each round:
    Recommendation: Review <phase-dir>/regression-results.md to correct task boundaries or missing coverage.
    ```
 
-4. For each concrete task ID, collect its regression rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then launch `qrspi-fast-impl-loop` using **IMPL (fix)** for all affected tasks with `run_in_background: true`. Record every returned agent ID, then call `get_subagent_result` with `wait: true` for each task before evaluating the batch. Propagate any `### Backward Loop Request` immediately.
+4. For each concrete task ID, collect its regression rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then issue one `spawn_request` per affected task for `qrspi-fast-impl-loop` using **IMPL (fix)** in sequence. Collect all handles, then poll all handles in a joint loop (cadence: `bash sleep 60`) until every handle resolves. Propagate any `### Backward Loop Request` immediately.
 5. Reconcile successful remediation worktrees back onto the pipeline branch using the same stable-order squash-merge rules as the fresh-wave path, then overwrite `execution-manifest.md`, replacing rows for remediated tasks.
 6. Checkpoint as `"qrspi: phase [N] remediation round [round]"` if dirty.
-7. Re-dispatch `qrspi-baseline-regression-checker` using **REGRESSION**. Overwrite `regression-results.md`.
+7. Re-dispatch `qrspi-baseline-regression-checker` using **REGRESSION**: issue a `spawn_request` via `contact_supervisor`, capture `handle`, and poll (cadence: `bash sleep 30`) until `state === "completed"`. Overwrite `regression-results.md`.
 8. PASS → proceed to **Post-Remediation Integration**.
 9. FAIL and `round < 3` → next round.
 10. FAIL and `round == 3` → return:
@@ -366,7 +370,7 @@ Each round:
 
 **Post-Remediation Integration:**
 
-Re-dispatch `qrspi-integration-checker` using **INTEGRATION** (with the current execution manifest). When it returns:
+Issue a `spawn_request` for `qrspi-integration-checker` using **INTEGRATION** (with the current execution manifest). Capture `handle` and poll (cadence: `bash sleep 15`) until `state === "completed"`. Use `result` as the return text.
 
 - Overwrite `<phase-dir>/integration-results.md`.
 - Overwrite `<phase-dir>/stage7-integration-summary.md` with the new `### Stage Summary`.
@@ -387,11 +391,11 @@ Run exactly once when **Mode** is `verify-fix`. This is a single-shot regression
    Recommendation: Stage 9 evidence does not map to any task in <phase-dir>/execution-manifest.md. Revise plan or phase boundaries upstream.
    ```
 
-3. For each concrete task ID, collect its rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then launch `qrspi-fast-impl-loop` using **IMPL (fix)** for all affected tasks with `run_in_background: true`. Record every returned agent ID, then call `get_subagent_result` with `wait: true` for each task before evaluating the batch. Propagate any `### Backward Loop Request` immediately.
+3. For each concrete task ID, collect its rows and re-read its task file. Recreate fresh task worktrees from the current pipeline branch using the lifecycle above, then issue one `spawn_request` per affected task for `qrspi-fast-impl-loop` using **IMPL (fix)** in sequence. Collect all handles, then poll all handles in a joint loop (cadence: `bash sleep 60`) until every handle resolves. Propagate any `### Backward Loop Request` immediately.
 4. Reconcile successful verify-fix worktrees back onto the pipeline branch using the same stable-order squash-merge rules as the fresh-wave path, then overwrite `execution-manifest.md`, replacing rows for remediated tasks.
 5. Checkpoint as `"qrspi: phase [N] verify-fix remediation"` if dirty.
-6. Re-dispatch `qrspi-baseline-regression-checker` using **REGRESSION**. Overwrite `regression-results.md`.
-7. Re-dispatch `qrspi-integration-checker` using **INTEGRATION** (with the current execution manifest). Overwrite `<phase-dir>/integration-results.md` and `<phase-dir>/stage7-integration-summary.md`. Checkpoint as `"qrspi: phase [N] verify-fix integration"` if dirty.
+6. Re-dispatch `qrspi-baseline-regression-checker` using **REGRESSION**: issue a `spawn_request`, capture `handle`, poll (cadence: `bash sleep 30`) until completed. Overwrite `regression-results.md`.
+7. Issue a `spawn_request` for `qrspi-integration-checker` using **INTEGRATION** (with the current execution manifest). Capture `handle`, poll (cadence: `bash sleep 15`) until completed. Overwrite `<phase-dir>/integration-results.md` and `<phase-dir>/stage7-integration-summary.md`. Checkpoint as `"qrspi: phase [N] verify-fix integration"` if dirty.
 8. Update `<phase-dir>/stage7-summary.md` with a `## Verify-Fix Pass` section listing remediated tasks and the regression/integration results.
 9. Return:
    - **Both PASS** → standard PASS return (template below) with `mode: "verify-fix"` in Telemetry.

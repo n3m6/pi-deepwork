@@ -42,23 +42,22 @@ Use the Read tool for each file.
 
 ### Step B — Dispatch Structure Mapper
 
-Use the Agent tool with subagent_type: "qrspi-structure-mapper":
+Send a spawn request for `qrspi-structure-mapper` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[paste contents of goals.md verbatim]
-
-=== REQUIREMENTS ===
-[paste contents of requirements.md verbatim]
-
-=== RESEARCH SUMMARY ===
-[paste contents of research/summary.md verbatim]
-
-=== DESIGN ===
-[paste contents of design.md verbatim]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating structure mapping to qrspi-structure-mapper.",
+  spawn: {
+    subagent_type: "qrspi-structure-mapper",
+    description: "Map file structure and interfaces",
+    prompt: "=== GOALS ===\n[paste contents of goals.md verbatim]\n\n=== REQUIREMENTS ===\n[paste contents of requirements.md verbatim]\n\n=== RESEARCH SUMMARY ===\n[paste contents of research/summary.md verbatim]\n\n=== DESIGN ===\n[paste contents of design.md verbatim]",
+    run_id: "<run-id>"
+  }
+})
 ```
 
-When `qrspi-structure-mapper` completes, write the output to `.pipeline/<run-id>/structure.md`.
+Capture `handle` and poll (cadence: `bash sleep 10`) until `state === "completed"`. Use `result` as the return text. Write the result to `.pipeline/<run-id>/structure.md`.
 
 ### Step C — Automated Review Loop
 
@@ -66,33 +65,31 @@ Quality enforcement is delegated to `qrspi-structure-reviewer`. Treat any review
 
 1. Set `review_round = 1`.
 2. `bash: mkdir -p .pipeline/<run-id>/reviews`
-3. Use the Agent tool with subagent_type: "qrspi-structure-reviewer":
+3. Send a spawn request for `qrspi-structure-reviewer` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[paste contents of goals.md verbatim]
-
-=== REQUIREMENTS ===
-[paste contents of requirements.md verbatim]
-
-=== RESEARCH SUMMARY ===
-[paste contents of research/summary.md verbatim]
-
-=== DESIGN ===
-[paste contents of design.md verbatim]
-
-=== STRUCTURE ===
-[paste contents of structure.md verbatim]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating structure review to qrspi-structure-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-structure-reviewer",
+    description: "Review structure document",
+    prompt: "=== GOALS ===\n[paste contents of goals.md verbatim]\n\n=== REQUIREMENTS ===\n[paste contents of requirements.md verbatim]\n\n=== RESEARCH SUMMARY ===\n[paste contents of research/summary.md verbatim]\n\n=== DESIGN ===\n[paste contents of design.md verbatim]\n\n=== STRUCTURE ===\n[paste contents of structure.md verbatim]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 10`) until completed. Use `result` as the return text.
 
 4. Write the reviewer output to `.pipeline/<run-id>/reviews/structure-review-round-{NN}.md`.
 5. Apply this routing in order:
 
-| Condition                    | Action                                                                                                                                                      |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PASS                         | Terminal state: `clean`. Proceed to human gate                                                                                                              |
-| FAIL and `review_round < 5`  | Re-dispatch mapper with original inputs plus `=== REVIEW FEEDBACK === [reviewer output]`. Overwrite `structure.md`, increment `review_round`, continue loop |
-| FAIL and `review_round == 5` | Terminal state: `unclean-cap`. Proceed to human gate                                                                                                        |
+| Condition                    | Action                                                                                                                                                                 |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PASS                         | Terminal state: `clean`. Proceed to human gate                                                                                                                         |
+| FAIL and `review_round < 5`  | Send spawn request for mapper with original inputs plus `=== REVIEW FEEDBACK === [reviewer output]`. Overwrite `structure.md`, increment `review_round`, continue loop |
+| FAIL and `review_round == 5` | Terminal state: `unclean-cap`. Proceed to human gate                                                                                                                   |
 
 ### Step D — Approval Gate
 
@@ -151,7 +148,7 @@ Select **approve** to proceed, or provide your feedback for revision.
 ```
 
 d. `Read .pipeline/<run-id>/feedback/structure-round-*.md`
-e. Re-dispatch `qrspi-structure-mapper` with original inputs plus `=== FEEDBACK HISTORY === [all feedback files]`.
+e. Send a spawn request for `qrspi-structure-mapper` with original inputs plus `=== FEEDBACK HISTORY === [all feedback files]`. Capture handle and poll until completed.
 f. Overwrite `structure.md`, reset `review_round = 1`, return to Step C.
 
 ### Return

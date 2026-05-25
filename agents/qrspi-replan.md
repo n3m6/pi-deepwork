@@ -16,8 +16,8 @@ You are the QRSPI Replan stage orchestrator. You sequence reads, dispatch child 
 ### CRITICAL RULES
 
 1. **YOU ARE FORBIDDEN FROM WRITING CODE.** You only write pipeline state files inside `.pipeline/qrspi-<run-id>/`.
-2. **INVOKE SUBAGENTS DIRECTLY.** When you need a child agent, invoke it as a subagent rather than describing the handoff in plain text.
-3. **STOP AFTER SUBAGENT DISPATCH.** After invoking a child agent, do not write anything further — end your turn and wait for the subagent response.
+2. **NESTED DISPATCH VIA SPAWN_REQUEST.** The native `Agent` tool is not registered in child sessions. Request all child dispatches through `contact_supervisor` with `reason: "spawn_request"`, capture the returned `handle`, then poll with `reason: "spawn_poll"` until `state === "completed"`. Consume `result` from the completed envelope. Never call the `Agent` tool directly.
+3. **POLL BEFORE CONTINUING.** After issuing a spawn_request for a child agent, poll until that child is completed before writing artifacts or dispatching the next child.
 4. **REPLAN ONLY REMAINING WORK.** Do not rewrite completed phases. Replan adjusts the unfinished portion of the run only.
 5. **NO GOALS OR DESIGN DRIFT.** If goals or the chosen architecture must change, return a `### Backward Loop Request` to deepwork instead of forcing a replan.
 
@@ -60,23 +60,16 @@ mkdir -p .pipeline/<run-id>/<next-phase-dir>/tasks
 
 ### Step C — Dispatch Replan Writer
 
-Use the Agent tool with subagent_type: "qrspi-replan-writer":
+Send a spawn request for `qrspi-replan-writer` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[contents of goals.md]
-
-=== DESIGN ===
-[contents of design.md]
-
-=== STRUCTURE ===
-[contents of structure.md]
-
-=== CURRENT PLAN ===
-[contents of plan.md]
-
-=== CURRENT PHASE MANIFEST ===
-[contents of phase-manifest.md]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating plan revision to qrspi-replan-writer.",
+  spawn: {
+    subagent_type: "qrspi-replan-writer",
+    description: "Revise remaining plan after completed phase",
+    prompt: "=== GOALS ===\n[contents of goals.md]\n\n=== DESIGN ===\n[contents of design.md]\n\n=== STRUCTURE ===\n[contents of structure.md]\n\n=== CURRENT PLAN ===\n[contents of plan.md]\n\n=== CURRENT PHASE MANIFEST ===\n[contents of phase-manifest.md]
 
 === EXECUTION MANIFEST ===
 [contents of <completed-phase-dir>/execution-manifest.md]
@@ -109,8 +102,13 @@ Use the Agent tool with subagent_type: "qrspi-replan-writer":
 [summaries from each prior completed phase, or `None.` if this is Phase 1]
 
 === INSTRUCTIONS ===
-Revise only the remaining work after the completed phase. Keep task IDs globally stable. Do not change goals or the chosen design approach. If goals or design must change, return a `### Backward Loop Request` instead of replanned artifacts.
+Revise only the remaining work after the completed phase. Keep task IDs globally stable. Do not change goals or the chosen design approach. If goals or design must change, return a `### Backward Loop Request` instead of replanned artifacts.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 When `qrspi-replan-writer` completes:
 
@@ -135,46 +133,29 @@ Do not delete completed-phase task files. They remain as audit artifacts.
 
 1. Set `review_round = 1`.
 2. For each round, re-read the current `plan.md`, `phase-manifest.md`, next-phase task files, and replan note.
-3. Use the Agent tool with subagent_type: "qrspi-replan-reviewer":
+3. Send a spawn request for `qrspi-replan-reviewer` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[contents of goals.md]
-
-=== DESIGN ===
-[contents of design.md]
-
-=== STRUCTURE ===
-[contents of structure.md]
-
-=== PLAN ===
-[contents of plan.md]
-
-=== PHASE MANIFEST ===
-[contents of phase-manifest.md]
-
-=== NEXT PHASE TASK SPECS ===
-[contents of task-NN.md files in <next-phase-dir>/tasks/]
-
-=== EXECUTION MANIFEST ===
-[contents of <completed-phase-dir>/execution-manifest.md]
-
-=== ACCEPTANCE RESULTS ===
-[contents of <completed-phase-dir>/acceptance-results.md]
-
-=== COMPLETED PHASE ===
-[completed phase number]
-
-=== REPLAN NOTE ===
-[contents of <completed-phase-dir>/replan/phase-[PP]-replan.md]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating replan review to qrspi-replan-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-replan-reviewer",
+    description: "Review revised plan",
+    prompt: "=== GOALS ===\n[contents of goals.md]\n\n=== DESIGN ===\n[contents of design.md]\n\n=== STRUCTURE ===\n[contents of structure.md]\n\n=== PLAN ===\n[contents of plan.md]\n\n=== PHASE MANIFEST ===\n[contents of phase-manifest.md]\n\n=== NEXT PHASE TASK SPECS ===\n[contents of task-NN.md files in <next-phase-dir>/tasks/]\n\n=== EXECUTION MANIFEST ===\n[contents of <completed-phase-dir>/execution-manifest.md]\n\n=== ACCEPTANCE RESULTS ===\n[contents of <completed-phase-dir>/acceptance-results.md]\n\n=== COMPLETED PHASE ===\n[completed phase number]\n\n=== REPLAN NOTE ===\n[contents of <completed-phase-dir>/replan/phase-[PP]-replan.md]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 4. Write the reviewer output to `.pipeline/<run-id>/reviews/replan-review-round-{NN}.md`.
 5. Apply this decision logic in order:
 
 - If the reviewer returns `### Status — PASS`, stop the review loop. Terminal state: `clean`.
 - If the reviewer returns `### Status — FAIL` and `review_round >= 2` and the current round's `### Fix Guidance` is identical to the prior round's after whitespace normalization (collapse runs of whitespace, strip leading/trailing whitespace per line), stop the review loop. Terminal state: `stable-cap`. Do not regenerate again — the writer is not converging.
-- If the reviewer returns `### Status — FAIL` and `review_round < 5`, extract the single most important defect as `ROOT CAUSE OF FAILURE`, write one sentence as `MUTATION INSTRUCTION`, and re-dispatch `qrspi-replan-writer` with the rejected draft plus:
+- If the reviewer returns `### Status — FAIL` and `review_round < 5`, extract the single most important defect as `ROOT CAUSE OF FAILURE`, write one sentence as `MUTATION INSTRUCTION`, and send a spawn request for `qrspi-replan-writer` with the rejected draft plus the mutation prompt (cadence: `bash sleep 30`). Use the following payload shape inside `spawn.prompt`:
 
   ```
   === CURRENT REPLAN DRAFT PLAN ===
@@ -199,7 +180,7 @@ Do not delete completed-phase task files. They remain as audit artifacts.
   [paste only the `### Fix Guidance` section from the reviewer output]
   ```
 
-  Then overwrite the updated artifacts, increment `review_round`, and continue the loop.
+  Capture `handle` and poll until completed. Then overwrite the updated artifacts, increment `review_round`, and continue the loop.
 
 - If the reviewer returns `### Status — FAIL` and `review_round = 5`, stop the review loop. Terminal state: `unclean-cap`. Do not run a sixth review round.
 

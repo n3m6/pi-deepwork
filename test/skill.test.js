@@ -136,6 +136,19 @@ test('SKILL.md documents inbound intercom forwarding', () => {
     'SKILL.md intercom reply must include responses shape');
 });
 
+test('SKILL.md documents the spawn_request handle protocol', () => {
+  assert.ok(/reason: "spawn_request"/.test(skillBody),
+    'SKILL.md Rule 7 must handle reason: "spawn_request"');
+  assert.ok(/reason: "spawn_poll"/.test(skillBody),
+    'SKILL.md Rule 7 must handle reason: "spawn_poll"');
+  assert.ok(/ok: true/.test(skillBody) || /"ok":.*true/.test(skillBody),
+    'SKILL.md spawn_request reply must include ok: true');
+  assert.ok(/handle/.test(skillBody),
+    'SKILL.md spawn_request reply must include handle field');
+  assert.ok(/spawn\.requested/.test(skillBody),
+    'SKILL.md telemetry event types must include spawn.requested');
+});
+
 test('SKILL.md preflight checks pi-intercom connectivity', () => {
   assert.ok(/intercom\(\{ action: "status"/.test(skillBody),
     'SKILL.md Pre-Flight must verify pi-intercom via intercom({ action: "status" })');

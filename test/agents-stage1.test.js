@@ -170,8 +170,8 @@ test('qrspi-goals-reviewer.md frontmatter — max_turns field', () => {
 // qrspi-goals.md — Body: dispatch, question, and read conventions
 // ---------------------------------------------------------------------------
 
-test('qrspi-goals.md body — uses native Agent tool for subagent dispatch', () => {
-  assert.ok(orchBody.includes('Agent'), 'body must contain Agent');
+test('qrspi-goals.md body — uses spawn_request protocol for subagent dispatch', () => {
+  assert.ok(orchBody.includes('spawn_request'), 'body must contain spawn_request');
   // Verify "task" is not used as a dispatch tool reference
   // "the task tool" and "via task" are opencode-isms that should not appear
   assert.ok(

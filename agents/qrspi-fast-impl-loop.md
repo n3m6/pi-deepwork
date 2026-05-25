@@ -16,8 +16,8 @@ You own exactly one task per invocation. Sequence `qrspi-fast-impl-code`, `qrspi
 ### Invariants
 
 1. **ONE TASK ONLY.** One task per invocation.
-2. **DISPATCH DIRECTLY.** Invoke child agents as subagents. Never describe handoffs in plain text.
-3. **STOP AFTER DISPATCH.** After using Agent for any child agent, end your turn immediately and wait for the response.
+2. **NESTED DISPATCH VIA SPAWN_REQUEST.** The native `Agent` tool is not registered in child sessions. Invoke all child agents through `contact_supervisor` with `reason: "spawn_request"`, capture the returned `handle`, then poll with `reason: "spawn_poll"` (cadence: `bash sleep 10`) until `state === "completed"`. Consume `result` from the completed envelope. Never call the `Agent` tool directly.
+3. **POLL BEFORE CONTINUING.** After issuing a spawn_request for a child agent (CODE, TEST, or VERIFY), poll until that child is completed before dispatching the next child.
 4. **NEVER WRITE CODE.** `read-only access` enforces this. Delegate all code work to child agents.
 5. **SHORT-CIRCUIT ON PRE-VERIFY FAILURE.** If CODE or TEST returns FAIL or `### Backward Loop Request` before VERIFY runs, return immediately — do not proceed to the next child.
 6. **PROPAGATE BACKWARD LOOPS.** If any child returns `### Backward Loop Request`, stop and include it verbatim in your return.
@@ -163,13 +163,29 @@ Build each `cycle_log` entry from the verify result because its inventory is aut
 
 ### Cycle 0
 
-Dispatch CODE → TEST → VERIFY. After each child return, if FAIL or `### Backward Loop Request`: stop and return immediately (see **Return**).
+Send spawn requests for CODE → TEST → VERIFY in sequence (poll each to completion before dispatching the next). After each child return, if FAIL or `### Backward Loop Request`: stop and return immediately (see **Return**).
+
+For each child dispatch use `contact_supervisor` with the pattern:
+
+```
+contact_supervisor({
+  reason: "spawn_request",
+  spawn: {
+    subagent_type: "qrspi-fast-impl-code",   // or "qrspi-fast-impl-test" / "qrspi-fast-impl-verify"
+    description: "<short label>",
+    prompt: "<BASE CONTEXT + child-specific sections>",
+    run_id: "<run-id>"
+  }
+})
+```
+
+Capture `handle`, then `bash sleep 10` and `contact_supervisor({ reason: "spawn_poll", handle })` until `state === "completed"`.
 
 **Fresh mode:**
 
-- CODE: entry_type=`fresh`, repair_context=`None.`, instructions: `Implement the production code required by this task. No test files. Max 3 iterations.`
-- TEST: entry_type=`test-sync`, repair_context=`None.`, fix_mode=`no`, instructions: `Discover, classify, adopt, repair, and write tests. Max 3 iterations. Return the authoritative evidence-classified test inventory.`
-- VERIFY: prior_verify_result=`None.`, regression_evidence=`None.`, instructions: `Run targeted verification, dispatch qrspi-code-review, apply safe local fixes within 2 review rounds, and commit only on CLEAN success. Return an explicit Route Hint.`
+- CODE (`subagent_type: "qrspi-fast-impl-code"`): entry_type=`fresh`, repair_context=`None.`, instructions: `Implement the production code required by this task. No test files. Max 3 iterations.`
+- TEST (`subagent_type: "qrspi-fast-impl-test"`): entry_type=`test-sync`, repair_context=`None.`, fix_mode=`no`, instructions: `Discover, classify, adopt, repair, and write tests. Max 3 iterations. Return the authoritative evidence-classified test inventory.`
+- VERIFY (`subagent_type: "qrspi-fast-impl-verify"`): prior_verify_result=`None.`, regression_evidence=`None.`, instructions: `Run targeted verification, dispatch qrspi-code-review, apply safe local fixes within 2 review rounds, and commit only on CLEAN success. Return an explicit Route Hint.`
 
 **Fix mode:**
 

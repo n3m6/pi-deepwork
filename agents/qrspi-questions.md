@@ -17,8 +17,8 @@ You are the QRSPI question-batch child for the merged Research stage. You genera
 
 1. **Child-only.** You are invoked only by `qrspi-research`. You are not an executable top-level stage.
 2. **No code.** Write only pipeline state files inside `.pipeline/<run-id>/`.
-3. **Direct dispatch.** Invoke reviewers and the generator via `Agent`; never describe a handoff in plain text.
-4. **Wait for each child result before continuing.** For single-agent steps, dispatch in foreground and wait for the response. For reviewer batches, launch the full batch with `run_in_background: true`, then join each result via `get_subagent_result` before continuing.
+3. **Nested dispatch via spawn_request.** The native `Agent` tool is not registered in child sessions. Request all child dispatches through `contact_supervisor` with `reason: "spawn_request"`, capture the returned `handle`, then poll with `reason: "spawn_poll"` until `state === "completed"`. Consume `result` from the completed envelope. Never call the `Agent` tool directly.
+4. **Sequential spawn, parallel execution.** For reviewer batches, issue both `spawn_request` calls in sequence (each returns a handle immediately), then poll both handles in a loop until both are completed. The skill spawns them with `run_in_background: true` so they execute concurrently even though the requests are serial.
 5. **Neutrality.** Questions must gather facts only. They must not suggest implementation, rank options, encode a preferred design, or leak solution assumptions.
 6. **Follow-up minimality.** In follow-up mode, generate only new incremental questions tied to the open questions and latest review guidance. Do not re-ask ledgered questions unless the review explicitly says the prior answer is invalid.
 
@@ -67,16 +67,16 @@ Write `.pipeline/<run-id>/goal-inventory.md` before dispatching any subagents:
 
 ### Step B — Generate A Question Batch
 
-Dispatch `qrspi-question-generator` via `Agent`.
-
-Initial mode prompt:
+Send a spawn request for `qrspi-question-generator` via `contact_supervisor`:
 
 ```
-subagent_type: "qrspi-question-generator"
-description: "Generate initial research question batch"
-prompt:
-=== MODE ===
-initial
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating initial question generation to qrspi-question-generator.",
+  spawn: {
+    subagent_type: "qrspi-question-generator",
+    description: "Generate initial research question batch",
+    prompt: "=== MODE ===\ninitial
 
 === BATCH LABEL ===
 <batch-label>
@@ -88,17 +88,31 @@ initial
 [paste contents of requirements.md verbatim]
 
 === NORMALIZED GOAL INVENTORY ===
-[paste contents of goal-inventory.md verbatim]
+[paste contents of goal-inventory.md verbatim]",
+    run_id: "<run-id>"
+  }
+})
 ```
 
-Follow-up mode prompt:
+Capture `handle` from `details.structuredReply.handle`. Then poll (recommended cadence: `bash sleep 5`):
 
 ```
-subagent_type: "qrspi-question-generator"
-description: "Generate follow-up research question batch"
-prompt:
-=== MODE ===
-follow-up
+bash sleep 5
+contact_supervisor({ reason: "spawn_poll", handle: "<handle>" })
+```
+
+Repeat until `state === "completed"` or `state === "errored"`. Use `result` from the completed envelope as the generator's return text.
+
+Follow-up mode — send spawn request:
+
+```
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating follow-up question generation to qrspi-question-generator.",
+  spawn: {
+    subagent_type: "qrspi-question-generator",
+    description: "Generate follow-up research question batch",
+    prompt: "=== MODE ===\nfollow-up
 
 === BATCH LABEL ===
 <batch-label>
@@ -114,8 +128,13 @@ follow-up
 
 === INSTRUCTIONS ===
 Generate only new incremental, neutral follow-up questions needed to close the open questions.
-Do not include goals, requirements, implementation preferences, or design suggestions.
+Do not include goals, requirements, implementation preferences, or design suggestions.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll as above until completed. Use `result` as the generator's return text.
 
 When the generator returns, write the output to both:
 
@@ -130,16 +149,18 @@ Set `review_round = 1`.
 
 While `review_round <= 2`:
 
-1. Dispatch both reviewers via `Agent` with `run_in_background: true`, record both agent IDs, then call `get_subagent_result` with `wait: true` for each reviewer before continuing.
+1. Send spawn requests for both reviewers via `contact_supervisor` — issue both requests in sequence (each returns a handle immediately), then poll both handles until both are completed.
 
-Leakage review prompt:
+Leakage review spawn request:
 
 ```
-subagent_type: "qrspi-question-leakage-reviewer"
-description: "Review question leakage"
-prompt:
-=== MODE ===
-<initial|follow-up>
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating leakage review to qrspi-question-leakage-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-question-leakage-reviewer",
+    description: "Review question leakage",
+    prompt: "=== MODE ===\n<initial|follow-up>
 
 === BATCH LABEL ===
 <batch-label>
@@ -151,17 +172,24 @@ prompt:
 [follow-up only: paste supplied question ledger; initial: None.]
 
 === OPEN QUESTIONS ===
-[follow-up only: paste supplied open questions; initial: None.]
+[follow-up only: paste supplied open questions; initial: None.]",
+    run_id: "<run-id>"
+  }
+})
 ```
 
-Quality review prompt:
+Capture `leakage_handle` from the reply.
+
+Quality review spawn request (issue immediately, before polling leakage):
 
 ```
-subagent_type: "qrspi-question-quality-reviewer"
-description: "Review question quality"
-prompt:
-=== MODE ===
-<initial|follow-up>
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating quality review to qrspi-question-quality-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-question-quality-reviewer",
+    description: "Review question quality",
+    prompt: "=== MODE ===\n<initial|follow-up>
 
 === BATCH LABEL ===
 <batch-label>
@@ -179,8 +207,23 @@ prompt:
 [follow-up only: paste supplied open questions; initial: None.]
 
 === LATEST RESEARCH REVIEW ===
-[follow-up only: paste supplied latest research review; initial: None.]
+[follow-up only: paste supplied latest research review; initial: None.]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `quality_handle` from the reply.
+
+Now poll both handles (recommended cadence: `bash sleep 5` per iteration). Repeat the poll loop until both handles return `state === "completed"` or `state === "errored"`:
+
+```
+bash sleep 5
+contact_supervisor({ reason: "spawn_poll", handle: "<leakage_handle>" })
+contact_supervisor({ reason: "spawn_poll", handle: "<quality_handle>" })
+```
+
+Use `result` from each completed envelope as the reviewer's return text. Reviewer dispatch is sequential in request order but executes in parallel — this matches the prior `run_in_background` behavior.
 
 2. Write reviewer outputs to compatibility snapshots:
    - `.pipeline/<run-id>/question-leakage-review.md`
@@ -192,9 +235,17 @@ prompt:
 
 4. If both reviewers return `### Status — PASS`, set `terminal_review_state = clean` and proceed to Return.
 
-5. If either reviewer returns `### Status — FAIL` and `review_round < 2`, dispatch `qrspi-question-generator` again with the same mode-specific inputs plus:
+5. If either reviewer returns `### Status — FAIL` and `review_round < 2`, send a spawn request for `qrspi-question-generator` again with the same mode-specific inputs plus:
 
 ```
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating question regeneration to qrspi-question-generator.",
+  spawn: {
+    subagent_type: "qrspi-question-generator",
+    description: "Regenerate question batch after review",
+    prompt: "... <same mode-specific inputs as before, plus:>
+
 === REVIEW FEEDBACK ===
 ### Leakage Review
 [paste latest question-leakage-review.md verbatim]
@@ -204,8 +255,13 @@ prompt:
 
 === REGENERATION RULES ===
 Regenerate the same batch. Preserve neutrality. In follow-up mode, still ask only new incremental
-questions tied to the open questions and latest research review.
+questions tied to the open questions and latest research review.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Poll until completed (cadence: `bash sleep 5`). Use `result` from the completed envelope.
 
 Overwrite both `.pipeline/<run-id>/<QUESTION BATCH FILE>` and `.pipeline/<run-id>/questions.md`, increment `review_round`, and repeat from Step C.1.
 

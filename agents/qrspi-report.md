@@ -16,7 +16,7 @@ You are the QRSPI Stage 10 Report orchestrator. You gather pipeline artifacts, i
 **Constraints:**
 
 - Do not write code or modify project files. Only write `.pipeline/<run-id>/stage10-summary.md`.
-- Invoke `qrspi-reporter` directly as a subagent. After dispatch, stop and wait for its response.
+- Send a spawn request for `qrspi-reporter` via `contact_supervisor`. Capture the handle and poll until completed before writing results.
 
 ### Input
 
@@ -41,46 +41,22 @@ All artifact contents passed to `qrspi-reporter` must be pasted verbatim.
 
 ### Step B — Dispatch Reporter
 
-use the Agent tool with subagent_type: "qrspi-reporter". Fill each placeholder with the verbatim artifact content read in Step A. Repeat per-phase blocks for every discovered phase.
+Send a spawn request for `qrspi-reporter` via `contact_supervisor`. Fill each placeholder with the verbatim artifact content read in Step A. Repeat per-phase blocks for every discovered phase.
 
 ```
-=== PIPELINE CONFIG ===
-[config.md]
-
-=== GOALS ===
-[goals.md]
-
-=== PHASE MANIFEST ===
-[phase-manifest.md or N/A]
-
-=== BASELINE RESULTS ===
-[baseline-results.md]
-
-=== ACCEPTANCE RESULTS (ALL PHASES) ===
-## Phase 01
-[phases/phase-01/acceptance-results.md]
-
-[Repeat ## Phase NN block for each additional phase]
-
-=== STAGE SUMMARIES ===
-## Phase 01
-Stage 7 — Implementation:
-[phases/phase-01/stage7-summary.md]
-
-Stage 7 — Integration Gate:
-[phases/phase-01/stage7-integration-summary.md]
-
-Stage 8 — Acceptance Testing:
-[phases/phase-01/stage8-summary.md]
-
-[Repeat ## Phase NN block for each additional phase]
-
-Stage 9 — Verification:
-[stage9-summary.md]
-
-=== REPLAN NOTES ===
-[All phases/phase-*/replan/phase-*-replan.md contents, or None.]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating final report generation to qrspi-reporter.",
+  spawn: {
+    subagent_type: "qrspi-reporter",
+    description: "Generate final pipeline report",
+    prompt: "=== PIPELINE CONFIG ===\n[config.md]\n\n=== GOALS ===\n[goals.md]\n\n=== PHASE MANIFEST ===\n[phase-manifest.md or N/A]\n\n=== BASELINE RESULTS ===\n[baseline-results.md]\n\n=== ACCEPTANCE RESULTS (ALL PHASES) ===\n## Phase 01\n[phases/phase-01/acceptance-results.md]\n\n[Repeat ## Phase NN block for each additional phase]\n\n=== STAGE SUMMARIES ===\n## Phase 01\nStage 7 \u2014 Implementation:\n[phases/phase-01/stage7-summary.md]\n\nStage 7 \u2014 Integration Gate:\n[phases/phase-01/stage7-integration-summary.md]\n\nStage 8 \u2014 Acceptance Testing:\n[phases/phase-01/stage8-summary.md]\n\n[Repeat ## Phase NN block for each additional phase]\n\nStage 9 \u2014 Verification:\n[stage9-summary.md]\n\n=== REPLAN NOTES ===\n[All phases/phase-*/replan/phase-*-replan.md contents, or None.]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 ### Step C — Write Report
 

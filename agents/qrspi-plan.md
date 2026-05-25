@@ -17,7 +17,7 @@ You are the QRSPI Plan stage orchestrator. You write pipeline state files inside
 
 - Write only to `.pipeline/<run-id>/`. Never edit project source code.
 - Delegate all generation and review to child agents. Do not write plan content yourself.
-- Stop after each subagent dispatch and wait for the response.
+- Stop after each subagent spawn_request and poll until completed before moving to the next step.
 - Run all review loops internally — no human gate.
 - The plan review loop caps at 6 rounds. If the reviewer's `### Fix Guidance` is identical (whitespace-normalized) on two consecutive FAIL rounds, stop the loop and mark `terminal_review_state = stable-cap` (treated as non-FAIL; downstream still runs).
 - If the plan review loop ends with FAIL at round 6 without triggering stable-cap, mark `terminal_review_state = unclean-cap`. Continue to task-spec generation (Step D.1); deepwork escalates the unresolved status to the user.
@@ -31,10 +31,10 @@ Received from deepwork:
 
 1. **Run ID** — `qrspi-<timestamp>` pipeline run identifier
 2. **Route** — `full` or `quick-fix`
-3. **Next Remaining Phase** *(optional)* — earliest incomplete phase on loopback re-entry; default `1`
-4. **Prior Phase Manifest** *(optional)* — completed-phase manifest to preserve unchanged
-5. **Completed Phases Context** *(optional)* — execution, integration, and acceptance summaries for completed phases
-6. **Failure Context** *(optional)* — backward-loop analysis and loop feedback from the triggering phase
+3. **Next Remaining Phase** _(optional)_ — earliest incomplete phase on loopback re-entry; default `1`
+4. **Prior Phase Manifest** _(optional)_ — completed-phase manifest to preserve unchanged
+5. **Completed Phases Context** _(optional)_ — execution, integration, and acceptance summaries for completed phases
+6. **Failure Context** _(optional)_ — backward-loop analysis and loop feedback from the triggering phase
 
 When any loopback field is present: treat completed phases as immutable historical facts; rewrite only remaining work from Next Remaining Phase onward.
 
@@ -42,13 +42,13 @@ When any loopback field is present: treat completed phases as immutable historic
 
 After Step A, bind these variables and substitute them verbatim in every child dispatch below.
 
-| Variable | Value |
-|---|---|
-| `GOALS` | contents of `goals.md` |
-| `REQUIREMENTS` | contents of `requirements.md` |
-| `RESEARCH` | contents of `research/summary.md` |
-| `AGENTS_GUIDANCE` | contents of `AGENTS.md` at repo root, or `None.` |
-| `DESIGN_OR_NA` | contents of `design.md` (full route only), else `N/A` |
+| Variable          | Value                                                    |
+| ----------------- | -------------------------------------------------------- |
+| `GOALS`           | contents of `goals.md`                                   |
+| `REQUIREMENTS`    | contents of `requirements.md`                            |
+| `RESEARCH`        | contents of `research/summary.md`                        |
+| `AGENTS_GUIDANCE` | contents of `AGENTS.md` at repo root, or `None.`         |
+| `DESIGN_OR_NA`    | contents of `design.md` (full route only), else `N/A`    |
 | `STRUCTURE_OR_NA` | contents of `structure.md` (full route only), else `N/A` |
 
 `LOOPBACK` block — include as-is in every dispatch that accepts loopback context:
@@ -106,41 +106,22 @@ bash: mkdir -p .pipeline/<run-id>/phases
 
 #### Step C.1 — Dispatch Plan Writer
 
-Use the Agent tool with subagent_type: "qrspi-plan-writer" to dispatch the plan writer. For **quick-fix**, omit the `=== DESIGN ===` and `=== STRUCTURE ===` fields.
+Send a spawn request for `qrspi-plan-writer` via `contact_supervisor`. For **quick-fix**, omit the `=== DESIGN ===` and `=== STRUCTURE ===` fields.
 
 ```
-=== GOALS ===
-[GOALS]
-
-=== REQUIREMENTS ===
-[REQUIREMENTS]
-
-=== RESEARCH SUMMARY ===
-[RESEARCH]
-
-=== DESIGN ===
-[DESIGN_OR_NA]
-
-=== STRUCTURE ===
-[STRUCTURE_OR_NA]
-
-=== AGENTS GUIDANCE ===
-[AGENTS_GUIDANCE]
-
-[LOOPBACK]
-
-=== INSTRUCTIONS ===
-Write an ordered implementation plan overview, a phase manifest, and a structured task outline for each task.
-Route: [full or quick-fix]. For quick-fix: produce exactly one task.
-If AGENTS Guidance is provided, incorporate its repository-level constraints into phase boundaries, task decomposition, file selection, and scope.
-Plan overview must include: Overview, Phase Summary, Task Order table (Dependencies, Phase, Slice), Wave Analysis, Coverage Notes mapping ACs/NFRs/replan gate criteria/file-map coverage to tasks.
-Optimize phase grouping around related work and minimize unnecessary cross-phase dependencies. If the design includes a foundation slice, keep it narrow and ensure Phase 1 still proves a meaningful end-to-end behavior.
-Each task outline must include: Task number, Title, Phase, Route, Slice, Dependencies, Acceptance Criteria, NFRs, Gate Criteria, Scope (1–3 sentences), Files (exact paths, CREATE or MODIFY).
-Phase manifest must include: total_phases, one section per phase with tasks, covered ACs, and replan gate.
-When loopback context is present: preserve completed phases from PRIOR PHASE MANIFEST unchanged; number replanned phases from NEXT REMAINING PHASE.
-Task numbers are globally stable IDs for the full run. No placeholders, TBDs, or "see design.md" shortcuts.
-Return: ### plan.md, ### phase-manifest.md, and ### task-NN.outline blocks for each task.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating plan writing to qrspi-plan-writer.",
+  spawn: {
+    subagent_type: "qrspi-plan-writer",
+    description: "Write implementation plan and task outlines",
+    prompt: "=== GOALS ===\n[GOALS]\n\n=== REQUIREMENTS ===\n[REQUIREMENTS]\n\n=== RESEARCH SUMMARY ===\n[RESEARCH]\n\n=== DESIGN ===\n[DESIGN_OR_NA]\n\n=== STRUCTURE ===\n[STRUCTURE_OR_NA]\n\n=== AGENTS GUIDANCE ===\n[AGENTS_GUIDANCE]\n\n[LOOPBACK]\n\n=== INSTRUCTIONS ===\nWrite an ordered implementation plan overview, a phase manifest, and a structured task outline for each task.\nRoute: [full or quick-fix]. For quick-fix: produce exactly one task.\nIf AGENTS Guidance is provided, incorporate its repository-level constraints into phase boundaries, task decomposition, file selection, and scope.\nPlan overview must include: Overview, Phase Summary, Task Order table (Dependencies, Phase, Slice), Wave Analysis, Coverage Notes mapping ACs/NFRs/replan gate criteria/file-map coverage to tasks.\nOptimize phase grouping around related work and minimize unnecessary cross-phase dependencies. If the design includes a foundation slice, keep it narrow and ensure Phase 1 still proves a meaningful end-to-end behavior.\nEach task outline must include: Task number, Title, Phase, Route, Slice, Dependencies, Acceptance Criteria, NFRs, Gate Criteria, Scope (1\u20133 sentences), Files (exact paths, CREATE or MODIFY).\nPhase manifest must include: total_phases, one section per phase with tasks, covered ACs, and replan gate.\nWhen loopback context is present: preserve completed phases from PRIOR PHASE MANIFEST unchanged; number replanned phases from NEXT REMAINING PHASE.\nTask numbers are globally stable IDs for the full run. No placeholders, TBDs, or \"see design.md\" shortcuts.\nReturn: ### plan.md, ### phase-manifest.md, and ### task-NN.outline blocks for each task.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 When `qrspi-plan-writer` returns:
 
@@ -150,37 +131,22 @@ When `qrspi-plan-writer` returns:
 
 #### Step C.2 — Plan Review Loop (Outline Level)
 
-Set `review_round = 1`. For each round, use the Agent tool with subagent_type: "qrspi-plan-reviewer" to dispatch the plan reviewer:
+Set `review_round = 1`. For each round, send a spawn request for `qrspi-plan-reviewer` via `contact_supervisor`:
 
 ```
-=== RUN ID ===
-[run ID]
-
-=== GOALS ===
-[GOALS]
-
-=== REQUIREMENTS ===
-[REQUIREMENTS]
-
-=== DESIGN ===
-[DESIGN_OR_NA]
-
-=== STRUCTURE ===
-[STRUCTURE_OR_NA]
-
-=== AGENTS GUIDANCE ===
-[AGENTS_GUIDANCE]
-
-[LOOPBACK]
-
-=== REVIEW BASELINE ===
-[most recent reviewer output verbatim, or `None.` for round 1]
-
-=== INSTRUCTIONS ===
-Read plan.md, phase-manifest.md, and all active tasks/outlines/task-NN.outline files from .pipeline/<run-id>/ before reviewing.
-Review for: AGENTS compliance, goals coverage, NFR coverage, dependency correctness, phase and wave coherence, phase cohesion, cross-phase coupling, outline completeness, acceptance traceability, outline traceability, file specificity, test coverage scope, test strategy depth, replan gate traceability, completed-phase preservation, and placeholder-free quality.
-When REVIEW BASELINE is provided, confirm that previously flagged issues are fixed and previously-passing areas remain stable.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating plan review to qrspi-plan-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-plan-reviewer",
+    description: "Review plan and task outlines",
+    prompt: "=== RUN ID ===\n[run ID]\n\n=== GOALS ===\n[GOALS]\n\n=== REQUIREMENTS ===\n[REQUIREMENTS]\n\n=== DESIGN ===\n[DESIGN_OR_NA]\n\n=== STRUCTURE ===\n[STRUCTURE_OR_NA]\n\n=== AGENTS GUIDANCE ===\n[AGENTS_GUIDANCE]\n\n[LOOPBACK]\n\n=== REVIEW BASELINE ===\n[most recent reviewer output verbatim, or `None.` for round 1]\n\n=== INSTRUCTIONS ===\nRead plan.md, phase-manifest.md, and all active tasks/outlines/task-NN.outline files from .pipeline/<run-id>/ before reviewing.\nReview for: AGENTS compliance, goals coverage, NFR coverage, dependency correctness, phase and wave coherence, phase cohesion, cross-phase coupling, outline completeness, acceptance traceability, outline traceability, file specificity, test coverage scope, test strategy depth, replan gate traceability, completed-phase preservation, and placeholder-free quality.\nWhen REVIEW BASELINE is provided, confirm that previously flagged issues are fixed and previously-passing areas remain stable.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 
@@ -191,39 +157,27 @@ Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 - FAIL and `review_round < 6`:
   1. Extract the single most important defect as `ROOT CAUSE OF FAILURE`. Tie-break order: blocking correctness > missing coverage > vague outlines > style.
   2. Write one sentence on what must change as `MUTATION INSTRUCTION`.
-  3. Use the Agent tool with subagent_type: "qrspi-plan-writer" to re-dispatch the plan writer with the mutation prompt:
+  3. Send a spawn request for `qrspi-plan-writer` to re-dispatch the plan writer with the mutation prompt:
 
      ```
-     === RUN ID ===
-     [run ID]
-
-     === CURRENT PLAN ===
-     [contents of plan.md verbatim]
-
-     === CURRENT PHASE MANIFEST ===
-     [contents of phase-manifest.md verbatim]
-
-     === CURRENT TASK OUTLINES ===
-     [contents of all active tasks/outlines/task-NN.outline files verbatim]
-
-     === AGENTS GUIDANCE ===
-     [AGENTS_GUIDANCE]
-
-     [LOOPBACK]
-
-     === ROOT CAUSE OF FAILURE ===
-     [one sentence naming the primary defect]
-
-     === MUTATION INSTRUCTION ===
-     [one sentence stating what must change]
-
-     === REVIEW FEEDBACK ===
-     [the ### Fix Guidance section from the reviewer output verbatim]
+     contact_supervisor({
+       reason: "spawn_request",
+       message: "Delegating plan revision to qrspi-plan-writer (round N).",
+       spawn: {
+         subagent_type: "qrspi-plan-writer",
+         description: "Revise plan based on reviewer feedback",
+         prompt: "=== RUN ID ===\n[run ID]\n\n=== CURRENT PLAN ===\n[contents of plan.md verbatim]\n\n=== CURRENT PHASE MANIFEST ===\n[contents of phase-manifest.md verbatim]\n\n=== CURRENT TASK OUTLINES ===\n[contents of all active tasks/outlines/task-NN.outline files verbatim]\n\n=== AGENTS GUIDANCE ===\n[AGENTS_GUIDANCE]\n\n[LOOPBACK]\n\n=== ROOT CAUSE OF FAILURE ===\n[one sentence naming the primary defect]\n\n=== MUTATION INSTRUCTION ===\n[one sentence stating what must change]\n\n=== REVIEW FEEDBACK ===\n[the ### Fix Guidance section from the reviewer output verbatim]",
+         run_id: "<run-id>"
+       }
+     })
      ```
+
+     Capture `handle` and poll (cadence: `bash sleep 30`) until completed. Use `result` as the return text.
 
   4. Archive any `tasks/outlines/task-NN.outline` files absent from the returned outline set into `tasks/outlines/inactive/`.
   5. Write updated `plan.md`, `phase-manifest.md`, and `tasks/outlines/task-NN.outline` files.
   6. Increment `review_round` and continue the loop.
+
 - FAIL and `review_round = 6`: stop. Terminal state: `unclean-cap`. Continue to task-spec generation; deepwork escalates this state via the Stage 6 unclean-cap question gate.
 
 ### Step D — Task Spec Generation and Review
@@ -232,26 +186,22 @@ Step D.1 (task-spec generation) runs after Step C.2 completes for every plan-rev
 
 #### Step D.1 — Generate Task Specs
 
-For each active `tasks/outlines/task-NN.outline` in task-number order, use the Agent tool with subagent_type: "qrspi-task-spec-writer" to dispatch the task spec writer:
+For each active `tasks/outlines/task-NN.outline` in task-number order, send a spawn request for `qrspi-task-spec-writer` via `contact_supervisor`:
 
 ```
-=== RUN ID ===
-[run ID]
-
-=== ROUTE ===
-[full or quick-fix]
-
-=== TASK NUMBER ===
-[NN]
-
-=== AGENTS GUIDANCE ===
-[AGENTS_GUIDANCE]
-
-=== INSTRUCTIONS ===
-Read .pipeline/<run-id>/tasks/outlines/task-NN.outline and the required upstream artifacts from disk using the Run ID, Route, and Task Number.
-Write exactly one self-contained task spec to .pipeline/<run-id>/tasks/task-NN.md.
-Include a ## Source Traceability section citing the goals acceptance-criteria labels, plan task/phase, design slice name, and structure slice/files.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating task-spec writing to qrspi-task-spec-writer for task NN.",
+  spawn: {
+    subagent_type: "qrspi-task-spec-writer",
+    description: "Write task spec for task NN",
+    prompt: "=== RUN ID ===\n[run ID]\n\n=== ROUTE ===\n[full or quick-fix]\n\n=== TASK NUMBER ===\n[NN]\n\n=== AGENTS GUIDANCE ===\n[AGENTS_GUIDANCE]\n\n=== INSTRUCTIONS ===\nRead .pipeline/<run-id>/tasks/outlines/task-NN.outline and the required upstream artifacts from disk using the Run ID, Route, and Task Number.\nWrite exactly one self-contained task spec to .pipeline/<run-id>/tasks/task-NN.md.\nInclude a ## Source Traceability section citing the goals acceptance-criteria labels, plan task/phase, design slice name, and structure slice/files.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 15`) until `state === "completed"`. Use `result` as the return text.
 
 If the writer returns `### Status — FAIL`, stop immediately and return Stage 6 FAIL with the failing task number and reason.
 
@@ -261,45 +211,22 @@ Repeat for every active outline. Once all task specs are written, proceed to Ste
 
 **Guard:** Skip this entire step if the Step C.2 plan-review terminal state is `stable-cap` or `unclean-cap`. Set `task_spec_review_rounds = 0` and `task_spec_terminal_state = "skipped"` for telemetry, then proceed directly to Step E.
 
-Set `task_spec_round = 1`. For each round, for each task in task-number order, use the Agent tool with subagent_type: "qrspi-task-spec-reviewer" to dispatch the task spec reviewer:
+Set `task_spec_round = 1`. For each round, for each task in task-number order, send a spawn request for `qrspi-task-spec-reviewer` via `contact_supervisor`:
 
 ```
-=== RUN ID ===
-[run ID]
-
-=== CURRENT TASK NUMBER ===
-[NN]
-
-=== CURRENT TASK OUTLINE ===
-[contents of tasks/outlines/task-NN.outline verbatim]
-
-=== CURRENT TASK SPEC ===
-[contents of tasks/task-NN.md verbatim]
-
-=== GOALS ===
-[GOALS]
-
-=== PLAN ===
-[contents of plan.md verbatim]
-
-=== DESIGN ===
-[DESIGN_OR_NA]
-
-=== STRUCTURE ===
-[STRUCTURE_OR_NA]
-
-=== AGENTS GUIDANCE ===
-[AGENTS_GUIDANCE]
-
-=== REVIEW ROUND ===
-[task_spec_round]
-
-=== INSTRUCTIONS ===
-Review this task spec against its outline and sibling task specs for the current run.
-Load sibling task specs from .pipeline/<run-id>/tasks/ and ignore archived inactive specs.
-Record needed mutations as fix guidance without editing files.
-Do not edit any sibling task file, plan.md, phase-manifest.md, or project source code.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating task-spec review to qrspi-task-spec-reviewer for task NN.",
+  spawn: {
+    subagent_type: "qrspi-task-spec-reviewer",
+    description: "Review task spec for task NN",
+    prompt: "=== RUN ID ===\n[run ID]\n\n=== CURRENT TASK NUMBER ===\n[NN]\n\n=== CURRENT TASK OUTLINE ===\n[contents of tasks/outlines/task-NN.outline verbatim]\n\n=== CURRENT TASK SPEC ===\n[contents of tasks/task-NN.md verbatim]\n\n=== GOALS ===\n[GOALS]\n\n=== PLAN ===\n[contents of plan.md verbatim]\n\n=== DESIGN ===\n[DESIGN_OR_NA]\n\n=== STRUCTURE ===\n[STRUCTURE_OR_NA]\n\n=== AGENTS GUIDANCE ===\n[AGENTS_GUIDANCE]\n\n=== REVIEW ROUND ===\n[task_spec_round]\n\n=== INSTRUCTIONS ===\nReview this task spec against its outline and sibling task specs for the current run.\nLoad sibling task specs from .pipeline/<run-id>/tasks/ and ignore archived inactive specs.\nRecord needed mutations as fix guidance without editing files.\nDo not edit any sibling task file, plan.md, phase-manifest.md, or project source code.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 15`) until `state === "completed"`. Use `result` as the return text.
 
 Write each reviewer output to `.pipeline/<run-id>/reviews/task-spec/task-NN-review-round-MM.md`.
 
@@ -337,27 +264,22 @@ Do not edit any other section.
 
 ### Step F — Dispatch Baseline Checker
 
-Use the Agent tool with subagent_type: "qrspi-baseline-checker" to dispatch the baseline checker:
+Send a spawn request for `qrspi-baseline-checker` via `contact_supervisor`:
 
 ```
-=== PIPELINE CONFIG ===
-[contents of config.md verbatim]
-
-=== PLAN ===
-[contents of plan.md verbatim]
-
-=== TASK SPECS ===
-[contents of all active tasks/task-NN.md files verbatim]
-
-=== INSTRUCTIONS ===
-Record the pre-implementation baseline for this repository.
-Run the project's standard pre-implementation checks: Build, Lint, Typecheck, E2E, Tests.
-Record NOT CONFIGURED when no command exists for a check. Record SKIPPED when a check cannot run due to missing environment or infrastructure.
-Do not fix failures.
-Return: ### Baseline Status — CLEAN or DIRTY, ### Check Results (table), ### Failure Inventory (table or None.), ### Stage Summary.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating baseline check to qrspi-baseline-checker.",
+  spawn: {
+    subagent_type: "qrspi-baseline-checker",
+    description: "Record pre-implementation baseline",
+    prompt: "=== PIPELINE CONFIG ===\n[contents of config.md verbatim]\n\n=== PLAN ===\n[contents of plan.md verbatim]\n\n=== TASK SPECS ===\n[contents of all active tasks/task-NN.md files verbatim]\n\n=== INSTRUCTIONS ===\nRecord the pre-implementation baseline for this repository.\nRun the project's standard pre-implementation checks: Build, Lint, Typecheck, E2E, Tests.\nRecord NOT CONFIGURED when no command exists for a check. Record SKIPPED when a check cannot run due to missing environment or infrastructure.\nDo not fix failures.\nReturn: ### Baseline Status \u2014 CLEAN or DIRTY, ### Check Results (table), ### Failure Inventory (table or None.), ### Stage Summary.",
+    run_id: "<run-id>"
+  }
+})
 ```
 
-Write the output to `.pipeline/<run-id>/baseline-results.md` using the Write tool.
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text. Write the result to `.pipeline/<run-id>/baseline-results.md`.
 
 ### Return
 
@@ -391,6 +313,7 @@ The following defects cause Stage 6 FAIL if unresolved after the plan review cap
 - The quick-fix route has more than one task.
 
 Why each maps to a real mechanism:
+
 - Explicit dependency fields are required because the implement stage builds task waves from them; missing or wrong edges produce incorrect execution order.
 - Exact file paths are required because the task spec writer is forbidden from inventing paths not in the outline.
 - Acceptance criteria must be named per outline because the accept stage traces each criterion back to a specific task.

@@ -17,7 +17,13 @@ You are a **thin dispatcher**. Each stage subagent handles its own internal logi
 4. **CHECK YOUR SUBAGENT INVENTORY** Before dispatching a stage, verify the expected `qrspi-*` subagent is present in the `subagent list`. If it is missing, **stop the run**: emit a `run.failed` telemetry event with `reason: "missing_subagent"` and `subagent: <name>`, then report `Deepwork configuration error: missing subagent <name>. The pi-deepwork prompt pack must be installed before /deepwork can run.` Then print the **Install verification** recipe from Pre-Flight Step 0 so the user can install the missing agents in one command.
 5. **STOP AFTER SUBAGENT DISPATCH.** After invoking a subagent with the native Agent tool, do not write anything further — end your turn and wait for the subagent response. All other tool calls (edit, bash, write) do NOT end your turn — continue executing.
 6. **USE `ask_user` ONLY AT INTERACTIVE HUMAN GATES.** Do not probe `ask_user` before stage dispatch. When `interaction_mode: interactive` reaches a human gate, call `ask_user` directly. Use `displayMode: "inline"`, `allowMultiple: false`, `allowFreeform: true`, and `allowComment: true` for decision gates unless the gate text says otherwise. If `ask_user` is unavailable at that point, report `Deepwork configuration error` and stop.
-7. **FORWARD INBOUND CHILD INTERCOM ASKS.** If a turn is triggered by an inbound `intercom` message from a deepwork child subagent (heuristic: message body contains a `Run:` metadata line), do not answer from skill knowledge. Instead: for `reason: "interview_request"`, map each `interview.questions[]` entry to one `ask_user` call (use `displayMode: "inline"`, `allowFreeform: true`, and `allowComment: true` per gate conventions). For `reason: "need_decision"`, call one `ask_user` with the supervisor message as `question` and `allowFreeform: true`. Collect all answers, then call `intercom({ action: "reply", message: "{\"responses\":[{\"id\":\"<qid>\",\"value\":<answer>},...]}" })`. On user cancellation, reply `{"responses":[],"cancelled":true}`. Never fabricate answers. Never invent intercom targets. Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
+7. **FORWARD INBOUND CHILD INTERCOM ASKS.** If a turn is triggered by an inbound `intercom` message from a deepwork child subagent (heuristic: message body contains a `Run:` metadata line), do not answer from skill knowledge. Handle each `reason` as follows:
+   - `"interview_request"` — map each `interview.questions[]` entry to one `ask_user` call (use `displayMode: "inline"`, `allowFreeform: true`, and `allowComment: true` per gate conventions). Collect all answers, then call `intercom({ action: "reply", message: "{\"responses\":[{\"id\":\"<qid>\",\"value\":<answer>},...]}" })`. On user cancellation, reply `{"responses":[],"cancelled":true}`.
+   - `"need_decision"` — call one `ask_user` with the supervisor message as `question` and `allowFreeform: true`. Collect the answer, then reply via `intercom({ action: "reply", ... })` in the same `{"responses":[...]}` envelope. On cancellation reply `{"responses":[],"cancelled":true}`.
+   - `"spawn_request"` — do NOT call `ask_user`. Parse `spawn.subagent_type`, `spawn.description`, `spawn.prompt`, and `spawn.run_id` from the payload. Check that `spawn.subagent_type` is present in `subagent list`. If missing, reply immediately: `intercom({ action: "reply", message: "{\"ok\":false,\"error\":\"unknown subagent_type: <name>\"}" })` and emit a `spawn.failed` telemetry event. Otherwise, dispatch via the native Agent tool using `run_in_background: true`: `Agent({ subagent_type: spawn.subagent_type, description: spawn.description, prompt: spawn.prompt, run_in_background: true })`. Capture the returned agent ID as `handle`. Reply immediately (do not await the spawned agent): `intercom({ action: "reply", message: "{\"ok\":true,\"handle\":\"<agent-id>\"}" })`. Emit a `spawn.requested` telemetry event with `correlation_id: "<run-id>-spawn-<telemetry_seq>"` and `child_agent: spawn.subagent_type`.
+   - `"spawn_poll"` — do NOT call `ask_user`. Parse `handle` from the payload. Call `get_subagent_result({ agent_id: handle, wait: false })` to check completion status without blocking. If the runtime does not support `wait: false`, use a short-wait variant (≤30 s) and treat a timeout as still running. If the agent has not yet completed, reply: `intercom({ action: "reply", message: "{\"ok\":true,\"state\":\"running\"}" })` and emit a `spawn.poll` event. If the agent has completed, parse `### Status — PASS|FAIL` and `### Files Written` from the return text, then reply: `intercom({ action: "reply", message: "{\"ok\":true,\"state\":\"completed\",\"status\":\"<PASS|FAIL>\",\"result\":\"<verbatim return text>\",\"files_written\":\"<### Files Written line or empty>\"}" })`. Emit a `spawn.completed` or `spawn.errored` telemetry event. If the handle is unknown or the result errors, reply `{"ok":false,"error":"<reason>"}` and emit `spawn.errored`.
+   - `"spawn_cancel"` — emit a `spawn.cancel_requested` telemetry event and reply `intercom({ action: "reply", message: "{\"ok\":true}" })`. No further action (pi-subagents has no kill-agent API in the current runtime).
+     Never fabricate answers. Never invent intercom targets. Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
 8. **PARSE STAGE RETURNS.** Every stage subagent returns a structured response with `### Status`, `### Files Written`, and `### Summary`. Some stages also return `### Route` or `### Backward Loop Request`. Parse these to decide next action.
 9. **WRITE `state.md` AFTER EVERY TRANSITION.** Deepwork owns pipeline recovery. After each successful stage transition, overwrite `.pipeline/qrspi-<run-id>/state.md` so a later resume can recover the next stage and current phase. Preserve `interaction_mode` and `failure_policy` on every rewrite.
 10. **COMMIT AFTER EVERY STAGE BOUNDARY.** After each successful stage completion or quick-fix skip, once `state.md` reflects the new stage boundary, run `git status --short`. If the worktree is dirty, run `git add -A` and `git commit -m "qrspi: stage <N> <name> <complete|skipped>"` before proceeding. If the worktree is already clean, skip the commit without error.
@@ -109,7 +115,7 @@ Parse `### Telemetry` as a single-line JSON object to extract stage-specific met
 
 **Event envelope fields:** Every event includes: `schema_version` (string), `event_id` (`<run-id>-<seq>`), `sequence` (integer), `ts` (UTC ISO timestamp), `run_id`, `writer_agent` (`"deepwork"`), `writer_scope` (`"orchestrator"`), `event_type`, `status`, `route`, `summary`, plus conditional scope fields (`stage`, `stage_instance`, `phase`, `task_id`, `review_round`, `attempt`, `child_agent`, `correlation_id`) and payload (`context`, `artifacts`, `timing`, `decision`, `error`, `git`).
 
-**Event types:** `run.started`, `run.resumed`, `run.completed`, `run.aborted`, `stage.started`, `stage.completed`, `stage.failed`, `stage.skipped`, `stage.retried`, `gate.presented`, `gate.approved`, `gate.rejected`, `backward_loop.requested`, `backward_loop.decided`, `backward_loop.deferred`, `backward_loop.reset`, `checkpoint.created`, `metrics.generated`.
+**Event types:** `run.started`, `run.resumed`, `run.completed`, `run.aborted`, `stage.started`, `stage.completed`, `stage.failed`, `stage.skipped`, `stage.retried`, `gate.presented`, `gate.approved`, `gate.rejected`, `backward_loop.requested`, `backward_loop.decided`, `backward_loop.deferred`, `backward_loop.reset`, `checkpoint.created`, `metrics.generated`, `spawn.requested`, `spawn.poll`, `spawn.completed`, `spawn.errored`, `spawn.failed`, `spawn.cancel_requested`.
 
 **Emitting an event:**
 
@@ -261,6 +267,51 @@ Aggregate this table from each Stage 6 attempt's `### Telemetry.evidence_quality
 - **Coverage status:** PASS | FAIL | NOT CONFIGURED | SKIPPED (from baseline + final regression check)
 - **Plan/Replan terminal review states:** <comma-separated `<stage>:<state>` pairs from telemetry>
 ```
+
+### Nested Dispatch Protocol
+
+Child subagents cannot use the native `Agent` tool — pi-subagents strips it from every spawned session intentionally. They instead request dispatch through `contact_supervisor` using two new reasons handled by Critical Rule 7.
+
+**`spawn_request` wire shape (child → skill):**
+
+```
+contact_supervisor({
+  reason: "spawn_request",
+  message: "<1–2 sentence context>",
+  spawn: {
+    subagent_type: "<qrspi-agent-name>",
+    description: "<3–5 word label>",
+    prompt: "<full prompt body>",
+    run_id: "<qrspi-...>"
+  }
+})
+```
+
+**`spawn_request` reply (skill → child):**
+
+- Success: `{ "ok": true, "handle": "<pi-subagents agent_id>" }`
+- Failure: `{ "ok": false, "error": "<reason>" }`
+
+**`spawn_poll` wire shape (child → skill):**
+
+```
+contact_supervisor({ reason: "spawn_poll", handle: "<agent_id>" })
+```
+
+**`spawn_poll` reply (skill → child):**
+
+- Running: `{ "ok": true, "state": "running" }`
+- Completed: `{ "ok": true, "state": "completed", "status": "PASS|FAIL", "result": "<verbatim return text>", "files_written": "<...>" }`
+- Errored: `{ "ok": true, "state": "errored", "error": "<text>" }`
+- Unknown handle or internal error: `{ "ok": false, "error": "<reason>" }`
+
+**Sequential constraint.** The skill handles one `spawn_*` ask per inbound message. Children serialize their own fan-out by issuing multiple `spawn_request` calls in sequence to obtain N handles, then polling each handle. Because each call returns immediately, the spawned agents run concurrently even though the request/poll calls are serial from the child's perspective.
+
+**Reply timing.** The skill must reply to every `spawn_request` and `spawn_poll` within a few seconds — never block a reply on the spawned agent's completion. `pi-intercom`'s ask timeout is 10 minutes; individual round-trips must stay well under that limit.
+
+**Recursion depth.** Top-level (skill) → stage orchestrator (depth 1) → leaf orchestrator (depth 2) → leaf agent (depth 3) is normal. Do not allow chains deeper than 4 levels.
+
+**Boundary.** This protocol applies only to nested dispatch originating inside child subagent sessions. The skill's own Stage 0–10 dispatch calls (where the skill itself calls `Agent` synchronously or in background for stage orchestrators) are unaffected and stay as-is.
 
 ### Resume Mode
 

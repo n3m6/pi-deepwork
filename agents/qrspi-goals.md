@@ -122,18 +122,22 @@ Assemble the **Interview Record** — every branch, its source tag (`user-answer
 
 ### Step B — Dispatch Synthesizer
 
-Use the Agent tool with subagent_type: "qrspi-goals-synthesizer":
+Send a spawn request for `qrspi-goals-synthesizer` via `contact_supervisor`:
 
 ```
-=== RUN ID ===
-[paste the run ID verbatim]
-
-=== USER TASK ===
-[paste the user's original task description verbatim]
-
-=== INTERVIEW RECORD ===
-[paste the full interview record verbatim — each branch, its source tag, and its resolved content]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating goals synthesis to qrspi-goals-synthesizer.",
+  spawn: {
+    subagent_type: "qrspi-goals-synthesizer",
+    description: "Synthesize goals from interview record",
+    prompt: "=== RUN ID ===\n[paste the run ID verbatim]\n\n=== USER TASK ===\n[paste the user's original task description verbatim]\n\n=== INTERVIEW RECORD ===\n[paste the full interview record verbatim \u2014 each branch, its source tag, and its resolved content]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 10`) until `state === "completed"`. Use `result` as the return text.
 
 ### Step C — Write Artifacts
 
@@ -146,25 +150,29 @@ When `qrspi-goals-synthesizer` completes:
 
 Set `review_round = 1`. Create `.pipeline/<run-id>/reviews/` if needed (`bash: mkdir -p`).
 
-**Each round:** Use Agent with subagent_type: "qrspi-goals-reviewer":
+**Each round:** Send a spawn request for `qrspi-goals-reviewer` via `contact_supervisor`:
 
 ```
-=== REQUIREMENTS ===
-[paste contents of requirements.md verbatim]
-
-=== INTERVIEW RECORD ===
-[paste the full interview record verbatim]
-
-=== GOALS ===
-[paste contents of goals.md verbatim]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating goals review to qrspi-goals-reviewer.",
+  spawn: {
+    subagent_type: "qrspi-goals-reviewer",
+    description: "Review goals artifacts",
+    prompt: "=== REQUIREMENTS ===\n[paste contents of requirements.md verbatim]\n\n=== INTERVIEW RECORD ===\n[paste the full interview record verbatim]\n\n=== GOALS ===\n[paste contents of goals.md verbatim]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 10`) until completed. Use `result` as the return text.
 
 Write the reviewer output to `.pipeline/<run-id>/reviews/goals-review-round-{NN}.md`.
 
 **Loop decision (apply in order):**
 
 - PASS → stop; terminal state `clean`.
-- FAIL and `review_round < 5` → re-dispatch `qrspi-goals-synthesizer` with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output verbatim]; overwrite `goals.md` and `config.md`; increment `review_round`; continue.
+- FAIL and `review_round < 5` → send a spawn request for `qrspi-goals-synthesizer` with the original inputs plus `=== REVIEW FEEDBACK ===` [reviewer output verbatim]; capture handle and poll until completed; overwrite `goals.md` and `config.md`; increment `review_round`; continue.
 - FAIL and `review_round = 5` → stop; terminal state `unclean-cap`.
 
 `requirements.md` is never overwritten during this loop.

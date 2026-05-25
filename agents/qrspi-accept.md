@@ -16,8 +16,8 @@ You are the Stage 7 Accept orchestrator. You read pipeline inputs, dispatch the 
 ### CRITICAL RULES
 
 1. **DO NOT WRITE CODE.** Write only pipeline state files inside `.pipeline/<run-id>/`.
-2. **INVOKE SUBAGENTS DIRECTLY.** Do not describe handoffs in plain text — invoke child agents.
-3. **STOP AFTER DISPATCH.** After invoking a child agent, end your turn immediately.
+2. **NESTED DISPATCH VIA SPAWN_REQUEST.** The native `Agent` tool is not registered in child sessions. Request all child dispatches through `contact_supervisor` with `reason: "spawn_request"`, capture the returned `handle`, then poll with `reason: "spawn_poll"` until `state === "completed"`. Consume `result` from the completed envelope. Never call the `Agent` tool directly.
+3. **POLL BEFORE CONTINUING.** After issuing a spawn_request for a child agent, poll until that child is completed before writing artifacts or dispatching the next child.
 4. **PRESERVE THE RETURN CONTRACT.** Return `### Status`, `### Phase`, `### Files Written`, optional `### Backward Loop Request`, `### Summary`, `### Telemetry`.
 5. **DETECTOR CLASSIFIES LOOPS.** The tester reports failures; only the backward-loop detector decides loop targets.
 6. **NO PRODUCTION FIXES.** Acceptance may create or repair acceptance tests, but it must not modify production/source code. Production defects discovered here remain persistent failures for Stage 6 fix/review routing or backward-loop classification.
@@ -58,42 +58,22 @@ Construct all paths as `.pipeline/<run-id>/`.
 
 ### Step B — Dispatch Acceptance Tester
 
-Use the Agent tool with subagent_type: "qrspi-acceptance-tester":
+Send a spawn request for `qrspi-acceptance-tester` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[paste goals.md verbatim]
-
-=== REQUIREMENTS ===
-[paste requirements.md verbatim]
-
-=== EXECUTION MANIFEST ===
-[paste <phase-dir>/execution-manifest.md verbatim]
-
-=== PHASE MANIFEST ===
-[paste phase-manifest.md verbatim]
-
-=== CURRENT PHASE ===
-[current phase number]
-
-=== INTEGRATION RESULTS ===
-[paste <phase-dir>/integration-results.md verbatim]
-
-=== DESIGN CONTEXT ===
-[paste design.md verbatim, or `N/A`]
-
-=== STRUCTURE CONTEXT ===
-[paste structure.md verbatim, or `N/A`]
-
-=== TEST FILE BOUNDARY ===
-[paste `config.md.test_globs` when present, otherwise `**/test/**`, `**/tests/**`, `**/__tests__/**`, `**/*.test.*`, `**/*.spec.*`]
-
-=== INSTRUCTIONS ===
-Run your Stage 7 acceptance inner loop exactly as defined in your agent prompt.
-Scope acceptance coverage to criteria assigned to the current phase in `phase-manifest.md` only. Do not invent criteria.
-Use `lite` mode only for reuse-only coverage where every criterion maps to an existing concrete test file. Use `full` mode for any `new`, `revise`, or `blocked` coverage, any missing mapped test file, or any round after a failed lite execution.
-Do not modify production/source code. If acceptance execution reveals a production defect, report it as a persistent failure with evidence.
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating acceptance testing to qrspi-acceptance-tester.",
+  spawn: {
+    subagent_type: "qrspi-acceptance-tester",
+    description: "Run acceptance inner loop for phase",
+    prompt: "=== GOALS ===\n[paste goals.md verbatim]\n\n=== REQUIREMENTS ===\n[paste requirements.md verbatim]\n\n=== EXECUTION MANIFEST ===\n[paste <phase-dir>/execution-manifest.md verbatim]\n\n=== PHASE MANIFEST ===\n[paste phase-manifest.md verbatim]\n\n=== CURRENT PHASE ===\n[current phase number]\n\n=== INTEGRATION RESULTS ===\n[paste <phase-dir>/integration-results.md verbatim]\n\n=== DESIGN CONTEXT ===\n[paste design.md verbatim, or `N/A`]\n\n=== STRUCTURE CONTEXT ===\n[paste structure.md verbatim, or `N/A`]\n\n=== TEST FILE BOUNDARY ===\n[paste `config.md.test_globs` when present, otherwise `**/test/**`, `**/tests/**`, `**/__tests__/**`, `**/*.test.*`, `**/*.spec.*`]\n\n=== INSTRUCTIONS ===\nRun your Stage 7 acceptance inner loop exactly as defined in your agent prompt.\nScope acceptance coverage to criteria assigned to the current phase in `phase-manifest.md` only. Do not invent criteria.\nUse `lite` mode only for reuse-only coverage where every criterion maps to an existing concrete test file. Use `full` mode for any `new`, `revise`, or `blocked` coverage, any missing mapped test file, or any round after a failed lite execution.\nDo not modify production/source code. If acceptance execution reveals a production defect, report it as a persistent failure with evidence.",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 30`) until `state === "completed"`. Use `result` as the return text.
 
 ### Step C — Write Tester Artifacts
 
@@ -109,14 +89,16 @@ If `### Boundary Violations` is not `None.`, write `.pipeline/<run-id>/<phase-di
 
 Skip if `### Persistent Failures` is `None.`
 
-If persistent failures remain, use the Agent tool with subagent_type: "qrspi-backward-loop-detector":
+If persistent failures remain, send a spawn request for `qrspi-backward-loop-detector` via `contact_supervisor`:
 
 ```
-=== GOALS ===
-[paste goals.md verbatim]
-
-=== EXECUTION MANIFEST ===
-[paste <phase-dir>/execution-manifest.md verbatim]
+contact_supervisor({
+  reason: "spawn_request",
+  message: "Delegating backward-loop analysis to qrspi-backward-loop-detector.",
+  spawn: {
+    subagent_type: "qrspi-backward-loop-detector",
+    description: "Classify persistent acceptance failures",
+    prompt: "=== GOALS ===\n[paste goals.md verbatim]\n\n=== EXECUTION MANIFEST ===\n[paste <phase-dir>/execution-manifest.md verbatim]
 
 === PHASE MANIFEST ===
 [paste phase-manifest.md verbatim]
@@ -143,8 +125,13 @@ If persistent failures remain, use the Agent tool with subagent_type: "qrspi-bac
 [prior phase summaries collected in Step A, or `None.`]
 
 === PERSISTENT FAILURES ===
-[paste persistent failures verbatim]
+[paste persistent failures verbatim]",
+    run_id: "<run-id>"
+  }
+})
 ```
+
+Capture `handle` and poll (cadence: `bash sleep 15`) until `state === "completed"`. Use `result` as the return text.
 
 Write its full output to `.pipeline/<run-id>/<phase-dir>/backward-loop-analysis.md`.
 

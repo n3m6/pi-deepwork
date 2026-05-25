@@ -10,6 +10,6 @@
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.mjs",
-    "test": "node --test test/agents-stage1.test.js test/agents-stage6.test.js test/skill.test.js test/postinstall.test.js"
+    "test": "node --test test/agents-stage1.test.js test/agents-stage6.test.js test/skill.test.js test/postinstall.test.js test/spawn-protocol.test.js"
   }
 }
