@@ -151,6 +151,35 @@ test("resources_discover handler returns skillPaths array with at least one path
   );
 });
 
+test("resources_discover handler mirrors agents into the workspace cwd from the event payload", () => {
+  const { pi, events } = createMockPi();
+  activate(pi);
+
+  const discoverEvents = events.filter((e) => e.event === "resources_discover");
+  const handler = discoverEvents[0]!.handler;
+
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-discover-"),
+  );
+  try {
+    handler({ type: "resources_discover", cwd: tmpRoot, reason: "test" });
+    const mirroredAgentsDir = path.join(tmpRoot, ".pi", "agents");
+    assert.ok(
+      fs.existsSync(mirroredAgentsDir),
+      `expected ${mirroredAgentsDir} to be created when event payload cwd is provided`,
+    );
+    const mirrored = fs
+      .readdirSync(mirroredAgentsDir)
+      .filter((f) => f.endsWith(".md"));
+    assert.ok(
+      mirrored.length > 0,
+      "expected at least one bundled qrspi-*.md to be mirrored",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
 test("skills/deepwork/SKILL.md exists on disk", () => {
   const skillFilePath = path.join(
     projectRoot,

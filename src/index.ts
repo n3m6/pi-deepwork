@@ -42,6 +42,7 @@ import type {
   ExtensionAPI,
   ExtensionContext,
   CommandHandler,
+  ResourcesDiscoverEvent,
 } from "./types/pi-extensions";
 
 type AgentPrepResult =
@@ -398,12 +399,22 @@ export default function activate(pi: ExtensionAPI): void {
     handler: createDeepworkResumeHandler(pi),
   });
 
-  pi.on("resources_discover", () => {
+  pi.on("resources_discover", (...args: unknown[]) => {
     // Re-mirror agents and refresh registry on every session start so qrspi-*
     // are visible even when the user invokes the deepwork skill without running
     // the /deepwork slash command first.
+    //
+    // IMPORTANT: pi runtimes deliver the active workspace `cwd` on the event
+    // payload. Falling back to `process.cwd()` mirrors agents to the directory
+    // pi was *launched* from, which is frequently not the workspace pi is
+    // operating on, leaving `.pi/agents/` empty in the project.
+    const event = args[0] as Partial<ResourcesDiscoverEvent> | undefined;
+    const eventCwd =
+      typeof event?.cwd === "string" && event.cwd.trim().length > 0
+        ? event.cwd
+        : process.cwd();
     try {
-      ensureRegisteredSubagents(process.cwd(), REQUIRED_QRSPI_STAGE_AGENTS);
+      ensureRegisteredSubagents(eventCwd, REQUIRED_QRSPI_STAGE_AGENTS);
     } catch (e: unknown) {
       console.warn(
         `[pi-deepwork] Best-effort agent registration on resources_discover failed: ${
