@@ -35,14 +35,6 @@ export interface QrspiDispatchParams {
   run_in_background?: boolean;
 }
 
-/** Parameter shape for the qrspi_question tool. */
-export interface QrspiQuestionParams {
-  header: string;
-  message: string;
-  options: string[];
-  type: "confirm" | "select";
-}
-
 /** Parameter shape for the qrspi_get_subagent_result tool. */
 export interface QrspiGetSubagentResultParams {
   agent_id: string;
@@ -58,15 +50,6 @@ export interface DispatchResult {
   toolUses?: number;
   startedAt: string;
   completedAt?: string;
-}
-
-/** Structured result from a user prompt. */
-export interface QuestionResult {
-  type: "confirm" | "select";
-  header: string;
-  answer: string;
-  cancelled: boolean;
-  uiUnavailable: boolean;
 }
 
 /** Options bag passed to AgentManager spawn methods. */
@@ -111,10 +94,6 @@ export interface AgentManagerFacade {
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
-}
-
-function isNonEmptyArray(v: unknown): v is unknown[] {
-  return Array.isArray(v) && v.length > 0;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -392,19 +371,6 @@ function dispatchFailResponse(reason: string): ToolResult {
       status: "failed",
       error: reason,
       startedAt: new Date().toISOString(),
-    } as Record<string, unknown>,
-  };
-}
-
-function questionErrorResponse(reason: string, qtype?: string): ToolResult {
-  return {
-    content: `Error: ${reason}`,
-    details: {
-      type: qtype || "confirm",
-      header: "qrspi_question",
-      answer: "",
-      cancelled: false,
-      uiUnavailable: false,
     } as Record<string, unknown>,
   };
 }
@@ -774,226 +740,6 @@ ${dispatched.result ?? ""}`,
     description:
       "Check status or retrieve the result of a background subagent started with the native Agent tool. Use wait: true to block until completion.",
     parameters: GET_SUBAGENT_RESULT_PARAM_SCHEMA,
-    execute,
-  };
-}
-
-// ═══════════════════════════════════════════
-// createQuestionTool
-// ═══════════════════════════════════════════
-
-const QUESTION_PARAM_SCHEMA: Record<string, unknown> = {
-  type: "object",
-  properties: {
-    header: {
-      type: "string",
-      description: "Short label, max ~30 characters",
-    },
-    message: {
-      type: "string",
-      description: "Full question text",
-    },
-    options: {
-      type: "array",
-      items: { type: "string" },
-      description: "Available choices",
-    },
-    type: {
-      type: "string",
-      enum: ["confirm", "select"],
-      description: "Type of prompt: confirm (yes/no) or select (pick one)",
-    },
-  },
-  required: ["header", "message", "options", "type"],
-};
-
-/**
- * Factory that returns a ToolDefinition for qrspi_question.
- * The returned tool receives ctx as the last execute parameter.
- */
-export function createQuestionTool(): ToolDefinition {
-  const execute: ToolDefinition["execute"] = async (
-    _toolCallId,
-    params,
-    _signal,
-    _onUpdate,
-    ctx,
-  ) => {
-    // 1. Validate required params
-    if (!isRecord(params)) {
-      return questionErrorResponse("Invalid parameters — expected an object.");
-    }
-
-    const header = params.header;
-    const message = params.message;
-    const options = params.options;
-    const qtype = params.type;
-
-    if (!isNonEmptyString(header)) {
-      return questionErrorResponse(
-        "Missing or empty required parameter: header",
-        qtype as string | undefined,
-      );
-    }
-
-    if (!isNonEmptyString(message)) {
-      return {
-        content: "Error: Missing or empty required parameter: message",
-        details: {
-          type: (qtype as QuestionResult["type"]) ?? "confirm",
-          header: header,
-          answer: "",
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
-    }
-
-    if (!isNonEmptyArray(options)) {
-      return {
-        content:
-          "Error: Missing or empty required parameter: options (must be a non-empty array)",
-        details: {
-          type: (qtype as QuestionResult["type"]) ?? "confirm",
-          header: header,
-          answer: "",
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
-    }
-
-    if (qtype !== "confirm" && qtype !== "select") {
-      return questionErrorResponse(
-        'Invalid type parameter — must be "confirm" or "select".',
-        qtype as string | undefined,
-      );
-    }
-
-    const optsArr = options as string[];
-
-    // 2. No-UI guard
-    if (!ctx.hasUI) {
-      console.warn(
-        "qrspi_question: no UI available — returning default fallback answer",
-      );
-      if (qtype === "confirm") {
-        return {
-          content: "[NO UI — DEFAULT] User confirmed: Yes",
-          details: {
-            type: "confirm",
-            header: header,
-            answer: "Yes",
-            cancelled: false,
-            uiUnavailable: true,
-          } as Record<string, unknown>,
-        };
-      }
-      // select: default to first option
-      const fallback = optsArr[0] ?? "";
-      return {
-        content: `[NO UI — DEFAULT] User selected: ${fallback}`,
-        details: {
-          type: "select",
-          header: header,
-          answer: fallback,
-          cancelled: false,
-          uiUnavailable: true,
-        } as Record<string, unknown>,
-      };
-    }
-
-    // 3 & 4. UI available — dispatch to ctx.ui
-    if (qtype === "confirm") {
-      let confirmed: boolean;
-      try {
-        confirmed = await ctx.ui.confirm(header, message);
-      } catch (e) {
-        console.error("qrspi_question: UI confirm failed", e);
-        const errMsg = e instanceof Error ? e.message : String(e);
-        return {
-          content: `### Status — FAIL\n**Error:** UI confirm dialog failed: ${errMsg}`,
-          details: {
-            type: "confirm",
-            header: header,
-            answer: "",
-            cancelled: false,
-            uiUnavailable: true,
-          } as Record<string, unknown>,
-        };
-      }
-      if (confirmed) {
-        return {
-          content: "User confirmed: Yes",
-          details: {
-            type: "confirm",
-            header: header,
-            answer: "Yes",
-            cancelled: false,
-            uiUnavailable: false,
-          } as Record<string, unknown>,
-        };
-      }
-      return {
-        content: "User confirmed: No",
-        details: {
-          type: "confirm",
-          header: header,
-          answer: "No",
-          cancelled: true,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
-    }
-
-    // qtype === "select"
-    let selection: string | undefined;
-    try {
-      selection = await ctx.ui.select(header, optsArr);
-    } catch (e) {
-      console.error("qrspi_question: UI select failed", e);
-      const errMsg = e instanceof Error ? e.message : String(e);
-      return {
-        content: `### Status — FAIL\n**Error:** UI select dialog failed: ${errMsg}`,
-        details: {
-          type: "select",
-          header: header,
-          answer: "",
-          cancelled: true,
-          uiUnavailable: true,
-        } as Record<string, unknown>,
-      };
-    }
-    if (selection !== undefined && typeof selection === "string") {
-      return {
-        content: `User selected: ${selection}`,
-        details: {
-          type: "select",
-          header: header,
-          answer: selection,
-          cancelled: false,
-          uiUnavailable: false,
-        } as Record<string, unknown>,
-      };
-    }
-    return {
-      content: "User cancelled selection",
-      details: {
-        type: "select",
-        header: header,
-        answer: "",
-        cancelled: true,
-        uiUnavailable: false,
-      } as Record<string, unknown>,
-    };
-  };
-
-  return {
-    name: "qrspi_question",
-    label: "Ask User Question",
-    description:
-      "Present an interactive prompt to the user (confirm or select). Use this when the orchestrator needs user input during pipeline execution. Falls back to safe defaults when no UI is available.",
-    parameters: QUESTION_PARAM_SCHEMA,
     execute,
   };
 }

@@ -147,10 +147,10 @@ test("qrspi-structure.md frontmatter has required field: extensions", () => {
 // qrspi-structure.md — Specific frontmatter values
 // ---------------------------------------------------------------------------
 
-test("qrspi-structure.md tools includes qrspi_dispatch and qrspi_question", () => {
+test("qrspi-structure.md tools includes qrspi_dispatch and ask_user", () => {
   const val = getField(orchFM, "tools");
   assert.ok(val.includes("qrspi_dispatch"), "tools must include qrspi_dispatch");
-  assert.ok(val.includes("qrspi_question"), "tools must include qrspi_question");
+  assert.ok(val.includes("ask_user"), "tools must include ask_user");
 });
 
 test("qrspi-structure.md tools includes read, write, edit, bash, grep, find, ls", () => {
@@ -466,12 +466,12 @@ test("qrspi-structure.md body references qrspi_dispatch for reviewer dispatch", 
 });
 
 // ---------------------------------------------------------------------------
-// Human gate contract — qrspi_question not opencode question
+// Human gate contract — ask_user not opencode question
 // ---------------------------------------------------------------------------
 
-test("qrspi-structure.md body references qrspi_question for human gate", () => {
-  assert.ok(orchBody.includes("qrspi_question"),
-    "orchestrator body must reference qrspi_question tool");
+test("qrspi-structure.md body references ask_user for human gate", () => {
+  assert.ok(orchBody.includes("ask_user"),
+    "orchestrator body must reference ask_user tool");
 });
 
 // ---------------------------------------------------------------------------

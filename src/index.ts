@@ -29,7 +29,6 @@ import type {
 import {
   createDispatchTool,
   createGetSubagentResultTool,
-  createQuestionTool,
   setPi,
 } from "./shared-tools";
 import {
@@ -201,7 +200,8 @@ function buildOrchestrationContract(): string {
 - Delegate every stage with the native Agent tool and the exact QRSPI custom agent type in subagent_type.
 - Do not search for SKILL.md, call add_directory, create agent symlinks, or call subagent list as a prerequisite.
 - Do not use subagent list, the generic subagent tool, or a general-purpose fallback to decide how to launch QRSPI stages.
-- If the deepwork skill, native Agent tool, or qrspi_question tool is unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.`;
+- If the deepwork skill or native Agent tool is unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.
+- Do not probe ask_user before the first stage dispatch. If an interactive human gate is reached and ask_user is unavailable, stop immediately and report "Deepwork configuration error".`;
 }
 
 function formatRuntimeDiscoverySnapshot(
@@ -223,7 +223,8 @@ function formatRuntimeDiscoverySnapshot(
 - Registry layouts refreshed: ${layouts}
 - Registered QRSPI agents: ${qrspiAgents}
 - Stage launcher: native Agent tool with registered QRSPI custom agent types
-- Expected extension tools: qrspi_question, qrspi_get_subagent_result`;
+- Human gate tool: ask_user from pi-ask-user, required only when an interactive gate is reached
+- Legacy child helper tools: qrspi_dispatch, qrspi_get_subagent_result`;
 }
 
 const STAGE_AGENT_BY_NEXT_STAGE: Readonly<Record<string, string>> = {
@@ -939,7 +940,6 @@ export default function activate(pi: ExtensionAPI): void {
 
   pi.registerTool(createDispatchTool());
   pi.registerTool(createGetSubagentResultTool());
-  pi.registerTool(createQuestionTool());
 
   pi.on("resources_discover", () => ({
     skillPaths: getDiscoveredSkillPaths(

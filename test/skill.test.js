@@ -58,12 +58,17 @@ test('SKILL.md does not reference "task" tool (uses native Agent instead)', () =
   );
 });
 
-test('SKILL.md does not reference "question" tool (uses "qrspi_question" instead)', () => {
+test('SKILL.md does not reference legacy question tools', () => {
   const questionToolPattern =
     /`question` tool|invoke.*`question`|use the `question`/i;
+  const removedQuestionTool = ['qrspi', 'question'].join('_');
   assert.ok(
     !questionToolPattern.test(skillContent),
-    'Should not reference question tool — use qrspi_question instead',
+    'Should not reference the old question tool',
+  );
+  assert.ok(
+    !skillContent.includes(removedQuestionTool),
+    'Should not reference the removed QRSPI question wrapper',
   );
 });
 
@@ -133,21 +138,28 @@ test('SKILL.md uses native Agent with subagent_type parameter', () => {
   );
 });
 
-test('SKILL.md uses qrspi_question with required parameters', () => {
+test('SKILL.md uses ask_user with required parameters', () => {
+  assert.ok(skillContent.includes('ask_user'), 'Should reference ask_user');
   assert.ok(
-    skillContent.includes('qrspi_question'),
-    'Should reference qrspi_question',
+    skillContent.includes('question:'),
+    'Should include question parameter',
   );
-  assert.ok(skillContent.includes('header'), 'Should include header parameter');
   assert.ok(
-    /qrspi_question[^]*?message:/.test(skillContent),
-    'qrspi_question should use message: parameter',
+    skillContent.includes('context'),
+    'Should include context parameter guidance',
   );
   assert.ok(
     skillContent.includes('options'),
     'Should include options parameter',
   );
-  assert.ok(skillContent.includes('type'), 'Should include type parameter');
+  assert.ok(
+    skillContent.includes('allowFreeform'),
+    'Should include allowFreeform parameter',
+  );
+  assert.ok(
+    skillContent.includes('allowComment'),
+    'Should include allowComment parameter',
+  );
 });
 
 test('SKILL.md handles extension-scaffolded handoff without Pre-Flight', () => {
@@ -499,7 +511,7 @@ test('SKILL.md describes human gates at correct stages', () => {
     skillContent.indexOf('### Stage 2 — Research'),
   );
   assert.ok(
-    stage1Section.includes('qrspi_question') ||
+    stage1Section.includes('ask_user') ||
       stage1Section.includes('human gate') ||
       stage1Section.includes('Human Gate'),
     'Stage 1 should reference human gate',
@@ -511,7 +523,7 @@ test('SKILL.md describes human gates at correct stages', () => {
     skillContent.indexOf('### Stage 4 — Structure'),
   );
   assert.ok(
-    stage4Section.includes('qrspi_question') ||
+    stage4Section.includes('ask_user') ||
       stage4Section.includes('human gate') ||
       stage4Section.includes('Human Gate'),
     'Stage 3 should reference human gate',
@@ -523,7 +535,7 @@ test('SKILL.md describes human gates at correct stages', () => {
     skillContent.indexOf('### Stage 5 — Plan'),
   );
   assert.ok(
-    stage5Section.includes('qrspi_question') ||
+    stage5Section.includes('ask_user') ||
       stage5Section.includes('human gate') ||
       stage5Section.includes('Human Gate'),
     'Stage 4 should reference human gate',
@@ -531,8 +543,7 @@ test('SKILL.md describes human gates at correct stages', () => {
 
   // Stage 5 unclean-cap gate
   assert.ok(
-    skillContent.includes('unclean-cap') &&
-      skillContent.includes('qrspi_question'),
+    skillContent.includes('unclean-cap') && skillContent.includes('ask_user'),
     'Stage 5 should have unclean-cap human gate',
   );
 });

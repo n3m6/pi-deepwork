@@ -1,6 +1,6 @@
 ---
 description: "Stage 4 orchestrator — dispatches the structure mapper, runs automated review rounds, and runs or auto-resolves the approval gate. Writes structure.md and review artifacts."
-tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question
+tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user
 model: deepseek-v4-pro
 thinking: high
 max_turns: 40
@@ -22,8 +22,8 @@ Extract the run ID, `interaction_mode` (`interactive` or `automated`), and `fail
 
 ### Automation Policy
 
-- `interactive` — use `qrspi_question` for approval and revision feedback.
-- `automated` — do not call `qrspi_question`. Auto-approve only a clean reviewed structure.
+- `interactive` — use `ask_user` for approval and revision feedback.
+- `automated` — do not call `ask_user`. Auto-approve only a clean reviewed structure.
 - In automated mode with `fail-closed`, return FAIL on `unclean-cap`.
 - In automated mode with `best-effort`, `unclean-cap` may proceed only when unresolved findings are LOW/MEDIUM and the structure artifact explicitly records the risk; otherwise return FAIL.
 
@@ -94,9 +94,9 @@ Quality enforcement is delegated to `qrspi-structure-reviewer`. Treat any review
 
 ### Step D — Approval Gate
 
-If `interaction_mode = automated`, do not call `qrspi_question`. If `terminal_state = clean`, treat the structure as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
+If `interaction_mode = automated`, do not call `ask_user`. If `terminal_state = clean`, treat the structure as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
 
-Before each `qrspi_question` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
+Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
@@ -105,7 +105,7 @@ Before each `qrspi_question` call in this step, run `bash: date -u +%Y-%m-%dT%H:
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
 
 1. `Read .pipeline/<run-id>/structure.md`
-2. Ask via the `qrspi_question` tool:
+2. Ask via `ask_user` with `question: "Approve this structure or provide revision feedback?"`, `context` containing the review status, artifact path, and full structure artifact, `options: ["approve", "provide feedback"]`, `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`:
 
 ```
 ### Structure — Review
@@ -114,7 +114,7 @@ Review status: [if `clean`: "Automated reviews passed clean in round {NN}." If `
 
 Review the full artifact at `.pipeline/<run-id>/structure.md`.
 
-Reply **approve** to proceed, or provide your feedback for revision.
+Select **approve** to proceed, or provide your feedback for revision.
 ```
 
 3. **If approved** (any affirmative): proceed to Return.

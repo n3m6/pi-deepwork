@@ -108,7 +108,7 @@ test('qrspi-goals.md frontmatter — exact fields', () => {
 test('qrspi-goals.md frontmatter — tools field', () => {
   assert.equal(
     orchFM.tools,
-    'read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question',
+    'read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user',
   );
 });
 
@@ -193,11 +193,8 @@ test('qrspi-goals.md body — contains subagent_type: "qrspi-goals-reviewer"', (
   assert.ok(orchBody.includes('subagent_type: "qrspi-goals-reviewer"'));
 });
 
-test('qrspi-goals.md body — uses qrspi_question (not question) for human gate', () => {
-  assert.ok(
-    orchBody.includes('qrspi_question'),
-    'body must contain qrspi_question',
-  );
+test('qrspi-goals.md body — uses ask_user for human gate', () => {
+  assert.ok(orchBody.includes('ask_user'), 'body must contain ask_user');
   // Verify "question" is not used as a standalone tool reference
   assert.ok(
     !orchBody.includes('the question tool'),

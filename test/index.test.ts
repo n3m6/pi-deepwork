@@ -119,28 +119,15 @@ test("legacy qrspi_dispatch tool is registered exactly once with required fields
   assert.ok("run_in_background" in props);
 });
 
-test("qrspi_question tool is registered exactly once with required fields", () => {
+test("legacy question wrapper tool is not registered", () => {
   const { pi, tools } = createMockPi();
   activate(pi);
 
+  const removedQuestionTool = ["qrspi", "question"].join("_");
   const questionTools = tools.filter(
-    (t) => t.definition.name === "qrspi_question",
+    (t) => t.definition.name === removedQuestionTool,
   );
-  assert.equal(questionTools.length, 1);
-  const tool = questionTools[0]!.definition;
-  assert.ok(typeof tool.name === "string" && tool.name.length > 0);
-  assert.ok(
-    typeof tool.description === "string" && tool.description.length > 0,
-  );
-  assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
-  assert.equal(typeof tool.execute, "function");
-
-  // Check parameters schema includes expected fields
-  const props = tool.parameters.properties as Record<string, unknown>;
-  assert.ok("header" in props);
-  assert.ok("message" in props);
-  assert.ok("options" in props);
-  assert.ok("type" in props);
+  assert.equal(questionTools.length, 0);
 });
 
 test("qrspi_get_subagent_result tool is registered exactly once with required fields", () => {

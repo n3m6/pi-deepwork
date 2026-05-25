@@ -1,6 +1,6 @@
 ---
 description: "Stage 1 orchestrator — captures user intent via interactive dialogue or automated policy, dispatches goals synthesizer and reviewer, and runs or auto-resolves the approval gate. Writes requirements.md, goals.md, and config.md."
-tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question
+tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user
 model: deepseek-v4-pro
 thinking: high
 max_turns: 80
@@ -22,8 +22,8 @@ From deepwork: **Run ID** (`qrspi-<timestamp>`), **Interaction Mode** (`interact
 
 ### Automation Policy
 
-- `interactive` — use `qrspi_question` for unresolved interview branches and the approval gate.
-- `automated` — do not call `qrspi_question`. Resolve factual branches from the task and repo evidence only. If requirement-bearing branches remain unresolved:
+- `interactive` — use `ask_user` for unresolved interview branches and the approval gate.
+- `automated` — do not call `ask_user`. Resolve factual branches from the task and repo evidence only. If requirement-bearing branches remain unresolved:
   - `fail-closed` → return FAIL with the unresolved branches named.
   - `best-effort` → record the unresolved branches explicitly in the Interview Record and continue synthesis with conservative wording.
 - In automated mode, a clean review loop is treated as auto-approved. `unclean-cap` remains FAIL; do not auto-approve known-failed goals.
@@ -35,6 +35,8 @@ Write the User Task verbatim to `.pipeline/<run-id>/requirements.md`. Do not sum
 ### Step A — Interview Loop
 
 Goal: resolve all planning branches before synthesis.
+
+When asking in `interactive` mode, call `ask_user` directly with one focused `question`, optional `context`, `allowMultiple: false`, `allowFreeform: true`, and `displayMode: "inline"`. For approval gates, also set `allowComment: true`. Record `details.response.kind === "selection"` selections, `details.response.kind === "freeform"` text, and optional selection comments verbatim. Treat `details.cancelled === true` or `details.response === null` as unresolved under `fail-closed`.
 
 **Coverage branches** (track each as unresolved/resolved):
 
@@ -169,9 +171,9 @@ Write the reviewer output to `.pipeline/<run-id>/reviews/goals-review-round-{NN}
 
 **Pre-condition check:** If the review loop terminated with `unclean-cap`, skip this step entirely and go directly to Return with `Status — FAIL` using the unrecoverable-failure template. The reason is that known-failed artifacts must not be presented to the user for potential accidental approval.
 
-If `interaction_mode = automated`, skip `qrspi_question`, treat the clean artifact as approved, set `gate_status = "approved"`, `gate_rounds = 0`, `gate_wait_time_s = 0`, and add `gate_mode = "automated"` to telemetry. Proceed directly to Return.
+If `interaction_mode = automated`, skip `ask_user`, treat the clean artifact as approved, set `gate_status = "approved"`, `gate_rounds = 0`, `gate_wait_time_s = 0`, and add `gate_mode = "automated"` to telemetry. Proceed directly to Return.
 
-Before each `qrspi_question` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
+Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
@@ -180,7 +182,7 @@ Before each `qrspi_question` call in this step, run `bash: date -u +%Y-%m-%dT%H:
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
 
 1. Read: `Read .pipeline/<run-id>/goals.md`
-2. Present via `qrspi_question`:
+2. Present via `ask_user` with `question: "Approve these goals or provide revision feedback?"`, `context` containing the review status, artifact path, and full goals artifact, `options: ["approve", "provide feedback"]`, `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`:
 
 ```
 ### Goals — Review
@@ -189,7 +191,7 @@ Review status: [if `clean`: "Checklist review passed in round {NN}." If `unclean
 
 Review the full artifact at `.pipeline/<run-id>/goals.md`.
 
-Reply **approve** to proceed, or provide feedback for revision.
+Select **approve** to proceed, or provide feedback for revision.
 ```
 
 3. **On approval** ("approve", "yes", "looks good", "lgtm", or similar): proceed to Return.

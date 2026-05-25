@@ -4,21 +4,23 @@ pi-deepwork is a pi extension for the QRSPI deepwork pipeline (Goals -> Research
 
 ## Prerequisites
 
-- **pi** — the AI coding-agent runtime that loads the extension, exposes the ExtensionAPI and ExtensionContext interfaces, provides `ctx.ui` for interactive prompts, and emits `resources_discover` for skill injection.
+- **pi** — the AI coding-agent runtime that loads the extension, exposes the ExtensionAPI and ExtensionContext interfaces, and emits `resources_discover` for skill injection.
 - **`@tintinweb/pi-subagents` 0.7.3+** — install separately with `pi install npm:@tintinweb/pi-subagents`. This provides the native `Agent` tool used to spawn registered QRSPI custom agents.
+- **`pi-ask-user`** — install separately with `pi install npm:pi-ask-user`. This provides the `ask_user` tool used by interactive Deepwork human gates.
 - **Node.js 18+** — required to build and run the TypeScript extension.
 - **git** (optional) — used for per-run branches (`qrspi/<run-id>`) and stage checkpoints. If `git` is unavailable, the extension continues and tracks state only in `.pipeline/`.
 - **Model availability** — at least one sonnet-tier and one haiku-tier model. Orchestrators use sonnet-tier models; reviewers and many leaf agents use haiku-tier models.
 
 ## Installation
 
-Install `@tintinweb/pi-subagents` first regardless of the workflow you choose.
+Install `@tintinweb/pi-subagents` and `pi-ask-user` first regardless of the workflow you choose.
 
 ### Method A: Git clone + npm symlink
 
 ```bash
-# 1. Install the prerequisite
+# 1. Install the prerequisites
 pi install npm:@tintinweb/pi-subagents
+pi install npm:pi-ask-user
 
 # 2. Clone and build
 git clone https://github.com/n3m6/pi-deepwork.git
@@ -36,7 +38,7 @@ for file in "$(pwd)"/agents/*.md; do ln -sf "$file" ~/.pi/agent/agents/; done
 
 What each step does:
 
-- Step 1 installs `pi-subagents`, which provides the native `Agent` launcher and custom-agent registry.
+- Step 1 installs `pi-subagents`, which provides the native `Agent` launcher and custom-agent registry, and `pi-ask-user`, which provides the interactive `ask_user` gate tool.
 - Step 2 clones the repository and compiles the TypeScript source to CommonJS output in `dist/`.
 - Step 3 makes pi discover this extension from `~/.pi/agent/extensions/pi-deepwork`.
 - Step 4 makes pi-subagents discover the 55 agent definitions from the flat `~/.pi/agent/agents/*.md` directory.
@@ -44,8 +46,9 @@ What each step does:
 ### Method B: `pi install git:`
 
 ```bash
-# 1. Install the prerequisite
+# 1. Install the prerequisites
 pi install npm:@tintinweb/pi-subagents
+pi install npm:pi-ask-user
 
 # 2. Install the extension with pi's package manager
 pi install git:github.com/n3m6/pi-deepwork@main
@@ -119,7 +122,7 @@ Current live-mode behavior:
 - send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
 - include a runtime discovery snapshot and exact next native `Agent` target in the handoff prompt, so the first Deepwork turn dispatches directly instead of searching for skill or agent files
 - validate the required QRSPI stage-agent files and refresh pi-subagents' custom-agent registry before live/resume handoff, so missing registration fails closed instead of falling back to `general-purpose`
-- instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, must not use `subagent list`, filesystem probing, or `general-purpose` substitution for QRSPI stages, and must stop with a configuration error if the Deepwork skill, native `Agent` tool, or `qrspi_question` tool is unavailable
+- instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, must not use `subagent list`, filesystem probing, or `general-purpose` substitution for QRSPI stages, must not probe `ask_user` before the first stage dispatch, and must stop with a configuration error if the Deepwork skill, native `Agent` tool, or an interactive-gate `ask_user` call is unavailable
 - if `pi.sendUserMessage()` fails, keep the scaffolded run on disk and report that no Deepwork orchestrator is active yet; recovery is to fix the runtime configuration and rerun `/deepwork-resume run-id:"<run-id>"`
 
 The extension does not mutate `ctx.sessionManager` directly. pi documents that surface as read-only; runtime handoff happens through the documented message APIs.
@@ -147,7 +150,7 @@ Dry-run mode will:
 - mark `state.md` with `mode: "dry-run"`, the selected interaction/failure policy, and advance it to `next_stage: "done"`
 - generate synthetic telemetry files such as `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`
 - skip git branch creation and checkpoint commits
-- skip all native `Agent` stage dispatch and `qrspi_question` activity
+- skip all native `Agent` stage dispatch and interactive `ask_user` gate activity
 - avoid modifying project source files
 
 ### Resume an existing run
@@ -158,7 +161,7 @@ Dry-run mode will:
 
 The extension reads `.pipeline/<run-id>/state.md` and resumes from the recorded `next_stage`. If the run is already complete, including a completed dry-run, the UI reports that clearly instead of presenting it as resumable work.
 
-For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`. That resume prompt uses the same fail-closed contract as live startup: no direct coding, no silent fallback, and an explicit configuration error if the required Deepwork skill or QRSPI tools are unavailable.
+For resumable live runs, the extension also injects a Deepwork resume prompt into the active session via `pi.sendUserMessage()` so the orchestrator re-enters at the recorded `next_stage`. That resume prompt uses the same fail-closed contract as live startup: no direct coding, no silent fallback, no pre-dispatch `ask_user` probing, and an explicit configuration error if the required Deepwork skill, QRSPI agents, or interactive gate tool are unavailable when needed.
 
 ### Background subagent orchestration
 
@@ -202,6 +205,16 @@ pi install npm:@tintinweb/pi-subagents
 ```
 
 Deepwork live mode requires pi-subagents' native `Agent` tool. Install the prerequisite and restart pi if the tool is unavailable.
+
+### The `ask_user` tool is missing at a human gate
+
+Install the prerequisite:
+
+```bash
+pi install npm:pi-ask-user
+```
+
+Deepwork does not probe `ask_user` before the first stage dispatch. Interactive stage agents call it only when they reach a human gate, such as Goals approval, Design approval, or Structure approval. If that call is unavailable, fix the pi-ask-user installation and resume the run.
 
 ### The extension loads, but agents are not found
 
@@ -261,16 +274,17 @@ npm test
 
 Use this checklist in a real pi environment after installation. It is the operator flow to verify end-to-end behavior that the repo tests cannot exercise on their own.
 
-1. Install `@tintinweb/pi-subagents >=0.7.3`, build this extension, and either place the agent files directly under `~/.pi/agent/agents/` or let the first live/resume Deepwork run mirror them into `.pi/agents/` automatically.
+1. Install `@tintinweb/pi-subagents >=0.7.3` and `pi-ask-user`, build this extension, and either place the agent files directly under `~/.pi/agent/agents/` or let the first live/resume Deepwork run mirror them into `.pi/agents/` automatically.
 2. Start pi in a disposable repository with git initialized, Node 18+, and access to the sonnet and haiku model tiers used by the agents.
 3. Confirm `/deepwork` and `/deepwork-resume` are present, and verify the `deepwork` skill is available in the session.
 4. Run `/deepwork task:"Smoke test dry run" dry-run:"true" route:"quick-fix"` and verify `.pipeline/<run-id>/state.md` records `mode: "dry-run"` and `next_stage: "done"`.
 5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/` under the active workspace, writes telemetry, validates mirrored QRSPI registration, then hands off to Deepwork through `pi.sendUserMessage()`.
-6. Confirm the first live Deepwork turn contains `=== RUNTIME DISCOVERY ===` and `=== NEXT DISPATCH ===`, does not search for `SKILL.md`, does not call `subagent list`, does not create symlinks, and directly dispatches `qrspi-goals` through the native `Agent` tool.
-7. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
-8. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
-9. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
-10. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
+6. Confirm the first live Deepwork turn contains `=== RUNTIME DISCOVERY ===` and `=== NEXT DISPATCH ===`, does not search for `SKILL.md`, does not call `subagent list`, does not create symlinks, does not probe `ask_user`, and directly dispatches `qrspi-goals` through the native `Agent` tool.
+7. At the first interactive Goals gate, confirm the stage agent calls `ask_user` directly and records the response in the normal gate telemetry instead of returning a question for the top-level orchestrator to interpret.
+8. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
+9. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
+10. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
+11. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
 
 Expected operator flow:
 

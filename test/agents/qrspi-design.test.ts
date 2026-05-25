@@ -159,7 +159,7 @@ test("qrspi-design.md frontmatter — exact fields (no extra, no missing)", () =
 test("qrspi-design.md frontmatter — tools field exact value", () => {
   assert.equal(
     getField(orchFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_question"
+    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user"
   );
 });
 
@@ -330,15 +330,15 @@ test("qrspi-design-reviewer.md frontmatter — no opencode-only fields (mode, hi
 });
 
 // ---------------------------------------------------------------------------
-// Reviewer read-only constraint — no write/edit/qrspi_dispatch/qrspi_question
+// Reviewer read-only constraint — no write/edit/qrspi_dispatch/ask_user
 // ---------------------------------------------------------------------------
 
-test("qrspi-design-reviewer.md frontmatter tools does not include write, edit, qrspi_dispatch, or qrspi_question", () => {
+test("qrspi-design-reviewer.md frontmatter tools does not include write, edit, qrspi_dispatch, or ask_user", () => {
   const tools = getField(reviewFM, "tools");
   assert.ok(!tools.includes("write"), "reviewer tools must not include write");
   assert.ok(!tools.includes("edit"), "reviewer tools must not include edit");
   assert.ok(!tools.includes("qrspi_dispatch"), "reviewer tools must not include qrspi_dispatch");
-  assert.ok(!tools.includes("qrspi_question"), "reviewer tools must not include qrspi_question");
+  assert.ok(!tools.includes("ask_user"), "reviewer tools must not include ask_user");
 });
 
 // ---------------------------------------------------------------------------
@@ -528,18 +528,17 @@ test("qrspi-design.md body — contains subagent_type: 'qrspi-design-reviewer'",
 });
 
 // ---------------------------------------------------------------------------
-// qrspi-design.md — Question adaptation (qrspi_question not opencode question)
+// qrspi-design.md — Question adaptation (ask_user not opencode question)
 // ---------------------------------------------------------------------------
 
-test("qrspi-design.md body — uses qrspi_question (not opencode question) for interactive prompts", () => {
-  assert.ok(orchBody.includes("qrspi_question"), "body must contain qrspi_question");
+test("qrspi-design.md body — uses ask_user for interactive prompts", () => {
+  assert.ok(orchBody.includes("ask_user"), "body must contain ask_user");
   assert.ok(!orchBody.includes("the question tool"), "body must not reference 'the question tool'");
 });
 
-test("qrspi-design.md body — qrspi_question references type: select with header, message, options", () => {
-  assert.ok(orchBody.includes('type: "select"'), "body must reference type: select parameter");
-  assert.ok(orchBody.includes("header"), "body must reference header parameter");
-  assert.ok(orchBody.includes("message"), "body must reference message parameter");
+test("qrspi-design.md body — ask_user references question, context, and options", () => {
+  assert.ok(orchBody.includes("question"), "body must reference question parameter");
+  assert.ok(orchBody.includes("context"), "body must reference context parameter");
   assert.ok(orchBody.includes("options"), "body must reference options parameter");
 });
 
