@@ -688,20 +688,57 @@ test('SKILL.md branch example includes the qrspi- prefix in the run id', () => {
   );
 });
 
-test('SKILL.md references the deepwork_bootstrap tool in Pre-Flight and rule #4', () => {
+test('SKILL.md does not reference the removed deepwork_bootstrap tool', () => {
   assert.ok(
-    skillContent.includes('deepwork_bootstrap'),
-    'SKILL.md must mention the deepwork_bootstrap tool',
+    !skillContent.includes('deepwork_bootstrap'),
+    'SKILL.md must not reference the removed deepwork_bootstrap tool; the /deepwork command handler owns agent mirroring',
+  );
+});
+
+test('SKILL.md Pre-Flight step 0 instructs the model to stop when the extension is not loaded', () => {
+  const preFlightMatch = skillContent.match(/### Pre-Flight[\s\S]*?(?=\n### )/);
+  assert.ok(preFlightMatch, 'SKILL.md must contain a Pre-Flight section');
+  const preFlight = preFlightMatch[0];
+  assert.ok(
+    /qrspi-\*/.test(preFlight) && /subagent list/i.test(preFlight),
+    'Pre-Flight must instruct the model to check subagent list for qrspi-* agents',
   );
   assert.ok(
-    /Pre-Flight[\s\S]*?deepwork_bootstrap/i.test(skillContent),
-    'SKILL.md Pre-Flight must reference the deepwork_bootstrap tool',
+    /extension_not_loaded/i.test(preFlight) ||
+      /pi-deepwork extension to be installed/i.test(preFlight),
+    'Pre-Flight must instruct the model to stop with an extension-not-loaded error',
   );
   assert.ok(
-    /CHECK YOUR SUBAGENT INVENTORY[\s\S]*?deepwork_bootstrap/i.test(
-      skillContent,
-    ),
-    'Rule #4 (CHECK YOUR SUBAGENT INVENTORY) must reference the deepwork_bootstrap tool',
+    /Do not attempt to set up the qrspi agents manually/i.test(preFlight) ||
+      /Do not manually mirror/i.test(preFlight),
+    'Pre-Flight must forbid manual qrspi agent setup',
+  );
+});
+
+test('SKILL.md rule #4 instructs the model to stop when a qrspi-* subagent is missing', () => {
+  const ruleMatch = skillContent.match(
+    /CHECK YOUR SUBAGENT INVENTORY[\s\S]*?(?=\n\d+\. \*\*)/,
+  );
+  assert.ok(
+    ruleMatch,
+    'SKILL.md must contain rule #4 CHECK YOUR SUBAGENT INVENTORY',
+  );
+  const rule = ruleMatch[0];
+  assert.ok(
+    /stop the run/i.test(rule),
+    'Rule #4 must tell the model to stop the run on missing subagent',
+  );
+  assert.ok(
+    /missing_subagent/.test(rule),
+    'Rule #4 must reference the missing_subagent telemetry reason',
+  );
+  assert.ok(
+    /pi-deepwork extension/i.test(rule),
+    'Rule #4 must direct the user to install or enable the pi-deepwork extension',
+  );
+  assert.ok(
+    /Do not manually mirror/i.test(rule),
+    'Rule #4 must preserve the do-not-manually-mirror prohibition',
   );
 });
 
@@ -710,6 +747,6 @@ test('SKILL.md no longer asks the user to reload the extension as a recovery pat
     !/reload the pi-deepwork extension or restart pi so the extension can mirror/i.test(
       skillContent,
     ),
-    'Old "reload the pi-deepwork extension or restart pi" wording must be removed in favor of the deepwork_bootstrap tool',
+    'Old "reload the pi-deepwork extension or restart pi" wording must be removed',
   );
 });

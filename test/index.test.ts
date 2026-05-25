@@ -458,190 +458,31 @@ test("/deepwork live handler writes telemetry/bootstrap.json and includes AGENTS
 });
 
 // ---------------------------------------------------------------------------
-// deepwork_bootstrap tool
+// deepwork_bootstrap tool removal
 // ---------------------------------------------------------------------------
 
-test("deepwork_bootstrap tool is registered with name, label, description, parameters", () => {
+test("activate() registers no deepwork_bootstrap tool", () => {
   const { pi, tools } = createMockPi();
   activate(pi);
 
   const bootstrap = tools.find(
     (t) => t.definition.name === "deepwork_bootstrap",
   );
-  assert.ok(bootstrap, "deepwork_bootstrap tool must be registered");
-  assert.equal(bootstrap!.definition.label, "Deepwork Bootstrap");
-  assert.ok(
-    typeof bootstrap!.definition.description === "string" &&
-      bootstrap!.definition.description.length > 0,
-  );
-  assert.equal(typeof bootstrap!.definition.execute, "function");
   assert.equal(
-    typeof bootstrap!.definition.parameters,
-    "object",
-    "parameters must be an object schema",
+    bootstrap,
+    undefined,
+    "deepwork_bootstrap tool must not be registered; the /deepwork command handler owns agent mirroring",
   );
 });
 
-test("deepwork_bootstrap.execute mirrors agents into a fresh tmpdir cwd and returns ok=true", async () => {
+test("activate() does not register any tools at all (no pi.registerTool calls)", () => {
   const { pi, tools } = createMockPi();
   activate(pi);
-  const bootstrap = tools.find(
-    (t) => t.definition.name === "deepwork_bootstrap",
-  )!;
-
-  const tmpRoot = fs.mkdtempSync(
-    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-tool-"),
+  assert.equal(
+    tools.length,
+    0,
+    "extension currently registers no tools; if a new tool is added, update this assertion",
   );
-  try {
-    const controller = new AbortController();
-    const ctx = {
-      cwd: tmpRoot,
-      ui: {
-        confirm: async () => true,
-        select: async () => undefined,
-        hasUI: true,
-      },
-      signal: controller.signal,
-    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
-
-    const result = await bootstrap.definition.execute(
-      "test-call-1",
-      {},
-      controller.signal,
-      () => {},
-      ctx,
-    );
-
-    assert.ok(
-      result.content.includes("=== AGENTS ==="),
-      "tool content must include AGENTS block",
-    );
-    assert.ok(
-      result.content.includes("=== RUNTIME ==="),
-      "tool content must include RUNTIME block",
-    );
-    assert.ok(
-      result.content.includes("=== SKILL ==="),
-      "tool content must include SKILL block",
-    );
-    assert.equal(result.details?.ok, true);
-    assert.equal(result.details?.cwd, tmpRoot);
-    assert.ok(
-      typeof result.details?.mirrored_files === "number" &&
-        (result.details.mirrored_files as number) > 0,
-      "tool must report mirrored_files > 0 after a fresh mirror",
-    );
-
-    const agentsDir = path.join(tmpRoot, ".pi", "agents");
-    assert.ok(fs.existsSync(agentsDir), "tool must create .pi/agents/");
-    const mirrored = fs.readdirSync(agentsDir).filter((f) => f.endsWith(".md"));
-    assert.ok(
-      mirrored.length > 0,
-      "tool must mirror at least one qrspi-*.md file",
-    );
-  } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  }
-});
-
-test("deepwork_bootstrap.execute honors explicit workspace_cwd parameter", async () => {
-  const { pi, tools } = createMockPi();
-  activate(pi);
-  const bootstrap = tools.find(
-    (t) => t.definition.name === "deepwork_bootstrap",
-  )!;
-
-  const ctxCwd = fs.mkdtempSync(
-    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-ctx-"),
-  );
-  const paramCwd = fs.mkdtempSync(
-    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-param-"),
-  );
-
-  try {
-    const controller = new AbortController();
-    const ctx = {
-      cwd: ctxCwd,
-      ui: {
-        confirm: async () => true,
-        select: async () => undefined,
-        hasUI: true,
-      },
-      signal: controller.signal,
-    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
-
-    const result = await bootstrap.definition.execute(
-      "test-call-2",
-      { workspace_cwd: paramCwd },
-      controller.signal,
-      () => {},
-      ctx,
-    );
-
-    assert.equal(result.details?.cwd, paramCwd);
-    assert.ok(
-      fs.existsSync(path.join(paramCwd, ".pi", "agents")),
-      "tool must mirror into the workspace_cwd parameter",
-    );
-    assert.ok(
-      !fs.existsSync(path.join(ctxCwd, ".pi", "agents")),
-      "tool must NOT mirror into ctx.cwd when workspace_cwd is provided",
-    );
-  } finally {
-    fs.rmSync(ctxCwd, { recursive: true, force: true });
-    fs.rmSync(paramCwd, { recursive: true, force: true });
-  }
-});
-
-test("deepwork_bootstrap.execute updates diagnosticsRecord.lastDiscover with tool reason", async () => {
-  const { pi, tools, commands } = createMockPi();
-  activate(pi);
-  const bootstrap = tools.find(
-    (t) => t.definition.name === "deepwork_bootstrap",
-  )!;
-
-  const tmpRoot = fs.mkdtempSync(
-    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-diag-"),
-  );
-  try {
-    const controller = new AbortController();
-    const toolCtx = {
-      cwd: tmpRoot,
-      ui: {
-        confirm: async () => true,
-        select: async () => undefined,
-        hasUI: true,
-      },
-      signal: controller.signal,
-    } as unknown as Parameters<typeof bootstrap.definition.execute>[4];
-
-    await bootstrap.definition.execute(
-      "test-call-3",
-      {},
-      controller.signal,
-      () => {},
-      toolCtx,
-    );
-
-    // Read it back via /deepwork-doctor: the report includes the last discover reason
-    const doctorCmd = commands.find((c) => c.name === "deepwork-doctor");
-    assert.ok(doctorCmd);
-    const { ctx: doctorCtx, captured } = makeDoctorCtx(tmpRoot);
-    await doctorCmd!.definition.handler(
-      {},
-      doctorCtx as unknown as Parameters<
-        typeof doctorCmd.definition.handler
-      >[1],
-    );
-
-    const message = captured[0]!.message;
-    assert.ok(
-      message.includes("reason=tool:deepwork_bootstrap"),
-      "/deepwork-doctor must surface the tool invocation as the last discover reason",
-    );
-  } finally {
-    fs.rmSync(tmpRoot, { recursive: true, force: true });
-  }
 });
 
 // ---------------------------------------------------------------------------

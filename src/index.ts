@@ -46,7 +46,6 @@ import type {
   ExtensionContext,
   CommandHandler,
   ResourcesDiscoverEvent,
-  ToolDefinition,
 } from "./types/pi-extensions";
 
 type AgentPrepResult =
@@ -654,118 +653,6 @@ function createDeepworkDoctorHandler(): CommandHandler {
   };
 }
 
-function formatSkillBlock(): string {
-  const skill = diagnosticsRecord?.skillCompat;
-  const bundledPath = diagnosticsRecord?.bundledSkillPath ?? "unknown";
-  const bundledExists = diagnosticsRecord?.bundledSkillExists
-    ? "true"
-    : "false";
-  const lines = [
-    "=== SKILL ===",
-    `bundled_path=${bundledPath}`,
-    `bundled_exists=${bundledExists}`,
-  ];
-  if (skill?.applied) {
-    lines.push(`compat_mode=${skill.mode ?? "unknown"}`);
-    lines.push(`compat_skill_path=${skill.skillPath ?? "unknown"}`);
-    lines.push(
-      `compat_skill_path_readable=${skill.skillPathReadable === false ? "false" : "true"}`,
-    );
-  } else {
-    lines.push(
-      `compat_applied=false${skill?.error ? ` (error: ${skill.error})` : ""}`,
-    );
-  }
-  return lines.join("\n");
-}
-
-function createDeepworkBootstrapTool(): ToolDefinition {
-  return {
-    name: "deepwork_bootstrap",
-    label: "Deepwork Bootstrap",
-    description:
-      "Idempotently mirror the bundled qrspi-* subagents into <workspace>/.pi/agents/ and refresh the pi-subagents registry. Call this FIRST in the deepwork skill pre-flight before any subagent inventory check or stage dispatch. Returns the AGENTS/RUNTIME/SKILL diagnostic blocks. The pi-deepwork extension owns <workspace>/.pi/agents/ — call this tool instead of mirroring manually.",
-    parameters: {
-      type: "object",
-      properties: {
-        workspace_cwd: {
-          type: "string",
-          description:
-            "Absolute path to the workspace root. Defaults to ctx.cwd when omitted.",
-        },
-      },
-      additionalProperties: false,
-    },
-    async execute(
-      _toolCallId: string,
-      params: Record<string, unknown>,
-      _signal: AbortSignal,
-      _onUpdate: (update: { content: string }) => void,
-      ctx: ExtensionContext,
-    ): Promise<{ content: string; details?: Record<string, unknown> }> {
-      const rawCwd = params["workspace_cwd"];
-      const cwd =
-        typeof rawCwd === "string" && rawCwd.trim().length > 0
-          ? rawCwd
-          : ctx.cwd;
-
-      const attempt = runMirrorAttempt(cwd, {
-        reason: "tool:deepwork_bootstrap",
-      });
-      if (diagnosticsRecord) {
-        diagnosticsRecord.lastDiscover = attempt;
-      }
-
-      const prep = ensureWorkspaceQrsiAgents(cwd);
-
-      if (!prep.ok) {
-        const errorContent = [
-          "=== AGENTS ===",
-          "status=error",
-          `cwd=${cwd}`,
-          `mirrored_files=${attempt.mirroredFileCount}`,
-          `error=${prep.error}`,
-          "",
-          formatRuntimeBlock(null),
-          "",
-          formatSkillBlock(),
-        ].join("\n");
-        return {
-          content: errorContent,
-          details: {
-            ok: false,
-            error: prep.error,
-            cwd,
-            mirrored_files: attempt.mirroredFileCount,
-          },
-        };
-      }
-
-      const content = [
-        formatAgentsBlock(prep, cwd),
-        "",
-        formatRuntimeBlock(null),
-        "",
-        formatSkillBlock(),
-      ].join("\n");
-
-      return {
-        content,
-        details: {
-          ok: true,
-          cwd,
-          mirrored_files: countMirroredAgentFiles(cwd),
-          synced: prep.discovery.syncedAgents,
-          skipped: prep.discovery.skippedAgents,
-          registered_qrspi: prep.discovery.registeredQrspiAgents.length,
-          project_agents_dir: prep.discovery.projectAgentsDir,
-          skill_path: prep.discovery.skillPath,
-        },
-      };
-    },
-  };
-}
-
 export default function activate(pi: ExtensionAPI): void {
   const runtimePackageRoot = getRuntimePackageRoot(__dirname);
   const skillCompat = ensureRuntimeSkillCompatInstall(__dirname);
@@ -804,7 +691,7 @@ export default function activate(pi: ExtensionAPI): void {
   // active workspace (e.g. `$HOME`). Mirroring to `process.cwd()` in that case
   // pollutes the parent directory with `.pi/agents/` and leaves the real
   // workspace empty. Guard with `looksLikeWorkspaceRoot` and skip otherwise;
-  // the `resources_discover` event and the `deepwork_bootstrap` tool will
+  // the `resources_discover` event and the `/deepwork` command handler will
   // mirror to the correct cwd later.
   const activateCwd = process.cwd();
   let activateMirror: MirrorAttempt & { reason?: string };
@@ -823,7 +710,7 @@ export default function activate(pi: ExtensionAPI): void {
       mirroredFileCount: 0,
       registeredQrspiCount: 0,
       error:
-        "skipped: process.cwd() does not look like a workspace root (no package.json/.git/.pi/etc.); deferring mirror to resources_discover or deepwork_bootstrap tool",
+        "skipped: process.cwd() does not look like a workspace root (no package.json/.git/.pi/etc.); deferring mirror to resources_discover or /deepwork command invocation",
       at: new Date().toISOString(),
       reason: "activate",
     };
@@ -865,8 +752,6 @@ export default function activate(pi: ExtensionAPI): void {
     getArgumentCompletions: async () => ({}),
     handler: createDeepworkDoctorHandler(),
   });
-
-  pi.registerTool(createDeepworkBootstrapTool());
 
   pi.on("resources_discover", (...args: unknown[]) => {
     // Re-mirror agents and refresh registry on every session start so qrspi-*
