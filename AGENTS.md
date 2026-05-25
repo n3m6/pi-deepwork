@@ -16,8 +16,12 @@ The extension is loaded by pi, registers the `/deepwork` and `/deepwork-resume` 
 ## Repository layout
 
 - [src/](src/) — TypeScript source compiled to `dist/`.
-  - [src/index.ts](src/index.ts) — extension entry, command registration, run scaffolding, dry-run simulation, resume logic.
-  - [src/pipeline.ts](src/pipeline.ts) — pipeline state model, route/stage helpers, telemetry helpers.
+  - [src/index.ts](src/index.ts) — extension entry and composition root for command/tool/event registration.
+  - [src/domain/pipeline/](src/domain/pipeline/) — pipeline state model, route/stage helpers, logical paths, artifact inventory, and telemetry helpers.
+  - [src/application/](src/application/) — command argument parsing, state frontmatter codec, handoff prompt builders, and use cases such as dry-run simulation.
+  - [src/adapters/](src/adapters/) — Node/pi adapters for filesystem, git, workspace path resolution, run scanning, and runtime handoff.
+  - [src/ports/](src/ports/) — repo-local ports used to keep application logic decoupled from runtime and OS side effects.
+  - [src/pipeline.ts](src/pipeline.ts) — compatibility barrel that re-exports the pipeline domain API for existing tests and consumers.
   - [src/shared-tools.ts](src/shared-tools.ts) — legacy child subagent helper tool factories.
   - [src/types/pi-extensions.ts](src/types/pi-extensions.ts) — pi `ExtensionAPI` / `ExtensionContext` typings.
 - [agents/](agents/) — 55 QRSPI agent definition `.md` files consumed by `pi-subagents`.
@@ -63,8 +67,8 @@ For code changes, run `npm run lint`, `npm run typecheck`, `npm run format:check
 
 ## Pipeline state and artifacts
 
-- Source of truth for a run is `.pipeline/<run-id>/state.md` (YAML frontmatter parsed by `parseStateYaml` in [src/index.ts](src/index.ts)).
-- Run IDs follow `qrspi-YYYYMMDD-HHMMSS` (`generateRunId` in [src/pipeline.ts](src/pipeline.ts)).
+- Source of truth for a run is `.pipeline/<run-id>/state.md` (YAML frontmatter parsed by `parseStateYaml` in [src/application/pipeline-state-codec.ts](src/application/pipeline-state-codec.ts)).
+- Run IDs follow `qrspi-YYYYMMDD-HHMMSS` (`generateRunId` re-exported from [src/pipeline.ts](src/pipeline.ts)).
 - Telemetry lives under `.pipeline/<run-id>/telemetry/` (`events.jsonl`, `run-log.md`, `metrics-summary.md`).
 - Dry-run output must mark `mode: "dry-run"` and advance `next_stage` to `done`; it must not dispatch subagents or modify project source files.
 - Per the documented pi extension contract, `ctx.sessionManager` is read-only in command/event contexts. Live and resume handoff should use `pi.sendUserMessage()` rather than mutating session state directly.
@@ -88,6 +92,6 @@ When changing state schema or stage ordering, update `pipeline.ts`, the YAML ser
 
 - Agent prompts or skill prompt → rebuild (`npm run build`) and run `npm test`.
 - Source, test, or config files → run `npm run lint`, `npm run typecheck`, `npm run format:check`, and `npm test`.
-- Pipeline stages, routes, or state schema → update `src/pipeline.ts`, `src/index.ts`, and the corresponding tests in one change.
+- Pipeline stages, routes, or state schema → update `src/domain/pipeline/`, [src/pipeline.ts](src/pipeline.ts), any affected application codec/use-case modules, and the corresponding tests in one change.
 - Public command surface (`/deepwork`, `/deepwork-resume` arguments) → update [README.md](README.md) and the integration tests ([test/integration.test.ts](test/integration.test.ts), [test/index.test.ts](test/index.test.ts)).
 - New runtime dependency → reconsider; if truly needed, justify in the PR and update `peerDependencies` vs `dependencies` deliberately.
