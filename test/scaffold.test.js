@@ -82,9 +82,9 @@ test('package.json has test:watch script with correct value', () => {
   );
 });
 
-test('package.json main entry is dist/index.js', () => {
+test('package.json main entry is the root index.js stub', () => {
   const pkg = require(path.join(projectRoot, 'package.json'));
-  assert.equal(pkg.main, 'dist/index.js');
+  assert.equal(pkg.main, 'index.js');
 });
 
 test('package.json repository.url contains pi-deepwork', () => {

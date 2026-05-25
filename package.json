@@ -2,7 +2,7 @@
   "name": "pi-deepwork",
   "version": "0.1.1",
   "description": "QRSPI deepwork pipeline extension for pi — automated multi-stage agent orchestration via subagents",
-  "main": "dist/index.js",
+  "main": "index.js",
   "scripts": {
     "lint": "eslint . --ext .js,.ts,.cjs,.mjs",
     "lint:fix": "npm run lint -- --fix",
@@ -12,9 +12,11 @@
     "test": "npm run build && tsc -p tsconfig.test.json && node --test ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js",
     "test:watch": "npm run build && tsc -p tsconfig.test.json && node --test --watch ./test/*.test.js ./dist/test/*.test.js ./dist/test/agents/*.test.js",
     "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
     "start": "node dist/index.js"
   },
   "files": [
+    "index.js",
     "dist/",
     "agents/",
     "skills/"

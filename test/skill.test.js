@@ -704,14 +704,35 @@ test('SKILL.md Pre-Flight step 0 instructs the model to stop when the extension 
     'Pre-Flight must instruct the model to check subagent list for qrspi-* agents',
   );
   assert.ok(
-    /extension_not_loaded/i.test(preFlight) ||
-      /pi-deepwork extension to be installed/i.test(preFlight),
-    'Pre-Flight must instruct the model to stop with an extension-not-loaded error',
+    /extension_not_loaded/i.test(preFlight),
+    'Pre-Flight must instruct the model to stop with reason: extension_not_loaded',
   );
   assert.ok(
     /Do not attempt to set up the qrspi agents manually/i.test(preFlight) ||
       /Do not manually mirror/i.test(preFlight),
     'Pre-Flight must forbid manual qrspi agent setup',
+  );
+});
+
+test('SKILL.md Pre-Flight step 0 surfaces the extension package root and the npm install && npm run build recovery recipe', () => {
+  const preFlightMatch = skillContent.match(/### Pre-Flight[\s\S]*?(?=\n### )/);
+  assert.ok(preFlightMatch, 'SKILL.md must contain a Pre-Flight section');
+  const preFlight = preFlightMatch[0];
+  assert.ok(
+    /package root/i.test(preFlight),
+    'Pre-Flight must instruct the model to surface the extension package root',
+  );
+  assert.ok(
+    /dist\/index\.js/.test(preFlight),
+    'Pre-Flight must direct the model to check for dist/index.js',
+  );
+  assert.ok(
+    /npm install && npm run build/.test(preFlight),
+    'Pre-Flight must include the npm install && npm run build recovery command',
+  );
+  assert.ok(
+    /\/deepwork-doctor/.test(preFlight),
+    'Pre-Flight must still point the user at /deepwork-doctor',
   );
 });
 
@@ -739,6 +760,10 @@ test('SKILL.md rule #4 instructs the model to stop when a qrspi-* subagent is mi
   assert.ok(
     /Do not manually mirror/i.test(rule),
     'Rule #4 must preserve the do-not-manually-mirror prohibition',
+  );
+  assert.ok(
+    /Extension recovery recipe/i.test(rule),
+    'Rule #4 must cross-reference the Extension recovery recipe so users see the package path and build command',
   );
 });
 
