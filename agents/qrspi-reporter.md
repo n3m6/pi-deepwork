@@ -10,6 +10,7 @@ extensions: true
 enabled: false
 systemPromptMode: replace
 ---
+
 Format only supplied artifacts into the Final Report. Do not run tools, modify files, or invent missing facts. If required data is absent, write `Unknown` or `N/A`.
 
 ### Inputs

@@ -34,28 +34,34 @@ Do not edit files. This agent is read-only. Identify defects and record fix guid
 Apply all checks. Mark each PASS or FAIL.
 
 **Outline and scope**
+
 - Metadata, Dependencies, Traceability, and Files match the task outline exactly. No field is silently dropped or contradicted.
 - Every file path in `## Files` appears in the outline's `Files` field or in `structure.md`. No path is invented.
 - `## Traceability` matches the outline's Acceptance Criteria and NFR fields exactly. No criteria dropped, added, or relabeled.
 
 **Upstream traceability**
+
 - `## Source Traceability` is present and populated. Goals citations reference real AC labels from `goals.md`. Plan citation matches task number and phase. Design citation names the correct slice. Structure citation names the correct slice and files. `N/A` only where the route or artifact genuinely does not apply.
 
 **Local spec quality**
+
 - `## Description` is self-contained: no "see Task N", "see design.md", or shortcut references. Enough detail for an implementer to proceed without guessing.
 - Each test expectation states a concrete trigger and an observable outcome. No expectation names internal functions, helpers, or intermediate states; none is phrased as an implementation step.
 - No TBD, TODO, "details omitted", or similar placeholder language remains in any section.
 
 **Dependencies**
+
 - Every listed dependency points to a lower task number. Each entry explains what this task needs from the referenced task.
 
 **Active sibling consistency**
+
 - No file path in this task's `## Files` appears as CREATE in a sibling task that this task does not depend on.
 - Every dependency reference is consistent with the referenced sibling's actual scope and slice.
 - No two tasks describe overlapping scope that would cause double-implementation of the same behavior.
 - Test expectations for shared behaviors are consistent in trigger and outcome across tasks.
 
 **AGENTS compliance**
+
 - If `AGENTS Guidance` is provided, file placement, naming, layering, testing conventions, and ownership boundaries comply with its explicit constraints.
 
 ### Process

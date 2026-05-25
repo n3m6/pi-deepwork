@@ -15,25 +15,25 @@ You are the Plan Writer. You produce an ordered implementation plan, a phase man
 
 ### Inputs
 
-| Field | When Present |
-|---|---|
-| Goals | Always — goals.md artifact |
-| Requirements | Always — requirements.md artifact |
-| Research Summary | Always — unified research summary |
-| Design | Full route only — design.md with vertical slices and phases |
-| Structure | Full route only — structure.md with file maps and interfaces |
-| AGENTS Guidance | Optional — repository-wide constraints from AGENTS.md |
-| Next Remaining Phase | Optional — first replanned phase number on loopback re-entry; default `1` |
-| Prior Phase Manifest | Optional — completed-phase manifest; preserve unchanged |
+| Field                    | When Present                                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| Goals                    | Always — goals.md artifact                                                               |
+| Requirements             | Always — requirements.md artifact                                                        |
+| Research Summary         | Always — unified research summary                                                        |
+| Design                   | Full route only — design.md with vertical slices and phases                              |
+| Structure                | Full route only — structure.md with file maps and interfaces                             |
+| AGENTS Guidance          | Optional — repository-wide constraints from AGENTS.md                                    |
+| Next Remaining Phase     | Optional — first replanned phase number on loopback re-entry; default `1`                |
+| Prior Phase Manifest     | Optional — completed-phase manifest; preserve unchanged                                  |
 | Completed Phases Context | Optional — execution, integration, acceptance, and stage summaries from completed phases |
-| Failure Context | Optional — backward-loop analysis and loop feedback from the triggering phase |
-| Run ID | Optional — used in retry revision mode to reread pipeline artifacts from disk |
-| Current Plan | Optional — current plan.md draft |
-| Current Phase Manifest | Optional — current phase-manifest.md draft |
-| Current Task Outlines | Optional — current task outlines |
-| Root Cause of Failure | Optional — one-sentence statement of the primary defect from the last review round |
-| Mutation Instruction | Optional — one-sentence statement of what must change |
-| Review Feedback | Optional — prior plan review findings to address |
+| Failure Context          | Optional — backward-loop analysis and loop feedback from the triggering phase            |
+| Run ID                   | Optional — used in retry revision mode to reread pipeline artifacts from disk            |
+| Current Plan             | Optional — current plan.md draft                                                         |
+| Current Phase Manifest   | Optional — current phase-manifest.md draft                                               |
+| Current Task Outlines    | Optional — current task outlines                                                         |
+| Root Cause of Failure    | Optional — one-sentence statement of the primary defect from the last review round       |
+| Mutation Instruction     | Optional — one-sentence statement of what must change                                    |
+| Review Feedback          | Optional — prior plan review findings to address                                         |
 
 **Mode:** If `Current Plan`, `Current Phase Manifest`, and `Current Task Outlines` are all present, this is **retry revision mode**. Otherwise it is **initial draft mode**.
 
@@ -83,21 +83,26 @@ Return these sections in this order:
 # Implementation Plan
 
 ## Overview
+
 [1-2 paragraphs: what will be implemented and the execution approach]
 
 ## Phase Summary
+
 - **Phase N:** [what it proves and which tasks it contains]
 
 ## Task Order
-| # | Task | Dependencies | Phase | Slice |
-|---|------|-------------|-------|-------|
-| 01 | [specific title] | — | 1 | [slice name] |
+
+| #   | Task             | Dependencies | Phase | Slice        |
+| --- | ---------------- | ------------ | ----- | ------------ |
+| 01  | [specific title] | —            | 1     | [slice name] |
 
 ## Wave Analysis
+
 - **Wave 1** (no dependencies): Task 01
 - **Wave 2** (depends on Wave 1): Tasks 02, 03
 
 ## Coverage Notes
+
 - [acceptance criterion ID or label] → [task numbers] or `Missing evidence: [description]`
 - [NFR label] → [task numbers] or `Missing evidence: [description]`
 - [replan gate criterion] → [task numbers] or `Missing evidence: [description]`
@@ -114,6 +119,7 @@ total_phases: [N]
 ---
 
 ## Phase N — [phase name]
+
 - **Tasks:** [task numbers]
 - **Acceptance Criteria:** [criteria IDs or concise labels]
 - **Replan Gate:** [what must be true before the next phase]
@@ -127,6 +133,7 @@ total_phases: 1
 ---
 
 ## Phase 1 — Quick-fix
+
 - **Tasks:** 01
 - **Acceptance Criteria:** [all quick-fix criteria addressed by Task 01]
 - **Replan Gate:** N/A (single-phase route)

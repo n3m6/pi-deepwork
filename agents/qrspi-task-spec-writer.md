@@ -22,6 +22,7 @@ You are the Task Spec Writer. Given a Run ID, Route, Task Number, optional AGENT
 Read these before drafting. Return FAIL immediately if any is missing, naming the missing path.
 
 Always:
+
 - `.pipeline/<run-id>/tasks/outlines/task-NN.outline`
 - `.pipeline/<run-id>/goals.md`
 - `.pipeline/<run-id>/requirements.md`
@@ -30,6 +31,7 @@ Always:
 - `.pipeline/<run-id>/phase-manifest.md`
 
 For `full` route, also read:
+
 - `.pipeline/<run-id>/design.md`
 - `.pipeline/<run-id>/structure.md`
 

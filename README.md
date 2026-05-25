@@ -11,6 +11,7 @@ This used to be a TypeScript extension. It is now plain markdown — no build st
   ```bash
   pi install npm:@tintinweb/pi-subagents
   ```
+  Do not substitute the older `pi install npm:pi-subagents`; deepwork relies on the tintinweb runtime's agent frontmatter and intercom behavior.
 - The [`pi-ask-user`](https://github.com/mariozechner/pi-ask-user) extension installed and active for interactive human gates:
   ```bash
   pi install npm:pi-ask-user

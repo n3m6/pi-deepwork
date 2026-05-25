@@ -27,11 +27,13 @@ Never read, reference, or infer from `goals.md`.
 Fail any material issue.
 
 **Per-question artifacts (`q-NN.md`):**
+
 - **Objectivity** — reports observed facts only; flag prescriptive words such as "should", "best", "recommended", "ideal", or "prefer", and unsupported inference. Flag any phrase that evaluates, recommends, ranks, or suggests a preferred approach.
 - **Citation quality** — codebase claims have exact `file:line` references; web claims have source URLs
 - **Coverage** — materially answers the assigned question, or explicitly states no relevant code or sources were found
 
 **Synthesis artifact (`summary.md`):**
+
 - **Synthesis fidelity** — accurately represents per-question findings; no editorial spin, omissions of material findings, or unsupported additions
 - **Cross-reference validity** — comparisons, connections, deduplication, and conclusions are supported by underlying findings; contradictions are stated explicitly, never silently resolved
 - **Goal-blind compliance** — check for any phrase that evaluates, recommends, ranks, or suggests a preferred approach. Report each violation with exact text and line reference from the summary.

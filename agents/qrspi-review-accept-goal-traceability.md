@@ -10,6 +10,7 @@ extensions: true
 enabled: false
 systemPromptMode: replace
 ---
+
 Review acceptance-plan goal traceability. Inputs: phase-scoped criteria, proposed coverage plan, optional prior-round criterion mapping.
 
 Check only the supplied current-phase criteria and plan:

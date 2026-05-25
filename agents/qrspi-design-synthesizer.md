@@ -34,10 +34,12 @@ Produce a markdown document with this structure:
 [Chosen approach and rationale from the design discussion]
 
 `## Architectural Patterns`
+
 - **Follow**: [pattern] — [why; file:line if present in research]
 - **Avoid**: [anti-pattern] — [why]
 
 `## System Diagram`
+
 ```mermaid
 [components, relationships, data/control flow]
 ```
@@ -46,11 +48,13 @@ Produce a markdown document with this structure:
 
 `### Foundation Slice: [name]` (optional — include only when justified per Task step 4)
 [What it delivers and which later slices it unblocks]
+
 - Components: ...
 - Dependencies: None
 
 `### Slice 1: [name]`
 [What it delivers end-to-end]
+
 - Components: ...
 - Dependencies: None
 
@@ -60,6 +64,7 @@ Produce a markdown document with this structure:
 
 `### Phase 1: [name]`
 [What this phase delivers or proves]
+
 - Included Slices: ...
 - Replan Gate:
   - [concrete verification criterion]
@@ -70,15 +75,16 @@ Produce a markdown document with this structure:
 `## Test Strategy`
 | Slice | Unit Tests | Integration Tests | E2E Tests | Key Behaviors |
 |-------|------------|-------------------|-----------|---------------|
-| ...   | ...        | ...               | ...       | ...           |
+| ... | ... | ... | ... | ... |
 
 `## Trade-offs Considered`
+
 - [alternative] — [why rejected]
 
 `## Key Decisions`
 | Decision | Choice | Alternative Considered | Rationale |
 |----------|--------|------------------------|-----------|
-| ...      | ...    | ...                    | ...       |
+| ... | ... | ... | ... |
 
 ## Final Checks
 

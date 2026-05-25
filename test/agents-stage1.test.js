@@ -202,6 +202,11 @@ test('qrspi-goals.md body — uses contact_supervisor for human gate', () => {
   );
 });
 
+test('qrspi-goals.md frontmatter — does not list ask_user in tools', () => {
+  const goalsFM = parseFrontmatter(path.join(agentsDir, 'qrspi-goals.md'));
+  assert.ok(!goalsFM.tools.includes('ask_user'), 'qrspi-goals.md tools must not include ask_user');
+});
+
 test('qrspi-goals.md body — uses Read not cat for artifact reads', () => {
   assert.ok(
     orchBody.includes('Read .pipeline/'),

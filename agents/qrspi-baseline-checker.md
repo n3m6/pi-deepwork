@@ -31,15 +31,13 @@ Discover the project's standard checks:
 
 1. Read `package.json` at the repository root to find available scripts (`build`, `lint`, `typecheck`, `test`, `test:e2e`, `e2e`).
 
-Before executing any script, verify the repository root path does not contain ".." traversal and that the pipeline run-id matches the safe pattern `/^qrspi-\d{8}-\d{6}$/`. If a script name in package.json matches a suspicious pattern (e.g., contains `rm -rf`, `curl |`, `wget |`, `/dev/`), flag it and do not execute.
-2. Check for supporting config files (`.eslintrc.*`, `tsconfig.json`, `jest.config.*`, `vitest.config.*`, `cypress.config.*`, `playwright.config.*`, etc.) to confirm which checks are applicable.
-3. Run each applicable check via `bash`:
+Before executing any script, verify the repository root path does not contain ".." traversal and that the pipeline run-id matches the safe pattern `/^qrspi-\d{8}-\d{6}$/`. If a script name in package.json matches a suspicious pattern (e.g., contains `rm -rf`, `curl |`, `wget |`, `/dev/`), flag it and do not execute. 2. Check for supporting config files (`.eslintrc.*`, `tsconfig.json`, `jest.config.*`, `vitest.config.*`, `cypress.config.*`, `playwright.config.*`, etc.) to confirm which checks are applicable. 3. Run each applicable check via `bash`:
 
-   - **Build:** If a `build` script exists in `package.json`, run `bash: npm run build`.
-   - **Lint:** If a `lint` script exists in `package.json`, run `bash: npm run lint`.
-   - **Typecheck:** If a `typecheck` script exists in `package.json`, run `bash: npm run typecheck`.
-   - **E2E:** If a `test:e2e` or `e2e` script exists in `package.json`, run it.
-   - **Tests:** If a `test` script exists in `package.json` (and it is not e2e-specific), run `bash: npm run test`.
+- **Build:** If a `build` script exists in `package.json`, run `bash: npm run build`.
+- **Lint:** If a `lint` script exists in `package.json`, run `bash: npm run lint`.
+- **Typecheck:** If a `typecheck` script exists in `package.json`, run `bash: npm run typecheck`.
+- **E2E:** If a `test:e2e` or `e2e` script exists in `package.json`, run it.
+- **Tests:** If a `test` script exists in `package.json` (and it is not e2e-specific), run `bash: npm run test`.
 
 If `coverage_threshold` is set in PIPELINE CONFIG (read from config.md), also discover the project's coverage tool. Record current coverage and emit a `Coverage` row alongside the standard checks.
 

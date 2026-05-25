@@ -112,7 +112,7 @@ Revise before returning if any of the following are true:
 
 ### Example
 
-```
+````
 ### Slice 1: Client rate check
 
 | File | Action | Purpose |
@@ -130,5 +130,8 @@ export function createRateLimiter(config: RateLimitConfig): RequestHandler
 
 // src/services/redis-client.ts
 export async function incrementRateLimit(key: string, windowSeconds: number): Promise<RateLimitResult>
+````
+
 ```
+
 ```

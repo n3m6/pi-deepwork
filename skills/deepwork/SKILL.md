@@ -536,27 +536,29 @@ Phase handling rules:
 
 0. **Verify the qrspi prompt pack is installed** by checking `subagent list` for at least one `qrspi-*` agent (e.g. `qrspi-goals`). If **no** `qrspi-*` agents are listed, **stop the run** immediately: report `Deepwork configuration error: qrspi prompt pack is not installed. /deepwork cannot run until the qrspi-* agents are registered with pi-subagents.` Then print the **Install verification recipe** below verbatim so the user can fix the install with a single copy-paste. Do not attempt to write any files under `<workspace>/.pi/agents/` or `~/.pi/agent/agents/` from inside this skill — the install is an explicit user action, not a side effect of running `/deepwork`.
 
-   Also verify `pi-intercom` is connected by calling `intercom({ action: "status" })`. If the call errors or returns `Connected: No`, **stop the run** and report: `Deepwork configuration error: pi-intercom is not connected. Interactive human gates in child subagents require pi-intercom. Install with: pi install npm:pi-intercom, then restart pi and re-run /deepwork.` Do not continue until this check passes.
+Deepwork expects the `@tintinweb/pi-subagents` runtime. The older unscoped `pi-subagents` package is not a compatible substitute for these agents' frontmatter and intercom behavior.
 
-   **Install verification recipe** — print exactly this block when the agents are missing:
+Also verify `pi-intercom` is connected by calling `intercom({ action: "status" })`. If the call errors or returns `Connected: No`, **stop the run** and report: `Deepwork configuration error: pi-intercom is not connected. Interactive human gates in child subagents require pi-intercom. Install with: pi install npm:pi-intercom, then restart pi and re-run /deepwork.` Do not continue until this check passes.
 
-   ```bash
-   # Recommended: single-command install via pi (clones + symlinks via postinstall hook)
-   pi install git:github.com/n3m6/pi-deepwork@main
-   # Already installed? Reconcile the clone and re-run the postinstall hook:
-   pi update --extension git:github.com/n3m6/pi-deepwork
+**Install verification recipe** — print exactly this block when the agents are missing:
 
-   # Manual fallback (no pi, or pi install unavailable):
-   git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork 2>/dev/null \
-     || git -C ~/.pi/agent/git/github.com/n3m6/pi-deepwork pull --ff-only
-   mkdir -p ~/.pi/agent/agents
-   ln -sf ~/.pi/agent/git/github.com/n3m6/pi-deepwork/agents/qrspi-*.md ~/.pi/agent/agents/
+```bash
+# Recommended: single-command install via pi (clones + symlinks via postinstall hook)
+pi install git:github.com/n3m6/pi-deepwork@main
+# Already installed? Reconcile the clone and re-run the postinstall hook:
+pi update --extension git:github.com/n3m6/pi-deepwork
 
-   # Verify (should print 55)
-   ls ~/.pi/agent/agents/qrspi-*.md | wc -l
-   ```
+# Manual fallback (no pi, or pi install unavailable):
+git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork 2>/dev/null \
+  || git -C ~/.pi/agent/git/github.com/n3m6/pi-deepwork pull --ff-only
+mkdir -p ~/.pi/agent/agents
+ln -sf ~/.pi/agent/git/github.com/n3m6/pi-deepwork/agents/qrspi-*.md ~/.pi/agent/agents/
 
-   After the user runs the recipe, ask them to restart pi (or open a new pi session) and re-run `/deepwork`. The qrspi agents must appear in `subagent list` before Stage 1 can dispatch. Do not retry dispatch from inside this skill until that has happened.
+# Verify (should print 55)
+ls ~/.pi/agent/agents/qrspi-*.md | wc -l
+```
+
+After the user runs the recipe, ask them to restart pi (or open a new pi session) and re-run `/deepwork`. The qrspi agents must appear in `subagent list` before Stage 1 can dispatch. Do not retry dispatch from inside this skill until that has happened.
 
 1. If the user explicitly wants to resume an existing run, follow **Resume Mode** instead of creating a new run.
 2. The user provides a task description (natural language or markdown). If no task is provided, ask for one using `ask_user` with `question: "What should Deepwork work on?"`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.

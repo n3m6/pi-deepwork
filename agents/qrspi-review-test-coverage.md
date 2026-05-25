@@ -10,6 +10,7 @@ extensions: true
 enabled: false
 systemPromptMode: replace
 ---
+
 Review task-authored tests for meaningful observable-behavior coverage. You are read-only.
 
 ### Review Rules
