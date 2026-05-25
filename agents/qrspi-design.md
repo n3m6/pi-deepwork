@@ -47,19 +47,34 @@ Read the following files using the Read tool:
 
 ### Step B — Interactive Design Discussion
 
-Use `contact_supervisor` only in `interactive` mode to present 2–3 approaches (name, trade-offs, fit) with a recommendation. For approach selection, use `reason: "interview_request"`, a `message` with the context, and an `interview` object with `questions: [{id: "approach", type: "single", question: "Which approach should we take?", options: [<approach names>], context: <trade-offs summary>}, {id: "approach_freeform", type: "text", question: "Or describe your own approach:"}, {id: "comment", type: "text", question: "Optional comment:"}]`. For confirmations use `questions: [{id: "decision", type: "single", options: ["approve", "revise"]}, {id: "comment", type: "text", question: "Optional comment:"}]`. Read `details.structuredReply.responses[]` keyed by `id`. Map a non-empty responses entry whose id matches an options list to `kind: "selection"`; the `_freeform`/`approach_freeform` entry to `kind: "freeform"`; the `comment` entry to the existing comment slot. Treat absent/malformed `structuredReply` or a 10-minute timeout as `cancelled` under `fail-closed`.
+Use `contact_supervisor` only in `interactive` mode to present 2–3 approaches (name, trade-offs, fit) with a recommendation. For approach selection, use `reason: "interview_request"`, a `message` with the context, and an `interview` object with `questions: [{id: "approach", type: "single", question: "Which approach should we take?", options: [<approach names>], context: <trade-offs summary>}, {id: "approach_freeform", type: "text", question: "Or describe your own approach:"}, {id: "comment", type: "text", question: "Optional comment:"}]`. For confirmations use `questions: [{id: "decision", type: "single", question: "Approve these design decisions or revise them?", options: ["approve", "revise"]}, {id: "revision_notes", type: "text", question: "If revising, which item(s) need changes and how?"}, {id: "comment", type: "text", question: "Optional comment:"}]`. Read `details.structuredReply.responses[]` keyed by `id`. Map a non-empty responses entry whose id matches an options list to `kind: "selection"`; the `_freeform`/`approach_freeform`/`revision_notes` entry to `kind: "freeform"`; the `comment` entry to the existing comment slot. Treat absent/malformed `structuredReply` or a 10-minute timeout as `cancelled` under `fail-closed`.
 
 In `automated` mode, do not ask. Build the same decision log by selecting the lowest-risk approach supported by goals and research, then choose vertical slices, phase grouping, replan gate criteria, and test expectations from the available evidence. Mark each automated choice with `Source: automated-policy`.
 
-Ask the user to confirm:
+Ask for confirmation via `contact_supervisor` in `interactive` mode only. Do not place the confirmation list in your return text. Call:
 
-1. Chosen approach
-2. Vertical slice decomposition
-3. Phase grouping and what each phase proves
-4. Replan gate criteria per phase
-5. Test expectations per slice
+```
+contact_supervisor({
+  reason: "interview_request",
+  message: "Stage 3 Design — confirm the proposed design decisions.",
+  interview: {
+    title: "Design confirmation",
+    questions: [
+      {
+        id: "decision",
+        type: "single",
+        question: "Do you approve these design decisions, or should we revise them?",
+        options: ["approve", "revise"],
+        context: "Confirm all five items together:\n1. Chosen approach\n2. Vertical slice decomposition\n3. Phase grouping and what each phase proves\n4. Replan gate criteria per phase\n5. Test expectations per slice"
+      },
+      {id: "revision_notes", type: "text", question: "If revising, which item(s) need changes and how?"},
+      {id: "comment", type: "text", question: "Optional comment:"}
+    ]
+  }
+})
+```
 
-If the user proposes horizontal layers, redirect to vertical slices. Continue until all five decisions are confirmed. Record a decision log capturing: chosen approach, rejected alternatives, agreed slices, phase grouping, gate criteria, and test expectations.
+Read `details.structuredReply.responses[]` keyed by `id`. If the user proposes horizontal layers, redirect to vertical slices. Continue until all five decisions are confirmed. Record a decision log capturing: chosen approach, rejected alternatives, agreed slices, phase grouping, gate criteria, and test expectations.
 
 ### Step C — Dispatch Synthesizer
 
