@@ -15,6 +15,11 @@ This used to be a TypeScript extension. It is now plain markdown — no build st
   ```bash
   pi install npm:pi-ask-user
   ```
+- The [`pi-intercom`](https://github.com/nicobailon/pi-intercom) extension installed and active so subagents can surface questions to you:
+  ```bash
+  pi install npm:pi-intercom
+  ```
+  `pi-intercom` must remain enabled (`enabled: true` in `~/.pi/agent/intercom/config.json`, which is the default). The pi-subagents intercom bridge auto-registers a `contact_supervisor` tool in each deepwork child agent. When a child needs a decision from you, it sends a structured question to the top-level orchestrator session, which forwards it to you via `ask_user` and relays your answer back. Naming your top-level pi session with `/name <something>` before running `/deepwork` improves recipient clarity in multi-session setups, but is not required — pi-intercom provides a fallback alias automatically.
 - `git` available on `PATH` for stage-boundary checkpoint commits (optional — the pipeline degrades gracefully without it).
 
 ## Install

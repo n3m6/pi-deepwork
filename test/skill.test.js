@@ -126,3 +126,17 @@ test('SKILL.md writes pipeline state under .pipeline/qrspi-<run-id>/', () => {
     'telemetry stream path must be telemetry/events.jsonl');
   assert.ok(/state\.md/.test(skillBody), 'must reference state.md');
 });
+
+test('SKILL.md documents inbound intercom forwarding', () => {
+  assert.ok(/contact_supervisor/.test(skillBody),
+    'SKILL.md must reference contact_supervisor for inbound forwarding rule');
+  assert.ok(/intercom\(\{ action: "reply"/.test(skillBody),
+    'SKILL.md must reference intercom({ action: "reply" ... }) for replying to child asks');
+  assert.ok(/responses/.test(skillBody),
+    'SKILL.md intercom reply must include responses shape');
+});
+
+test('SKILL.md preflight checks pi-intercom connectivity', () => {
+  assert.ok(/intercom\(\{ action: "status"/.test(skillBody),
+    'SKILL.md Pre-Flight must verify pi-intercom via intercom({ action: "status" })');
+});

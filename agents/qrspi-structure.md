@@ -1,7 +1,7 @@
 ---
 name: qrspi-structure
 description: "Stage 4 orchestrator — dispatches the structure mapper, runs automated review rounds, and runs or auto-resolves the approval gate. Writes structure.md and review artifacts."
-tools: read, bash, grep, find, ls, write, edit, ask_user
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 40
@@ -24,8 +24,8 @@ Extract the run ID, `interaction_mode` (`interactive` or `automated`), and `fail
 
 ### Automation Policy
 
-- `interactive` — use `ask_user` for approval and revision feedback.
-- `automated` — do not call `ask_user`. Auto-approve only a clean reviewed structure.
+- `interactive` — use `contact_supervisor` for approval and revision feedback.
+- `automated` — do not call `ask_user` or `contact_supervisor`. Auto-approve only a clean reviewed structure.
 - In automated mode with `fail-closed`, return FAIL on `unclean-cap`.
 - In automated mode with `best-effort`, `unclean-cap` may proceed only when unresolved findings are LOW/MEDIUM and the structure artifact explicitly records the risk; otherwise return FAIL.
 
@@ -96,9 +96,9 @@ Quality enforcement is delegated to `qrspi-structure-reviewer`. Treat any review
 
 ### Step D — Approval Gate
 
-If `interaction_mode = automated`, do not call `ask_user`. If `terminal_state = clean`, treat the structure as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
+If `interaction_mode = automated`, do not call `ask_user` or `contact_supervisor`. If `terminal_state = clean`, treat the structure as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
 
-Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
+Before each `contact_supervisor` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the supervisor replies, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
@@ -107,7 +107,20 @@ Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
 
 1. `Read .pipeline/<run-id>/structure.md`
-2. Ask via `ask_user` with `question: "Approve this structure or provide revision feedback?"`, `context` containing the review status, artifact path, and full structure artifact, `options: ["approve", "provide feedback"]`, `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`:
+2. Ask via `contact_supervisor` with `reason: "interview_request"`, `message` containing the review status, artifact path, and full structure artifact, and:
+
+```
+interview: {
+  title: "Structure approval",
+  questions: [
+    {id: "decision", type: "single", question: "Approve this structure or provide revision feedback?", options: ["approve", "provide feedback"]},
+    {id: "feedback", type: "text", question: "If providing feedback, enter it here (leave blank if approving):"},
+    {id: "comment", type: "text", question: "Optional comment:"}
+  ]
+}
+```
+
+Message body:
 
 ```
 ### Structure — Review
@@ -119,8 +132,8 @@ Review the full artifact at `.pipeline/<run-id>/structure.md`.
 Select **approve** to proceed, or provide your feedback for revision.
 ```
 
-3. **If approved** (any affirmative): proceed to Return.
-4. **If the user provides feedback**:
+3. **If approved** (response `id: "decision"` value is "approve"): proceed to Return.
+4. **If the user provides feedback** (response `id: "decision"` value is "provide feedback", or non-empty `id: "feedback"` value):
    a. Determine the human rejection round number (first = 1, next = 2, …).
    b. `bash: mkdir -p .pipeline/<run-id>/feedback`
    c. Write `.pipeline/<run-id>/feedback/structure-round-{NN}.md`:

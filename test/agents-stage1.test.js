@@ -110,7 +110,7 @@ test('qrspi-goals.md frontmatter — exact fields', () => {
 test('qrspi-goals.md frontmatter — tools field', () => {
   assert.equal(
     orchFM.tools,
-    'read, bash, grep, find, ls, write, edit, ask_user',
+    'read, bash, grep, find, ls, write, edit',
   );
 });
 
@@ -192,8 +192,9 @@ test('qrspi-goals.md body — contains subagent_type: "qrspi-goals-reviewer"', (
   assert.ok(orchBody.includes('subagent_type: "qrspi-goals-reviewer"'));
 });
 
-test('qrspi-goals.md body — uses ask_user for human gate', () => {
-  assert.ok(orchBody.includes('ask_user'), 'body must contain ask_user');
+test('qrspi-goals.md body — uses contact_supervisor for human gate', () => {
+  assert.ok(orchBody.includes('contact_supervisor'), 'body must contain contact_supervisor');
+  assert.ok(orchBody.includes('interview_request'), 'body must use reason: "interview_request"');
   // Verify "question" is not used as a standalone tool reference
   assert.ok(
     !orchBody.includes('the question tool'),
@@ -690,4 +691,36 @@ test('Agents — all three agent files exist and have parseable frontmatter', ()
     reviewFM !== null,
     'qrspi-goals-reviewer.md has parseable frontmatter',
   );
+});
+
+// ---------------------------------------------------------------------------
+// pi-intercom escalation: child agents use contact_supervisor, not ask_user
+// ---------------------------------------------------------------------------
+
+test('qrspi-design.md body — uses contact_supervisor for human gate', () => {
+  const body = getBody(path.join(agentsDir, 'qrspi-design.md'));
+  assert.ok(body.includes('contact_supervisor'), 'qrspi-design.md body must contain contact_supervisor');
+  assert.ok(body.includes('interview_request'), 'qrspi-design.md body must use reason: "interview_request"');
+});
+
+test('qrspi-design.md frontmatter — does not list ask_user in tools', () => {
+  const fm = parseFrontmatter(path.join(agentsDir, 'qrspi-design.md'));
+  assert.ok(!fm.tools.includes('ask_user'), 'qrspi-design.md tools must not include ask_user');
+});
+
+test('qrspi-structure.md body — uses contact_supervisor for human gate', () => {
+  const body = getBody(path.join(agentsDir, 'qrspi-structure.md'));
+  assert.ok(body.includes('contact_supervisor'), 'qrspi-structure.md body must contain contact_supervisor');
+  assert.ok(body.includes('interview_request'), 'qrspi-structure.md body must use reason: "interview_request"');
+});
+
+test('qrspi-structure.md frontmatter — does not list ask_user in tools', () => {
+  const fm = parseFrontmatter(path.join(agentsDir, 'qrspi-structure.md'));
+  assert.ok(!fm.tools.includes('ask_user'), 'qrspi-structure.md tools must not include ask_user');
+});
+
+test('qrspi-fast-impl-code.md body — uses contact_supervisor for ambiguity ask', () => {
+  const body = getBody(path.join(agentsDir, 'qrspi-fast-impl-code.md'));
+  assert.ok(body.includes('contact_supervisor'), 'qrspi-fast-impl-code.md body must contain contact_supervisor');
+  assert.ok(body.includes('interview_request'), 'qrspi-fast-impl-code.md body must use reason: "interview_request"');
 });

@@ -1,7 +1,7 @@
 ---
 name: qrspi-goals
 description: "Stage 1 orchestrator — captures user intent via interactive dialogue or automated policy, dispatches goals synthesizer and reviewer, and runs or auto-resolves the approval gate. Writes requirements.md, goals.md, and config.md."
-tools: read, bash, grep, find, ls, write, edit, ask_user
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 80
@@ -24,8 +24,8 @@ From deepwork: **Run ID** (`qrspi-<timestamp>`), **Interaction Mode** (`interact
 
 ### Automation Policy
 
-- `interactive` — use `ask_user` for unresolved interview branches and the approval gate.
-- `automated` — do not call `ask_user`. Resolve factual branches from the task and repo evidence only. If requirement-bearing branches remain unresolved:
+- `interactive` — use `contact_supervisor` for unresolved interview branches and the approval gate.
+- `automated` — do not call `ask_user` or `contact_supervisor`. Resolve factual branches from the task and repo evidence only. If requirement-bearing branches remain unresolved:
   - `fail-closed` → return FAIL with the unresolved branches named.
   - `best-effort` → record the unresolved branches explicitly in the Interview Record and continue synthesis with conservative wording.
 - In automated mode, a clean review loop is treated as auto-approved. `unclean-cap` remains FAIL; do not auto-approve known-failed goals.
@@ -38,7 +38,7 @@ Write the User Task verbatim to `.pipeline/<run-id>/requirements.md`. Do not sum
 
 Goal: resolve all planning branches before synthesis.
 
-When asking in `interactive` mode, call `ask_user` directly with one focused `question`, optional `context`, `allowMultiple: false`, `allowFreeform: true`, and `displayMode: "inline"`. For approval gates, also set `allowComment: true`. Record `details.response.kind === "selection"` selections, `details.response.kind === "freeform"` text, and optional selection comments verbatim. Treat `details.cancelled === true` or `details.response === null` as unresolved under `fail-closed`.
+When asking in `interactive` mode, call `contact_supervisor` with `reason: "interview_request"`, a `message` (1–2 sentence context), and an `interview` object. Each question maps to one entry in `interview.questions[]`: `{id, type: "single"|"multi"|"text"|"info", question, options?, context?}`. To preserve `allowFreeform: true` behavior, append an extra entry `{id: "<question-id>_freeform", type: "text", question: "Or describe your own answer:"}`. For approval gates, also add `{id: "comment", type: "text", question: "Optional comment:"}`. Read answers from `details.structuredReply.responses[]` keyed by `id`. Map a non-empty `responses` entry whose `id` matches an options list to `kind: "selection"`; a `_freeform` entry with content to `kind: "freeform"`; a `comment` entry to the existing comment slot. Treat absent/malformed `details.structuredReply` or a 10-minute pi-intercom timeout as `cancelled` under `fail-closed`.
 
 **Coverage branches** (track each as unresolved/resolved):
 
@@ -173,9 +173,9 @@ Write the reviewer output to `.pipeline/<run-id>/reviews/goals-review-round-{NN}
 
 **Pre-condition check:** If the review loop terminated with `unclean-cap`, skip this step entirely and go directly to Return with `Status — FAIL` using the unrecoverable-failure template. The reason is that known-failed artifacts must not be presented to the user for potential accidental approval.
 
-If `interaction_mode = automated`, skip `ask_user`, treat the clean artifact as approved, set `gate_status = "approved"`, `gate_rounds = 0`, `gate_wait_time_s = 0`, and add `gate_mode = "automated"` to telemetry. Proceed directly to Return.
+If `interaction_mode = automated`, skip human escalation, treat the clean artifact as approved, set `gate_status = "approved"`, `gate_rounds = 0`, `gate_wait_time_s = 0`, and add `gate_mode = "automated"` to telemetry. Proceed directly to Return.
 
-Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
+Before each `contact_supervisor` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the supervisor replies, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
@@ -184,7 +184,20 @@ Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
 
 1. Read: `Read .pipeline/<run-id>/goals.md`
-2. Present via `ask_user` with `question: "Approve these goals or provide revision feedback?"`, `context` containing the review status, artifact path, and full goals artifact, `options: ["approve", "provide feedback"]`, `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`:
+2. Present via `contact_supervisor` with `reason: "interview_request"`, `message` containing the review status, artifact path, and full goals artifact, and:
+
+```
+interview: {
+  title: "Goals approval",
+  questions: [
+    {id: "decision", type: "single", question: "Approve these goals or provide revision feedback?", options: ["approve", "provide feedback"]},
+    {id: "feedback", type: "text", question: "If providing feedback, enter it here (leave blank if approving):"},
+    {id: "comment", type: "text", question: "Optional comment:"}
+  ]
+}
+```
+
+Message body:
 
 ```
 ### Goals — Review
@@ -196,9 +209,9 @@ Review the full artifact at `.pipeline/<run-id>/goals.md`.
 Select **approve** to proceed, or provide feedback for revision.
 ```
 
-3. **On approval** ("approve", "yes", "looks good", "lgtm", or similar): proceed to Return.
+3. **On approval** (response `id: "decision"` value is "approve", or freeform "yes"/"looks good"/"lgtm"): proceed to Return.
 
-4. **On feedback:**
+4. **On feedback** (response `id: "decision"` value is "provide feedback", or non-empty `id: "feedback"` value):
    a. Determine round number (first rejection = 1, next = 2, …).
    b. `bash: mkdir -p .pipeline/<run-id>/feedback`
    c. Write `.pipeline/<run-id>/feedback/goals-round-{NN}.md`:

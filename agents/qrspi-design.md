@@ -1,7 +1,7 @@
 ---
 name: qrspi-design
 description: "Stage 3 orchestrator — conducts interactive or automated design selection, dispatches the design synthesizer, runs automated review rounds, and runs or auto-resolves the approval gate. Writes design.md and review artifacts."
-tools: read, bash, grep, find, ls, write, edit, ask_user
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 60
@@ -32,8 +32,8 @@ Extract `<run-id>`, `interaction_mode` (`interactive` or `automated`), and `fail
 
 ### Automation Policy
 
-- `interactive` — use `ask_user` for design discussion and approval.
-- `automated` — do not call `ask_user`. Select the lowest-risk approach grounded in goals and research, record alternatives in the decision log, and continue only when the automated review loop is clean.
+- `interactive` — use `contact_supervisor` for design discussion and approval.
+- `automated` — do not call `ask_user` or `contact_supervisor`. Select the lowest-risk approach grounded in goals and research, record alternatives in the decision log, and continue only when the automated review loop is clean.
 - In automated mode with `fail-closed`, return FAIL on `unclean-cap` rather than approving unresolved design concerns.
 - In automated mode with `best-effort`, `unclean-cap` may proceed only when all unresolved findings are LOW/MEDIUM and the design document explicitly records the risk; otherwise return FAIL.
 
@@ -47,7 +47,7 @@ Read the following files using the Read tool:
 
 ### Step B — Interactive Design Discussion
 
-Use `ask_user` only in `interactive` mode to present 2–3 approaches (name, trade-offs, fit) with a recommendation. For approach selection, use `question`, `context`, `options` (the 2–3 approach names or `{title, description}` objects), `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`. For confirmations, use explicit options such as `["approve", "revise"]`. Record `details.response.kind === "selection"` selections, `details.response.kind === "freeform"` text, and optional selection comments verbatim.
+Use `contact_supervisor` only in `interactive` mode to present 2–3 approaches (name, trade-offs, fit) with a recommendation. For approach selection, use `reason: "interview_request"`, a `message` with the context, and an `interview` object with `questions: [{id: "approach", type: "single", question: "Which approach should we take?", options: [<approach names>], context: <trade-offs summary>}, {id: "approach_freeform", type: "text", question: "Or describe your own approach:"}, {id: "comment", type: "text", question: "Optional comment:"}]`. For confirmations use `questions: [{id: "decision", type: "single", options: ["approve", "revise"]}, {id: "comment", type: "text", question: "Optional comment:"}]`. Read `details.structuredReply.responses[]` keyed by `id`. Map a non-empty responses entry whose id matches an options list to `kind: "selection"`; the `_freeform`/`approach_freeform` entry to `kind: "freeform"`; the `comment` entry to the existing comment slot. Treat absent/malformed `structuredReply` or a 10-minute timeout as `cancelled` under `fail-closed`.
 
 In `automated` mode, do not ask. Build the same decision log by selecting the lowest-risk approach supported by goals and research, then choose vertical slices, phase grouping, replan gate criteria, and test expectations from the available evidence. Mark each automated choice with `Source: automated-policy`.
 
@@ -111,9 +111,9 @@ Each iteration:
 
 ### Step E — Approval Gate
 
-If `interaction_mode = automated`, do not call `ask_user`. If `terminal_state = clean`, treat the design as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
+If `interaction_mode = automated`, do not call `ask_user` or `contact_supervisor`. If `terminal_state = clean`, treat the design as auto-approved and proceed to Return with `gate_status = "approved"`, `gate_mode = "automated"`, `gate_rounds = 0`, and `gate_wait_time_s = 0`. If `terminal_state = unclean-cap`, apply the Automation Policy above before deciding whether to return PASS or FAIL.
 
-Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the user responds, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
+Before each `contact_supervisor` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ` and store the result as that gate round's `presented_at`. Immediately after the supervisor replies, run the same command again and store it as `responded_at`. Maintain an internal `gate_round_details` array with one object per human-gate round:
 
 ```
 {"round": <int starting at 1>, "decision": "approved|rejected", "presented_at": "<ts>", "responded_at": "<ts>"}
@@ -121,7 +121,20 @@ Before each `ask_user` call in this step, run `bash: date -u +%Y-%m-%dT%H:%M:%SZ
 
 Also maintain `gate_wait_time_s` as the total elapsed seconds across all human-gate rounds. These values are returned in `### Telemetry` only; do not write them into pipeline artifacts.
 
-Read `.pipeline/<run-id>/design.md` using the Read tool and present via `ask_user` with `question: "Approve this design or provide revision feedback?"`, `context` containing the review status, artifact path, and full design artifact, `options: ["approve", "provide feedback"]`, `allowMultiple: false`, `allowFreeform: true`, `allowComment: true`, and `displayMode: "inline"`:
+Read `.pipeline/<run-id>/design.md` using the Read tool and present via `contact_supervisor` with `reason: "interview_request"`, `message` containing the review status, artifact path, and full design artifact, and:
+
+```
+interview: {
+  title: "Design approval",
+  questions: [
+    {id: "decision", type: "single", question: "Approve this design or provide revision feedback?", options: ["approve", "provide feedback"]},
+    {id: "feedback", type: "text", question: "If providing feedback, enter it here (leave blank if approving):"},
+    {id: "comment", type: "text", question: "Optional comment:"}
+  ]
+}
+```
+
+Message body:
 
 ```
 ### Design — Review
@@ -133,9 +146,9 @@ Review the full artifact at `.pipeline/<run-id>/design.md`.
 Select **approve** to proceed, or **provide feedback** for revision.
 ```
 
-On approval: proceed to Return.
+On approval (response `id: "decision"` value is "approve"): proceed to Return.
 
-On feedback:
+On feedback (response `id: "decision"` value is "provide feedback", or non-empty `id: "feedback"` value):
 
 1. Increment rejection counter (first = round 1).
 2. `bash: mkdir -p .pipeline/<run-id>/feedback`

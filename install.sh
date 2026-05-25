@@ -50,5 +50,14 @@ if [[ "$count" -eq 0 ]]; then
 fi
 
 echo "==> Linked $count qrspi-* agents into $AGENTS_DIR"
+
+# 4. Ensure pi-intercom is installed (needed for subagent → user question routing)
+if command -v pi &> /dev/null; then
+  echo "==> Installing pi-intercom (required for interactive human gates in subagents)"
+  pi install npm:pi-intercom || echo "WARN: pi-intercom install failed — interactive mode will not work. Run: pi install npm:pi-intercom"
+else
+  echo "WARN: pi not found on PATH — skipping pi-intercom install. Run: pi install npm:pi-intercom"
+fi
+
 echo "==> Done. Restart pi (or open a new pi session) and run:"
 echo "      /deepwork"
