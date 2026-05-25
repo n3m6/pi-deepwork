@@ -61,7 +61,7 @@ For code changes, run `npm run lint`, `npm run typecheck`, `npm run format:check
 - **TypeScript strict mode** is enabled, including `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes`. Account for `undefined` from index access and do not pass `undefined` where an optional property is omitted.
 - **CommonJS** (`"type": "commonjs"`, `module: commonjs`). Use `import` syntax in `.ts`; do not switch to ESM.
 - **Node built-ins** are imported with the `node:` prefix (e.g. `import * as fs from "node:fs"`).
-- **No runtime dependencies** in `dependencies`. `@tintinweb/pi-subagents` is a `peerDependency` — do not add it as a regular dep. Avoid introducing new runtime deps without a strong reason.
+- **Build-toolchain deps live in `dependencies`, not `devDependencies`.** `typescript` and `@types/node` are in `dependencies` because pi installs extensions with `npm install --omit=dev`, which skips devDependencies, and the `prepare` lifecycle script needs `tsc` to compile `src/` → `dist/` at install time. `@tintinweb/pi-subagents` remains a `peerDependency` — do not add it as a regular dep. Other runtime deps require a strong reason. Pure dev-only tools (eslint, prettier, typescript-eslint, @eslint/js, globals) stay in `devDependencies`.
 - **Target Node 18+**, ES2020 language level.
 - Keep diffs minimal and focused. Do not reformat or refactor unrelated code.
 

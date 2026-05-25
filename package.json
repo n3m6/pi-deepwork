@@ -43,13 +43,15 @@
   "peerDependencies": {
     "@tintinweb/pi-subagents": ">=0.7.3"
   },
+  "dependencies": {
+    "@types/node": "25.9.1",
+    "typescript": "^6.0.3"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "@types/node": "25.9.1",
     "eslint": "^9.39.1",
     "globals": "^16.5.0",
     "prettier": "^3.6.2",
-    "typescript": "^6.0.3",
     "typescript-eslint": "^8.46.3"
   }
 }
