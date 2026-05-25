@@ -485,7 +485,7 @@ const GET_SUBAGENT_RESULT_PARAM_SCHEMA: Record<string, unknown> = {
     agent_id: {
       type: "string",
       description:
-        "Agent ID returned by qrspi_dispatch when run_in_background is true.",
+        "Agent ID returned by the native Agent tool when run_in_background is true.",
     },
     wait: {
       type: "boolean",
@@ -772,7 +772,7 @@ ${dispatched.result ?? ""}`,
     name: "qrspi_get_subagent_result",
     label: "Get Subagent Result",
     description:
-      "Check status or retrieve the result of a background subagent started with qrspi_dispatch. Use wait: true to block until completion.",
+      "Check status or retrieve the result of a background subagent started with the native Agent tool. Use wait: true to block until completion.",
     parameters: GET_SUBAGENT_RESULT_PARAM_SCHEMA,
     execute,
   };

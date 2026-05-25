@@ -96,7 +96,7 @@ test("/deepwork-resume command is registered exactly once with description and h
   assert.equal(typeof cmd.handler, "function");
 });
 
-test("qrspi_dispatch tool is registered exactly once with required fields", () => {
+test("legacy qrspi_dispatch tool is registered exactly once with required fields", () => {
   const { pi, tools } = createMockPi();
   activate(pi);
 
@@ -112,7 +112,6 @@ test("qrspi_dispatch tool is registered exactly once with required fields", () =
   assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
   assert.equal(typeof tool.execute, "function");
 
-  // Check parameters schema includes expected fields
   const props = tool.parameters.properties as Record<string, unknown>;
   assert.ok("subagent_type" in props);
   assert.ok("prompt" in props);

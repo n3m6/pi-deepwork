@@ -50,11 +50,11 @@ test('SKILL.md is valid markdown (contains markdown headers)', () => {
 
 // --- Forbidden content checks ---
 
-test('SKILL.md does not reference "task" tool (uses "qrspi_dispatch" instead)', () => {
+test('SKILL.md does not reference "task" tool (uses native Agent instead)', () => {
   const taskToolPattern = /`task` tool|invoke.*`task`|use the `task`/i;
   assert.ok(
     !taskToolPattern.test(skillContent),
-    'Should not reference task tool — use qrspi_dispatch instead',
+    'Should not reference task tool — use native Agent instead',
   );
 });
 
@@ -114,18 +114,22 @@ test('SKILL.md does not reference protocol/ file reads', () => {
 
 // --- Required tool references ---
 
-test('SKILL.md uses qrspi_dispatch with subagent_type parameter', () => {
+test('SKILL.md uses native Agent with subagent_type parameter', () => {
   assert.ok(
-    skillContent.includes('qrspi_dispatch'),
-    'Should mention qrspi_dispatch',
+    skillContent.includes('native Agent tool'),
+    'Should mention native Agent tool',
   );
   assert.ok(
     skillContent.includes('subagent_type'),
     'Should include subagent_type parameter',
   );
   assert.ok(
-    skillContent.includes('Use qrspi_dispatch with'),
-    'Should contain qrspi_dispatch usage instructions',
+    skillContent.includes('Use the Agent tool with'),
+    'Should contain native Agent usage instructions',
+  );
+  assert.ok(
+    !skillContent.includes('qrspi_dispatch'),
+    'Should not mention qrspi_dispatch in the Deepwork skill',
   );
 });
 
@@ -180,13 +184,17 @@ test('SKILL.md forbids manual discovery and generic QRSPI fallback during handof
     'Should forbid subagent list probing during handoff',
   );
   assert.ok(
-    skillContent.includes(
-      'Never invoke QRSPI stages through a generic `Agent` tool',
-    ),
-    'Should forbid generic Agent fallback for QRSPI stages',
+    skillContent.includes('do not substitute `general-purpose`'),
+    'Should forbid general-purpose substitution for QRSPI stages',
   );
   assert.ok(
-    skillContent.includes('`general-purpose` fallback'),
+    skillContent.includes('Do not call `subagent list`'),
+    'Should forbid discovery probing before stage dispatch',
+  );
+  assert.ok(
+    skillContent.includes(
+      'If the native Agent tool exposes the named `qrspi-*` custom agent type, dispatch it immediately',
+    ),
     'Should forbid general-purpose fallback for QRSPI stages',
   );
 });

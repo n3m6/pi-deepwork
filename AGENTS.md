@@ -18,7 +18,7 @@ The extension is loaded by pi, registers the `/deepwork` and `/deepwork-resume` 
 - [src/](src/) — TypeScript source compiled to `dist/`.
   - [src/index.ts](src/index.ts) — extension entry, command registration, run scaffolding, dry-run simulation, resume logic.
   - [src/pipeline.ts](src/pipeline.ts) — pipeline state model, route/stage helpers, telemetry helpers.
-  - [src/shared-tools.ts](src/shared-tools.ts) — `qrspi_dispatch` and `qrspi_question` tool factories.
+  - [src/shared-tools.ts](src/shared-tools.ts) — `qrspi_question` and legacy subagent helper tool factories.
   - [src/types/pi-extensions.ts](src/types/pi-extensions.ts) — pi `ExtensionAPI` / `ExtensionContext` typings.
 - [agents/](agents/) — 55 QRSPI agent definition `.md` files consumed by `pi-subagents`.
 - [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md) — the deepwork skill prompt injected via `resources_discover`.
@@ -82,7 +82,7 @@ When changing state schema or stage ordering, update `pipeline.ts`, the YAML ser
 - Do not commit `dist/` or `.pipeline/`.
 - Do not run destructive git operations (`push --force`, `reset --hard`, branch deletion) without explicit user confirmation.
 - The extension creates `qrspi/<run-id>` git branches and checkpoint commits when `git` is available; design changes here must preserve the graceful fallback when `git` is missing.
-- Dry-run mode is a hard contract: it must never invoke `qrspi_dispatch` / `qrspi_question` or write outside `.pipeline/<run-id>/`.
+- Dry-run mode is a hard contract: it must never invoke native `Agent` stage dispatch / `qrspi_question` or write outside `.pipeline/<run-id>/`.
 
 ## When you change things
 

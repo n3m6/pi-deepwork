@@ -514,12 +514,12 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     assert.match(handoffMessage, /=== RUNTIME DISCOVERY ===/);
     assert.match(handoffMessage, /Project agent directory:/);
     assert.match(handoffMessage, /=== NEXT DISPATCH ===/);
+    assert.match(handoffMessage, /Call the native Agent tool exactly once/);
+    assert.match(handoffMessage, /Use the Agent tool with exactly:/);
     assert.match(handoffMessage, /subagent_type: "qrspi-goals"/);
+    assert.doesNotMatch(handoffMessage, /qrspi_dispatch/);
     assert.match(handoffMessage, /Do not search for SKILL\.md/);
-    assert.match(
-      handoffMessage,
-      /Do not invoke QRSPI stages through generic Agent\/subagent tools/,
-    );
+    assert.match(handoffMessage, /do not substitute general-purpose/);
     assert.match(handoffMessage, /Deepwork configuration error/);
     assert.match(handoffMessage, /=== RUN ID ===\nqrspi-\d{8}-\d{6}/);
     assert.match(handoffMessage, /=== USER TASK ===\nHandoff task/);
@@ -942,7 +942,10 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     );
     assert.match(handoffMessage, /=== RUNTIME DISCOVERY ===/);
     assert.match(handoffMessage, /=== NEXT DISPATCH ===/);
+    assert.match(handoffMessage, /Call the native Agent tool exactly once/);
+    assert.match(handoffMessage, /Use the Agent tool with exactly:/);
     assert.match(handoffMessage, /subagent_type: "qrspi-implement"/);
+    assert.doesNotMatch(handoffMessage, /qrspi_dispatch/);
     assert.match(handoffMessage, /Deepwork configuration error/);
     assert.match(handoffMessage, new RegExp(`=== RUN ID ===\\n${runId}`));
     assert.match(handoffMessage, /=== NEXT STAGE ===\n6/);

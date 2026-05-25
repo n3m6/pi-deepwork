@@ -198,10 +198,10 @@ function buildOrchestrationContract(): string {
   return `=== ORCHESTRATION CONTRACT ===
 - Operate only as the Deepwork orchestrator.
 - Do not write or edit project source files directly.
-- Delegate every stage via qrspi_dispatch.
+- Delegate every stage with the native Agent tool and the exact QRSPI custom agent type in subagent_type.
 - Do not search for SKILL.md, call add_directory, create agent symlinks, or call subagent list as a prerequisite.
-- Do not invoke QRSPI stages through generic Agent/subagent tools or a general-purpose fallback.
-- If the deepwork skill or qrspi_dispatch/qrspi_question tools are unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.`;
+- Do not use subagent list, the generic subagent tool, or a general-purpose fallback to decide how to launch QRSPI stages.
+- If the deepwork skill, native Agent tool, or qrspi_question tool is unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.`;
 }
 
 function formatRuntimeDiscoverySnapshot(
@@ -222,7 +222,8 @@ function formatRuntimeDiscoverySnapshot(
 - Bundled agents: ${discovery.totalBundledAgents} total; ${discovery.syncedAgents} synced; ${discovery.skippedAgents} skipped
 - Registry layouts refreshed: ${layouts}
 - Registered QRSPI agents: ${qrspiAgents}
-- Expected tools: qrspi_dispatch, qrspi_question, qrspi_get_subagent_result`;
+- Stage launcher: native Agent tool with registered QRSPI custom agent types
+- Expected extension tools: qrspi_question, qrspi_get_subagent_result`;
 }
 
 const STAGE_AGENT_BY_NEXT_STAGE: Readonly<Record<string, string>> = {
@@ -264,19 +265,20 @@ function buildNextDispatchContract(
     task === undefined ? "" : `\n\n=== USER TASK ===\n${task}`;
 
   return `=== NEXT DISPATCH ===
-Call qrspi_dispatch directly for the recorded next stage. Do not run discovery first.
+Call the native Agent tool exactly once for the recorded next stage. Do not run discovery first and do not substitute general-purpose.
 
-subagent_type: "${stageAgent}"
-description: "Stage ${nextStageValue} dispatch"
-prompt: |
-  === RUN ID ===
-  ${runId}${userTaskBlock}
+Use the Agent tool with exactly:
+- subagent_type: "${stageAgent}"
+- description: "Stage ${nextStageValue} dispatch"
+- prompt:
+=== RUN ID ===
+${runId}${userTaskBlock}
 
-  === INTERACTION MODE ===
-  Use the value from this handoff prompt.
+=== INTERACTION MODE ===
+Use the value from this handoff prompt.
 
-  === FAILURE POLICY ===
-  Use the value from this handoff prompt.`;
+=== FAILURE POLICY ===
+Use the value from this handoff prompt.`;
 }
 
 function buildLiveRunHandoffPrompt(
