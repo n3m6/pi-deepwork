@@ -24,6 +24,20 @@ function pathExists(filePath: string): boolean {
   }
 }
 
+// Resolves through symlinks to verify the underlying file is actually readable.
+// `pathExists` only reports whether a directory entry exists, so a broken
+// symlink will still return `true`. We use this for SKILL.md verification so a
+// dangling compat symlink (or partially-mirrored compat directory) does not get
+// reported as a successful install.
+function fileIsReadable(filePath: string): boolean {
+  try {
+    const stats = fs.statSync(filePath);
+    return stats.isFile();
+  } catch {
+    return false;
+  }
+}
+
 function hasRuntimeSkillLayout(candidateRoot: string): boolean {
   return (
     pathExists(path.join(candidateRoot, "package.json")) &&
@@ -106,6 +120,22 @@ function copyDirectoryWithoutOverwrite(
   }
 }
 
+// Best-effort removal of a stale compat target. Handles broken symlinks
+// (which fs.rmSync with `force:true` silently leaves behind because it
+// follows the link before unlinking) by falling back to `unlinkSync`.
+function removeCompatTarget(target: string): void {
+  try {
+    const stats = fs.lstatSync(target);
+    if (stats.isSymbolicLink() || stats.isFile()) {
+      fs.unlinkSync(target);
+      return;
+    }
+    fs.rmSync(target, { recursive: true, force: true });
+  } catch {
+    // Best-effort — surface failures via the subsequent symlink/copy attempts.
+  }
+}
+
 function copySkillCompatPayload(layout: SkillCompatLayout): void {
   fs.mkdirSync(layout.targetRoot, { recursive: true });
 
@@ -137,7 +167,11 @@ export function ensureSkillCompatInstall(
     "SKILL.md",
   );
 
-  if (pathExists(layout.targetRoot) && pathExists(targetSkillPath)) {
+  // `existing` only counts if the SKILL.md is actually readable. A directory
+  // entry that exists but resolves to a missing file (broken symlink or partial
+  // mirror from a previous failed install) must be recovered, not reported as
+  // healthy.
+  if (pathExists(layout.targetRoot) && fileIsReadable(targetSkillPath)) {
     return {
       applied: true,
       mode: "existing",
@@ -146,17 +180,28 @@ export function ensureSkillCompatInstall(
     };
   }
 
+  // Drop a stale targetRoot that does not produce a readable SKILL.md so the
+  // symlink/copy branches below can re-create it cleanly.
+  if (pathExists(layout.targetRoot) && !fileIsReadable(targetSkillPath)) {
+    removeCompatTarget(layout.targetRoot);
+  }
+
   fs.mkdirSync(path.dirname(layout.targetRoot), { recursive: true });
 
   if (!pathExists(layout.targetRoot)) {
     try {
       fs.symlinkSync(layout.sourceRoot, layout.targetRoot, "dir");
-      return {
-        applied: true,
-        mode: "symlink",
-        targetRoot: layout.targetRoot,
-        skillPath: targetSkillPath,
-      };
+      if (fileIsReadable(targetSkillPath)) {
+        return {
+          applied: true,
+          mode: "symlink",
+          targetRoot: layout.targetRoot,
+          skillPath: targetSkillPath,
+        };
+      }
+      // Symlink created but target SKILL.md is unreadable (source missing or
+      // dangling). Remove the link and fall through to the copy branch.
+      removeCompatTarget(layout.targetRoot);
     } catch {
       // Fall back to a small compatibility mirror when symlink creation fails.
     }
@@ -164,6 +209,14 @@ export function ensureSkillCompatInstall(
 
   try {
     copySkillCompatPayload(layout);
+    if (!fileIsReadable(targetSkillPath)) {
+      return {
+        applied: false,
+        targetRoot: layout.targetRoot,
+        skillPath: targetSkillPath,
+        error: `Compatibility mirror at ${layout.targetRoot} did not produce a readable SKILL.md.`,
+      };
+    }
     return {
       applied: true,
       mode: pathExists(layout.targetRoot) ? "copied" : "existing",

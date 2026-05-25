@@ -661,3 +661,29 @@ test('SKILL.md includes full pipeline directory tree', () => {
     'Pipeline tree should include telemetry directory',
   );
 });
+
+// --- Missing-subagent failure mode (no manual mirroring) ---
+
+test('SKILL.md forbids manual mirroring of <workspace>/.pi/agents/', () => {
+  assert.ok(
+    /do not manually mirror/i.test(skillContent),
+    'SKILL.md must explicitly forbid manual mirroring of the agents directory',
+  );
+  assert.ok(
+    skillContent.includes('/deepwork-doctor'),
+    'Missing-subagent guidance must direct users to /deepwork-doctor',
+  );
+  assert.ok(
+    !skillContent.includes(
+      'ask the user to run `/deepwork` again or restart pi so the extension can mirror',
+    ),
+    'Old soft-guidance wording must be removed',
+  );
+});
+
+test('SKILL.md branch example includes the qrspi- prefix in the run id', () => {
+  assert.ok(
+    skillContent.includes('qrspi/qrspi-'),
+    'SKILL.md must show the qrspi/qrspi-<timestamp> branch form in the Pre-Flight example',
+  );
+});

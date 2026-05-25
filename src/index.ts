@@ -1,3 +1,4 @@
+import * as fs from "node:fs";
 import * as path from "node:path";
 
 import {
@@ -38,6 +39,7 @@ import {
   ensureRuntimeSkillCompatInstall,
   getRuntimePackageRoot,
 } from "./skill-compat";
+import type { SkillCompatInstallResult } from "./skill-compat";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -49,8 +51,154 @@ type AgentPrepResult =
   | { ok: true; discovery: RuntimeDiscoverySnapshot }
   | { ok: false; error: string };
 
+interface MirrorAttempt {
+  cwd: string;
+  ok: boolean;
+  projectAgentsDir: string;
+  mirroredFileCount: number;
+  registeredQrspiCount: number;
+  error?: string;
+  at: string;
+}
+
+interface DiagnosticsRecord {
+  extensionVersion: string;
+  runtimePackageRoot: string;
+  bundledSkillPath: string;
+  bundledSkillExists: boolean;
+  skillCompat: SkillCompatInstallResult & { skillPathReadable?: boolean };
+  activateMirror: MirrorAttempt | null;
+  lastDiscover: (MirrorAttempt & { reason?: string }) | null;
+}
+
+let diagnosticsRecord: DiagnosticsRecord | null = null;
+
 function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readExtensionVersion(packageRoot: string): string {
+  try {
+    const raw = fs.readFileSync(
+      path.join(packageRoot, "package.json"),
+      "utf-8",
+    );
+    const pkg = JSON.parse(raw) as { version?: unknown };
+    return typeof pkg.version === "string" ? pkg.version : "unknown";
+  } catch {
+    return "unknown";
+  }
+}
+
+function countMirroredAgentFiles(workspaceRoot: string): number {
+  try {
+    return fs
+      .readdirSync(getProjectAgentsDir(workspaceRoot))
+      .filter((fileName) => fileName.endsWith(".md")).length;
+  } catch {
+    return 0;
+  }
+}
+
+function runMirrorAttempt(
+  workspaceRoot: string,
+  extraFields: { reason?: string } = {},
+): MirrorAttempt & { reason?: string } {
+  const projectAgentsDir = getProjectAgentsDir(workspaceRoot);
+  const at = new Date().toISOString();
+  try {
+    const registration = ensureRegisteredSubagents(
+      workspaceRoot,
+      REQUIRED_QRSPI_STAGE_AGENTS,
+    );
+    const mirroredFileCount = countMirroredAgentFiles(workspaceRoot);
+    const registeredQrspiCount =
+      registration.refreshResult?.agentNames.filter((agentName) =>
+        agentName.startsWith("qrspi-"),
+      ).length ?? 0;
+    const base: MirrorAttempt & { reason?: string } = {
+      cwd: workspaceRoot,
+      ok: registration.ok,
+      projectAgentsDir: registration.projectAgentsDir ?? projectAgentsDir,
+      mirroredFileCount,
+      registeredQrspiCount,
+      at,
+    };
+    if (!registration.ok && registration.error) {
+      base.error = registration.error;
+    }
+    if (typeof extraFields.reason === "string") {
+      base.reason = extraFields.reason;
+    }
+    return base;
+  } catch (e: unknown) {
+    const attempt: MirrorAttempt & { reason?: string } = {
+      cwd: workspaceRoot,
+      ok: false,
+      projectAgentsDir,
+      mirroredFileCount: countMirroredAgentFiles(workspaceRoot),
+      registeredQrspiCount: 0,
+      error: describeError(e),
+      at,
+    };
+    if (typeof extraFields.reason === "string") {
+      attempt.reason = extraFields.reason;
+    }
+    return attempt;
+  }
+}
+
+function formatAgentsBlock(
+  prep: AgentPrepResult,
+  workspaceRoot: string,
+): string {
+  if (!prep.ok) {
+    return `=== AGENTS ===\nstatus=error\nerror=${prep.error}`;
+  }
+  const discovery = prep.discovery;
+  const mirroredFileCount = countMirroredAgentFiles(workspaceRoot);
+  return [
+    "=== AGENTS ===",
+    `status=ok`,
+    `mirrored_files=${mirroredFileCount}`,
+    `synced=${discovery.syncedAgents}`,
+    `skipped=${discovery.skippedAgents}`,
+    `registered_qrspi=${discovery.registeredQrspiAgents.length}`,
+    `dir=${discovery.projectAgentsDir}`,
+  ].join("\n");
+}
+
+function formatRuntimeBlock(branchOutcome: string | null): string {
+  const gitLine = isGitAvailable()
+    ? (branchOutcome ?? "git=available, branch=created")
+    : "git=missing, branch=skipped (pipeline tracked in .pipeline/ files only)";
+  const skill = diagnosticsRecord?.skillCompat;
+  const skillLine = skill
+    ? skill.error
+      ? `skill_compat=error (${skill.error})`
+      : skill.applied
+        ? `skill_compat=${skill.mode ?? "applied"} (${skill.targetRoot ?? "?"})`
+        : `skill_compat=not-applied`
+    : "skill_compat=unknown";
+  return `=== RUNTIME ===\n${gitLine}\n${skillLine}`;
+}
+
+function appendBootstrapTelemetry(
+  telemetryDir: string,
+  payload: Record<string, unknown>,
+): void {
+  try {
+    fs.mkdirSync(telemetryDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(telemetryDir, "bootstrap.json"),
+      JSON.stringify(payload, null, 2) + "\n",
+      "utf-8",
+    );
+  } catch (e: unknown) {
+    console.warn(
+      `[pi-deepwork] Failed to write bootstrap telemetry: ${describeError(e)}`,
+    );
+  }
 }
 
 function ensureWorkspaceQrsiAgents(workspaceRoot: string): AgentPrepResult {
@@ -72,6 +220,19 @@ function ensureWorkspaceQrsiAgents(workspaceRoot: string): AgentPrepResult {
       error:
         registration.error ??
         `Failed to prepare QRSPI agent definitions under ${getProjectAgentsDir(workspaceRoot)}.`,
+    };
+  }
+
+  // Defense-in-depth post-condition: even though `ensureRegisteredSubagents`
+  // validates the required set internally, re-read the workspace directory and
+  // fail if the file count is below the required floor. This catches cases
+  // where the mirror "succeeded" but a concurrent process or filesystem issue
+  // produced an empty or partial `.pi/agents/` between calls.
+  const mirroredFileCount = countMirroredAgentFiles(workspaceRoot);
+  if (mirroredFileCount < REQUIRED_QRSPI_STAGE_AGENTS.length) {
+    return {
+      ok: false,
+      error: `Mirror sanity check failed: only ${mirroredFileCount} agent files under ${registration.projectAgentsDir}; expected at least ${REQUIRED_QRSPI_STAGE_AGENTS.length}.`,
     };
   }
 
@@ -105,6 +266,13 @@ function getDiscoveredSkillPaths(
   skillCompat: { skillPath?: string },
 ): string[] {
   const skillPaths = [bundledSkillsRoot];
+
+  const bundledSkillFile = path.join(bundledSkillsRoot, "deepwork", "SKILL.md");
+  if (!fileExists(bundledSkillFile)) {
+    console.warn(
+      `[pi-deepwork] Bundled SKILL.md not found at ${bundledSkillFile}. pi will still receive the path, but the skill cannot be invoked until the bundle is repaired.`,
+    );
+  }
 
   if (skillCompat.skillPath && fileExists(skillCompat.skillPath)) {
     skillPaths.push(path.dirname(path.dirname(skillCompat.skillPath)));
@@ -217,9 +385,14 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
       return;
     }
 
-    if (isGitAvailable()) {
+    let branchOutcome: string | null = null;
+    const gitAvailable = isGitAvailable();
+    if (gitAvailable) {
       const branchResult = tryCreateGitBranch(runId, ctx.cwd);
-      if (!branchResult.ok) {
+      if (branchResult.ok) {
+        branchOutcome = `git=available, branch=qrspi/${runId} created`;
+      } else {
+        branchOutcome = `git=available, branch=qrspi/${runId} failed (${branchResult.error ?? "unknown error"})`;
         console.warn(
           `Failed to create git branch qrspi/${runId}: ${branchResult.error ?? "unknown error"}`,
         );
@@ -257,6 +430,30 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
       return;
     }
 
+    // Bootstrap telemetry sidecar: written before handoff so post-mortems show
+    // whether the extension command path ran agent mirroring + scaffolding,
+    // independent of the skill's `events.jsonl` seq counter.
+    appendBootstrapTelemetry(paths.telemetryDir, {
+      run_id: runId,
+      at: new Date().toISOString(),
+      cwd: ctx.cwd,
+      extension_version: diagnosticsRecord?.extensionVersion ?? "unknown",
+      agents: {
+        mirrored_files: countMirroredAgentFiles(ctx.cwd),
+        synced: agentPrep.discovery.syncedAgents,
+        skipped: agentPrep.discovery.skippedAgents,
+        registered_qrspi: agentPrep.discovery.registeredQrspiAgents.length,
+        dir: agentPrep.discovery.projectAgentsDir,
+      },
+      runtime: {
+        git_available: gitAvailable,
+        branch_outcome: branchOutcome,
+        skill_compat: diagnosticsRecord?.skillCompat ?? null,
+      },
+      interaction_mode: parsedInteractionMode,
+      failure_policy: parsedFailurePolicy,
+    });
+
     const handoff = await handoffToSession(
       pi,
       buildLiveRunHandoffPrompt(
@@ -273,7 +470,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
 
     await ctx.ui.confirm(
       "Deepwork Started",
-      `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\n${handoffSummary}`,
+      `=== RUN ID ===\n${runId}\n\n=== INTERACTION MODE ===\n${parsedInteractionMode}\n\n=== FAILURE POLICY ===\n${parsedFailurePolicy}\n\n=== USER TASK ===\n${task}\n\n${formatAgentsBlock(agentPrep, ctx.cwd)}\n\n${formatRuntimeBlock(branchOutcome)}\n\n${handoffSummary}`,
     );
   };
 }
@@ -353,8 +550,97 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
 
     await ctx.ui.confirm(
       parsed.mode === "dry-run" ? "Resume Dry Run" : "Resume Pipeline",
-      `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\n${handoffSummary}`,
+      `=== RESUME RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== RESUME FROM STAGE ===\nStage ${parsed.next_stage} (last completed: Stage ${parsed.last_completed_stage})\n\n=== ROUTE ===\n${parsed.route}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}\n\n${formatAgentsBlock(agentPrep, ctx.cwd)}\n\n${handoffSummary}`,
     );
+  };
+}
+
+function formatDoctorReport(workspaceRoot: string): string {
+  const record = diagnosticsRecord;
+  const liveMirror = runMirrorAttempt(workspaceRoot, { reason: "doctor" });
+
+  const lines: string[] = [];
+  lines.push("=== EXTENSION ===");
+  lines.push(`version=${record?.extensionVersion ?? "unknown"}`);
+  lines.push(`runtime_package_root=${record?.runtimePackageRoot ?? "unknown"}`);
+
+  lines.push("");
+  lines.push("=== BUNDLED SKILL ===");
+  lines.push(`path=${record?.bundledSkillPath ?? "unknown"}`);
+  lines.push(
+    `exists=${record?.bundledSkillExists ? "true" : "false (the bundled SKILL.md is missing; pi cannot invoke the deepwork skill until the install is repaired)"}`,
+  );
+
+  lines.push("");
+  lines.push("=== SKILL COMPAT ===");
+  const skill = record?.skillCompat;
+  if (!skill || !skill.applied) {
+    lines.push(
+      `applied=false${skill?.error ? ` (error: ${skill.error})` : " (not a git-install layout; no compat mirror needed)"}`,
+    );
+  } else {
+    lines.push(`applied=true`);
+    lines.push(`mode=${skill.mode ?? "unknown"}`);
+    lines.push(`target_root=${skill.targetRoot ?? "unknown"}`);
+    lines.push(`skill_path=${skill.skillPath ?? "unknown"}`);
+    lines.push(
+      `skill_path_readable=${skill.skillPathReadable === false ? "false (compat SKILL.md is missing on disk; rebuild the install)" : "true"}`,
+    );
+    if (skill.error) {
+      lines.push(`error=${skill.error}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("=== AGENTS ===");
+  lines.push(`workspace_cwd=${workspaceRoot}`);
+  lines.push(`project_agents_dir=${liveMirror.projectAgentsDir}`);
+  lines.push(`mirrored_files=${liveMirror.mirroredFileCount}`);
+  lines.push(`registered_qrspi=${liveMirror.registeredQrspiCount}`);
+  lines.push(`required_qrspi=${REQUIRED_QRSPI_STAGE_AGENTS.length}`);
+  lines.push(`status=${liveMirror.ok ? "ok" : "error"}`);
+  if (liveMirror.error) {
+    lines.push(`error=${liveMirror.error}`);
+  }
+
+  lines.push("");
+  lines.push("=== GIT ===");
+  lines.push(`available=${isGitAvailable() ? "true" : "false"}`);
+
+  lines.push("");
+  lines.push("=== LAST DISCOVER EVENT ===");
+  if (record?.lastDiscover) {
+    lines.push(`at=${record.lastDiscover.at}`);
+    lines.push(`cwd=${record.lastDiscover.cwd}`);
+    lines.push(`reason=${record.lastDiscover.reason ?? "unknown"}`);
+    lines.push(`status=${record.lastDiscover.ok ? "ok" : "error"}`);
+    if (record.lastDiscover.error) {
+      lines.push(`error=${record.lastDiscover.error}`);
+    }
+  } else {
+    lines.push("(no resources_discover events recorded since activate)");
+  }
+
+  lines.push("");
+  lines.push("=== LAST ACTIVATE-TIME MIRROR ===");
+  if (record?.activateMirror) {
+    lines.push(`at=${record.activateMirror.at}`);
+    lines.push(`cwd=${record.activateMirror.cwd}`);
+    lines.push(`status=${record.activateMirror.ok ? "ok" : "error"}`);
+    if (record.activateMirror.error) {
+      lines.push(`error=${record.activateMirror.error}`);
+    }
+  } else {
+    lines.push("(diagnostics record not initialized)");
+  }
+
+  return lines.join("\n");
+}
+
+function createDeepworkDoctorHandler(): CommandHandler {
+  return async (_args: Record<string, unknown>, ctx: ExtensionContext) => {
+    const report = formatDoctorReport(ctx.cwd);
+    await ctx.ui.confirm("Deepwork Doctor", report);
   };
 }
 
@@ -367,17 +653,48 @@ export default function activate(pi: ExtensionAPI): void {
     );
   }
 
-  // Best-effort agent mirror + registry refresh on activation so qrspi-* agents
-  // are visible before the user invokes /deepwork for the first time.
-  try {
-    ensureRegisteredSubagents(process.cwd(), REQUIRED_QRSPI_STAGE_AGENTS);
-  } catch (e: unknown) {
+  const bundledSkillPath = path.join(
+    runtimePackageRoot,
+    "skills",
+    "deepwork",
+    "SKILL.md",
+  );
+  const bundledSkillExists = fileExists(bundledSkillPath);
+  if (!bundledSkillExists) {
     console.warn(
-      `[pi-deepwork] Best-effort agent registration on activate() failed: ${
-        e instanceof Error ? e.message : String(e)
-      }`,
+      `[pi-deepwork] Bundled SKILL.md missing at ${bundledSkillPath}. /deepwork-doctor will report this.`,
     );
   }
+
+  const skillCompatWithReadable: SkillCompatInstallResult & {
+    skillPathReadable?: boolean;
+  } = { ...skillCompat };
+  if (skillCompat.skillPath) {
+    skillCompatWithReadable.skillPathReadable = fileExists(
+      skillCompat.skillPath,
+    );
+  }
+
+  // Best-effort agent mirror + registry refresh on activation so qrspi-* agents
+  // are visible before the user invokes /deepwork for the first time.
+  const activateMirror = runMirrorAttempt(process.cwd(), {
+    reason: "activate",
+  });
+  if (!activateMirror.ok && activateMirror.error) {
+    console.warn(
+      `[pi-deepwork] Best-effort agent registration on activate() failed: ${activateMirror.error}`,
+    );
+  }
+
+  diagnosticsRecord = {
+    extensionVersion: readExtensionVersion(runtimePackageRoot),
+    runtimePackageRoot,
+    bundledSkillPath,
+    bundledSkillExists,
+    skillCompat: skillCompatWithReadable,
+    activateMirror,
+    lastDiscover: null,
+  };
 
   pi.registerCommand("deepwork", {
     description:
@@ -399,6 +716,13 @@ export default function activate(pi: ExtensionAPI): void {
     handler: createDeepworkResumeHandler(pi),
   });
 
+  pi.registerCommand("deepwork-doctor", {
+    description:
+      "Print a diagnostic report (extension version, resolved paths, agent mirror status, skill compat, git availability, last resources_discover event) without starting or resuming a run",
+    getArgumentCompletions: async () => ({}),
+    handler: createDeepworkDoctorHandler(),
+  });
+
   pi.on("resources_discover", (...args: unknown[]) => {
     // Re-mirror agents and refresh registry on every session start so qrspi-*
     // are visible even when the user invokes the deepwork skill without running
@@ -413,14 +737,16 @@ export default function activate(pi: ExtensionAPI): void {
       typeof event?.cwd === "string" && event.cwd.trim().length > 0
         ? event.cwd
         : process.cwd();
-    try {
-      ensureRegisteredSubagents(eventCwd, REQUIRED_QRSPI_STAGE_AGENTS);
-    } catch (e: unknown) {
+    const reason =
+      typeof event?.reason === "string" ? event.reason : "resources_discover";
+    const attempt = runMirrorAttempt(eventCwd, { reason });
+    if (!attempt.ok && attempt.error) {
       console.warn(
-        `[pi-deepwork] Best-effort agent registration on resources_discover failed: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
+        `[pi-deepwork] Best-effort agent registration on resources_discover failed: ${attempt.error}`,
       );
+    }
+    if (diagnosticsRecord) {
+      diagnosticsRecord.lastDiscover = attempt;
     }
 
     return {

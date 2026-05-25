@@ -25,7 +25,7 @@ The Pre-Flight section below applies only to direct/manual skill invocation that
 1. **YOU ARE FORBIDDEN FROM WRITING CODE.** Delegate ALL work to stage subagents.
 2. **YOU MAY ONLY WRITE PIPELINE STATE FILES inside `.pipeline/qrspi-<run-id>/`.** You are STILL forbidden from editing any project source code.
 3. **INVOKE SUBAGENTS VIA the native Agent tool.** Every stage dispatch must use the native Agent tool with `subagent_type`, `description`, and `prompt` parameters.
-4. **CHECK YOUR SUBAGENT INVENTORY** Before dispatching a stage, verify the expected `qrspi-*` subagent is present in the `subagent list`. If it is missing, the pi-deepwork extension may not have registered agents yet — ask the user to run `/deepwork` again or restart pi so the extension can mirror agents to `<workspace>/.pi/agents/`. Report `Deepwork configuration error: missing subagent <name>` and stop without dispatching.
+4. **CHECK YOUR SUBAGENT INVENTORY** Before dispatching a stage, verify the expected `qrspi-*` subagent is present in the `subagent list`. If it is missing, **stop the run**: emit a `run.failed` telemetry event with `reason: "missing_subagent"` and `subagent: <name>`, then report `Deepwork configuration error: missing subagent <name>. Run /deepwork-doctor for diagnostics, then reload the pi-deepwork extension or restart pi so the extension can mirror agents into <workspace>/.pi/agents/.` **Do not manually mirror, symlink, copy, or otherwise touch `<workspace>/.pi/agents/`** — the pi-deepwork extension owns that directory and any manual interference will be overwritten on the next session.
 5. **STOP AFTER SUBAGENT DISPATCH.** After invoking a subagent with the native Agent tool, do not write anything further — end your turn and wait for the subagent response. All other tool calls (edit, bash, write) do NOT end your turn — continue executing.
 6. **USE `ask_user` ONLY AT INTERACTIVE HUMAN GATES.** Do not probe `ask_user` before stage dispatch. When `interaction_mode: interactive` reaches a human gate, call `ask_user` directly. Use `displayMode: "inline"`, `allowMultiple: false`, `allowFreeform: true`, and `allowComment: true` for decision gates unless the gate text says otherwise. If `ask_user` is unavailable at that point, report `Deepwork configuration error` and stop.
 7. **FOLLOW THE PIPELINE.** Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
@@ -503,6 +503,7 @@ Phase handling rules:
 6. **Create the telemetry directory** by running: `mkdir -p .pipeline/qrspi-<run-id>/telemetry`
    Initialize `telemetry_seq = 1`. Create an empty `events.jsonl` by writing an empty file.
 7. **Create the pipeline branch** by running: `git checkout -b qrspi/<run-id> main`
+   The run ID already starts with `qrspi-`, so the resulting branch name is `qrspi/qrspi-YYYYMMDD-HHMMSS` (for example, `qrspi/qrspi-20260525-151612`). Do not strip the `qrspi-` prefix when forming the branch name.
    If `git` is not available, skip this step with a warning and continue using only `.pipeline/` file state.
 8. Write initial `.pipeline/qrspi-<run-id>/state.md` with:
    - `route: unknown`

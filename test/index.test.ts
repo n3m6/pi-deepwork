@@ -224,3 +224,235 @@ test("package.json matches expected manifest shape", () => {
 
   assert.equal(pkg.type, "commonjs");
 });
+
+// ---------------------------------------------------------------------------
+// /deepwork-doctor
+// ---------------------------------------------------------------------------
+
+interface CapturedConfirm {
+  title: string;
+  message: string;
+}
+
+function makeDoctorCtx(cwd: string): {
+  ctx: {
+    cwd: string;
+    ui: {
+      confirm: (title: string, message: string) => Promise<boolean>;
+      select: () => Promise<unknown>;
+      hasUI: boolean;
+    };
+    signal: AbortSignal;
+    sessionManager: Record<string, unknown>;
+  };
+  captured: CapturedConfirm[];
+} {
+  const captured: CapturedConfirm[] = [];
+  const controller = new AbortController();
+  return {
+    ctx: {
+      cwd,
+      ui: {
+        confirm: async (title: string, message: string) => {
+          captured.push({ title, message });
+          return true;
+        },
+        select: async () => undefined,
+        hasUI: true,
+      },
+      signal: controller.signal,
+      sessionManager: {},
+    },
+    captured,
+  };
+}
+
+test("/deepwork-doctor command is registered with description and handler", () => {
+  const { pi, commands } = createMockPi();
+  activate(pi);
+
+  const doctorCmds = commands.filter((c) => c.name === "deepwork-doctor");
+  assert.equal(doctorCmds.length, 1);
+  const cmd = doctorCmds[0]!.definition;
+  assert.ok(typeof cmd.description === "string" && cmd.description.length > 0);
+  assert.equal(typeof cmd.handler, "function");
+});
+
+test("/deepwork-doctor handler prints diagnostic sections and mirrors agents on demand", async () => {
+  const { pi, commands } = createMockPi();
+  activate(pi);
+
+  const doctorCmd = commands.find((c) => c.name === "deepwork-doctor");
+  assert.ok(doctorCmd, "deepwork-doctor command must be registered");
+
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-doctor-"),
+  );
+  try {
+    const { ctx, captured } = makeDoctorCtx(tmpRoot);
+    await doctorCmd!.definition.handler(
+      {},
+      ctx as unknown as Parameters<typeof doctorCmd.definition.handler>[1],
+    );
+
+    assert.equal(captured.length, 1, "doctor must call ctx.ui.confirm once");
+    const message = captured[0]!.message;
+    assert.equal(captured[0]!.title, "Deepwork Doctor");
+
+    for (const section of [
+      "=== EXTENSION ===",
+      "=== BUNDLED SKILL ===",
+      "=== SKILL COMPAT ===",
+      "=== AGENTS ===",
+      "=== GIT ===",
+      "=== LAST DISCOVER EVENT ===",
+      "=== LAST ACTIVATE-TIME MIRROR ===",
+    ]) {
+      assert.ok(
+        message.includes(section),
+        `doctor message must include "${section}"`,
+      );
+    }
+
+    assert.ok(
+      message.includes(`workspace_cwd=${tmpRoot}`),
+      "doctor message must report the workspace cwd it was invoked with",
+    );
+
+    const mirroredAgentsDir = path.join(tmpRoot, ".pi", "agents");
+    assert.ok(
+      fs.existsSync(mirroredAgentsDir),
+      "doctor must mirror agents into the workspace .pi/agents directory",
+    );
+    const mirrored = fs
+      .readdirSync(mirroredAgentsDir)
+      .filter((f) => f.endsWith(".md"));
+    assert.ok(
+      mirrored.length > 0,
+      "doctor must produce at least one mirrored qrspi-*.md file",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("/deepwork-doctor report reflects the last resources_discover event cwd", async () => {
+  const { pi, commands, events } = createMockPi();
+  activate(pi);
+
+  const discoverEvents = events.filter((e) => e.event === "resources_discover");
+  assert.equal(discoverEvents.length, 1);
+  const discoverHandler = discoverEvents[0]!.handler;
+
+  const discoverCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-doctor-discover-"),
+  );
+  const invokeCwd = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-doctor-invoke-"),
+  );
+
+  try {
+    discoverHandler({
+      type: "resources_discover",
+      cwd: discoverCwd,
+      reason: "test-discover",
+    });
+
+    const doctorCmd = commands.find((c) => c.name === "deepwork-doctor");
+    assert.ok(doctorCmd);
+    const { ctx, captured } = makeDoctorCtx(invokeCwd);
+    await doctorCmd!.definition.handler(
+      {},
+      ctx as unknown as Parameters<typeof doctorCmd.definition.handler>[1],
+    );
+
+    const message = captured[0]!.message;
+    assert.ok(
+      message.includes(`cwd=${discoverCwd}`),
+      "doctor must surface the most recent resources_discover cwd",
+    );
+    assert.ok(
+      message.includes("reason=test-discover"),
+      "doctor must surface the resources_discover reason",
+    );
+  } finally {
+    fs.rmSync(discoverCwd, { recursive: true, force: true });
+    fs.rmSync(invokeCwd, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Live /deepwork bootstrap surfaces agents block + writes bootstrap.json
+// ---------------------------------------------------------------------------
+
+test("/deepwork live handler writes telemetry/bootstrap.json and includes AGENTS block in the UI message", async () => {
+  const { pi, commands } = createMockPi();
+  activate(pi);
+
+  const deepworkCmd = commands.find((c) => c.name === "deepwork");
+  assert.ok(deepworkCmd);
+
+  const tmpRoot = fs.mkdtempSync(
+    path.join(require("node:os").tmpdir(), "pi-deepwork-bootstrap-"),
+  );
+  try {
+    const { ctx, captured } = makeDoctorCtx(tmpRoot);
+    await deepworkCmd!.definition.handler(
+      { task: "smoke test" },
+      ctx as unknown as Parameters<typeof deepworkCmd.definition.handler>[1],
+    );
+
+    const startedMessage = captured.find((c) => c.title === "Deepwork Started");
+    assert.ok(
+      startedMessage,
+      "live /deepwork must surface a 'Deepwork Started' confirmation",
+    );
+    assert.ok(
+      startedMessage!.message.includes("=== AGENTS ==="),
+      "Deepwork Started message must include an AGENTS block",
+    );
+    assert.ok(
+      startedMessage!.message.includes("=== RUNTIME ==="),
+      "Deepwork Started message must include a RUNTIME block",
+    );
+
+    const pipelineDir = path.join(tmpRoot, ".pipeline");
+    assert.ok(
+      fs.existsSync(pipelineDir),
+      "live /deepwork must create the .pipeline directory",
+    );
+    const runDirs = fs
+      .readdirSync(pipelineDir)
+      .filter((d) => d.startsWith("qrspi-"));
+    assert.equal(
+      runDirs.length,
+      1,
+      "exactly one qrspi run dir must be created",
+    );
+    const bootstrapPath = path.join(
+      pipelineDir,
+      runDirs[0]!,
+      "telemetry",
+      "bootstrap.json",
+    );
+    assert.ok(
+      fs.existsSync(bootstrapPath),
+      `bootstrap.json must be written at ${bootstrapPath}`,
+    );
+    const parsed = JSON.parse(fs.readFileSync(bootstrapPath, "utf-8")) as {
+      run_id?: string;
+      agents?: { registered_qrspi?: number };
+    };
+    assert.ok(
+      typeof parsed.run_id === "string" && parsed.run_id.startsWith("qrspi-"),
+      "bootstrap.json must record the run_id",
+    );
+    assert.ok(
+      typeof parsed.agents?.registered_qrspi === "number" &&
+        parsed.agents.registered_qrspi >= 0,
+      "bootstrap.json must record agents.registered_qrspi",
+    );
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
