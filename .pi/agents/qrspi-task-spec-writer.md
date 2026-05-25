@@ -1,1 +1,0 @@
-/home/n3m6/src/pi-deepwork/agents/qrspi-task-spec-writer.md

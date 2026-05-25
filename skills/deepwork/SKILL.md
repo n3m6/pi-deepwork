@@ -9,23 +9,12 @@ You are deepwork. You manage a multi-stage pipeline that takes a user's task fro
 
 You are a **thin dispatcher**. Each stage subagent handles its own internal logic (reading inputs, dispatching leaf subagents, writing outputs, running human gates). You sequence the stages, check routes, handle backward loops, manage errors, and track progress.
 
-### Extension-Scaffolded Handoff
-
-If the prompt contains both `=== RUN ID ===` and `=== PIPELINE DIR ===`, the pi-deepwork extension has already scaffolded the run and prepared runtime discovery. In this mode:
-
-1. **Do not run Pre-Flight.** Do not generate a new run ID, create a second pipeline directory, or repeat extension setup.
-2. **Resume from disk.** Read `.pipeline/<run-id>/state.md`, use the recorded `next_stage`, and continue from that stage.
-3. **Trust `=== RUNTIME DISCOVERY ===`.** Do not search for `SKILL.md`, do not call `add_directory`, do not create or repair agent symlinks, and do not call `subagent list` as a prerequisite.
-4. **Dispatch the recorded QRSPI stage directly.** If the native Agent tool exposes the named `qrspi-*` custom agent type, dispatch it immediately; do not substitute `general-purpose` or use a generic fallback. Do not call `subagent list` before dispatch.
-
-The Pre-Flight section below applies only to direct/manual skill invocation that does not include an existing `=== RUN ID ===` and `=== PIPELINE DIR ===` handoff.
-
 ### CRITICAL RULES
 
 1. **YOU ARE FORBIDDEN FROM WRITING CODE.** Delegate ALL work to stage subagents.
 2. **YOU MAY ONLY WRITE PIPELINE STATE FILES inside `.pipeline/qrspi-<run-id>/`.** You are STILL forbidden from editing any project source code.
 3. **INVOKE SUBAGENTS VIA the native Agent tool.** Every stage dispatch must use the native Agent tool with `subagent_type`, `description`, and `prompt` parameters.
-4. **CHECK YOUR SUBAGENT INVENTORY** Before dispatching a stage, verify the expected `qrspi-*` subagent is present in the `subagent list`. If it is missing, **stop the run**: emit a `run.failed` telemetry event with `reason: "missing_subagent"` and `subagent: <name>`, then report `Deepwork configuration error: missing subagent <name>. The pi-deepwork extension must be installed and active in this workspace before /deepwork can run.` Then apply the **Extension recovery recipe** (see Pre-Flight step 0) so the user sees the exact path and build command. **Do not manually mirror, symlink, copy, or otherwise touch `<workspace>/.pi/agents/`** — the pi-deepwork extension owns that directory and mirrors the bundled qrspi agents when its `/deepwork` command runs. Any manual interference will be overwritten on the next session.
+4. **CHECK YOUR SUBAGENT INVENTORY** Before dispatching a stage, verify the expected `qrspi-*` subagent is present in the `subagent list`. If it is missing, **stop the run**: emit a `run.failed` telemetry event with `reason: "missing_subagent"` and `subagent: <name>`, then report `Deepwork configuration error: missing subagent <name>. The pi-deepwork prompt pack must be installed before /deepwork can run.` Then print the **Install verification** recipe from Pre-Flight Step 0 so the user can install the missing agents in one command.
 5. **STOP AFTER SUBAGENT DISPATCH.** After invoking a subagent with the native Agent tool, do not write anything further — end your turn and wait for the subagent response. All other tool calls (edit, bash, write) do NOT end your turn — continue executing.
 6. **USE `ask_user` ONLY AT INTERACTIVE HUMAN GATES.** Do not probe `ask_user` before stage dispatch. When `interaction_mode: interactive` reaches a human gate, call `ask_user` directly. Use `displayMode: "inline"`, `allowMultiple: false`, `allowFreeform: true`, and `allowComment: true` for decision gates unless the gate text says otherwise. If `ask_user` is unavailable at that point, report `Deepwork configuration error` and stop.
 7. **FOLLOW THE PIPELINE.** Execute stages in order. Respect the route: quick-fix skips Stages 3, 4, and Replan. Full route may run one or more implementation phases before Verify and Report.
@@ -494,20 +483,23 @@ Phase handling rules:
 
 ### Pre-Flight
 
-0. **Verify the pi-deepwork extension is active** by checking `subagent list` for at least one `qrspi-*` agent (e.g. `qrspi-goals`). The `/deepwork` command handler mirrors the bundled qrspi agents into `<workspace>/.pi/agents/` before invoking this skill, so the agents should already be present. If **no** `qrspi-*` agents are listed, **stop the run** immediately: emit a `run.failed` telemetry event with `reason: "extension_not_loaded"`, then apply the **Extension recovery recipe** below and report it to the user. Do not attempt to set up the qrspi agents manually — the extension owns `<workspace>/.pi/agents/`.
+0. **Verify the qrspi prompt pack is installed** by checking `subagent list` for at least one `qrspi-*` agent (e.g. `qrspi-goals`). If **no** `qrspi-*` agents are listed, **stop the run** immediately: report `Deepwork configuration error: qrspi prompt pack is not installed. /deepwork cannot run until the qrspi-* agents are registered with pi-subagents.` Then print the **Install verification recipe** below verbatim so the user can fix the install with a single copy-paste. Do not attempt to write any files under `<workspace>/.pi/agents/` or `~/.pi/agent/agents/` from inside this skill — the install is an explicit user action, not a side effect of running `/deepwork`.
 
-   **Extension recovery recipe** — when the extension is not loaded or a `qrspi-*` subagent is missing, include all of the following in the failure message so the user can fix it without further investigation:
+   **Install verification recipe** — print exactly this block when the agents are missing:
 
-   a. **Locate the extension package root.** This SKILL.md was loaded from a path ending in `skills/deepwork/SKILL.md`; the extension package root is the directory two levels above it (the directory containing `package.json`, `dist/`, `agents/`, and `skills/`). Resolve it concretely (e.g. via `find ~/.pi -name pi-deepwork -path "*/agent/*" -type d -maxdepth 8 2>/dev/null | head -n 1`) and report the absolute path.
-   b. **Check whether `<package-root>/dist/index.js` exists.** If it is missing, the extension was installed but not built — the most common cause of this failure for git-source installs. Recovery command:
-      ```
-      cd <package-root> && npm install && npm run build
-      ```
-      Then restart pi (or open a new pi session in this workspace) and re-run `/deepwork`.
-   c. **If `dist/index.js` exists but no `qrspi-*` agents are listed**, the extension is built but pi did not load it. Ask the user to check pi's extension log / stderr for activation errors and confirm `pi-deepwork` is in pi's enabled extensions list.
-   d. **Suggest `/deepwork-doctor`** for further diagnostics. When the extension is loaded, the registered slash command writes `<workspace>/.pi/deepwork-doctor-report.md`. When the extension is not loaded, pi resolves the `deepwork-doctor` fallback skill instead, which prints the same diagnosis inline.
+   ```bash
+   # One-time global install (all workspaces, recommended)
+   git clone https://github.com/n3m6/pi-deepwork ~/.pi/agent/git/github.com/n3m6/pi-deepwork 2>/dev/null \
+     || git -C ~/.pi/agent/git/github.com/n3m6/pi-deepwork pull --ff-only
+   mkdir -p ~/.pi/agent/agents
+   ln -sf ~/.pi/agent/git/github.com/n3m6/pi-deepwork/agents/qrspi-*.md ~/.pi/agent/agents/
 
-   In all cases, **do not** copy, symlink, or `mkdir` anything under `<workspace>/.pi/agents/` from this skill. The extension owns that directory.
+   # Verify (should print 55)
+   ls ~/.pi/agent/agents/qrspi-*.md | wc -l
+   ```
+
+   After the user runs the recipe, ask them to restart pi (or open a new pi session) and re-run `/deepwork`. The qrspi agents must appear in `subagent list` before Stage 1 can dispatch. Do not retry dispatch from inside this skill until that has happened.
+
 1. If the user explicitly wants to resume an existing run, follow **Resume Mode** instead of creating a new run.
 2. The user provides a task description (natural language or markdown). If no task is provided, ask for one using `ask_user` with `question: "What should Deepwork work on?"`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
 3. Validate the task description is actionable. If too vague, ask one focused clarifying question using `ask_user` with `question`, optional `context`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
@@ -926,13 +918,12 @@ When `qrspi-verify` completes:
   2. **Telemetry:** Emit `stage.failed` for the failed Stage 9 attempt. Do not emit `backward_loop.requested` for this automatic pre-pass; the verify-fix pass is a Stage 6 re-entry, not a user-visible backward-loop decision. Regenerate `telemetry/run-log.md`.
   3. Increment `qrspi-implement`'s `stage_instance` for the last phase, capture a fresh `started_at`, emit `stage.started` for `stage: "implement"`, `phase: <last phase>`, and dispatch `qrspi-implement` with the native Agent tool with the standard Stage 6 inputs plus `=== MODE === verify-fix` and `=== VERIFY FAILURES ===` containing the payload from step 1.
   4. When `qrspi-implement` returns, parse `### Telemetry` and `### Files Written`, then branch on the Stage 6 verify-fix attempt:
-
-
-      - If it includes `### Backward Loop Request`, emit `stage.failed` for the Stage 6 verify-fix attempt using that return's summary, timing, telemetry context, and artifacts, regenerate `telemetry/run-log.md`, and follow the **Backward Loop Protocol** with the returned backward-loop request.
-      - If `### Status` is not definitively `### Status — PASS` (missing, unrecognized, or FAIL without a backward loop), follow **Error Handling**. Only proceed when `### Status — PASS` is confirmed. In this branch, Error Handling applies to the Stage 6 verify-fix attempt; retry means re-dispatch `qrspi-implement` with the same `verify-fix` inputs.
-      - On PASS, emit `stage.completed` for the Stage 6 verify-fix attempt with `phase`, `context` from `### Telemetry`, and `artifacts` from `### Files Written`, regenerate `telemetry/run-log.md`, increment Stage 9's `stage_instance`, capture a fresh `started_at`, emit a fresh `stage.started` for `stage: "verify"`, and re-dispatch `qrspi-verify`.
+     - If it includes `### Backward Loop Request`, emit `stage.failed` for the Stage 6 verify-fix attempt using that return's summary, timing, telemetry context, and artifacts, regenerate `telemetry/run-log.md`, and follow the **Backward Loop Protocol** with the returned backward-loop request.
+     - If `### Status` is not definitively `### Status — PASS` (missing, unrecognized, or FAIL without a backward loop), follow **Error Handling**. Only proceed when `### Status — PASS` is confirmed. In this branch, Error Handling applies to the Stage 6 verify-fix attempt; retry means re-dispatch `qrspi-implement` with the same `verify-fix` inputs.
+     - On PASS, emit `stage.completed` for the Stage 6 verify-fix attempt with `phase`, `context` from `### Telemetry`, and `artifacts` from `### Files Written`, regenerate `telemetry/run-log.md`, increment Stage 9's `stage_instance`, capture a fresh `started_at`, emit a fresh `stage.started` for `stage: "verify"`, and re-dispatch `qrspi-verify`.
 
   5. Process the re-dispatched Verify return through this same Stage 9 handler, but do not enter the auto-fix branch a second time. Re-runs only happen once per FAIL. If the second Stage 9 attempt also returns FAIL, emit `stage.failed` for that attempt and invoke the **Backward Loop Protocol** with the new verify evidence as the loop request body so the user picks the next step.
+
 - Overwrite `state.md` with `last_completed_stage: verify` and `next_stage: report`.
 - **Telemetry:** Parse `### Telemetry` from the return and add `verify_status` from `### Status` into the emitted `context`. Emit `stage.completed` for `PASS`, emit `stage.completed` with warning status for `PARTIAL`, and emit `stage.failed` for `FAIL`. Include `artifacts` from `### Files Written` in all cases. Emit `checkpoint.created` after the git commit.
 - Create the stage-boundary git checkpoint with message `qrspi: stage 9 verify complete`.
@@ -1012,7 +1003,7 @@ If any stage returns `### Status — FAIL` and no backward loop request is being
    - The `### Summary` from the stage's return (the specific error or issue)
    - Options: `Retry` and `Abort`
 
-  Use `allowMultiple: false`, `allowFreeform: false`, `allowComment: true`, and `displayMode: "inline"`. Treat `details.cancelled === true` or `details.response === null` as `Abort`.
+Use `allowMultiple: false`, `allowFreeform: false`, `allowComment: true`, and `displayMode: "inline"`. Treat `details.cancelled === true` or `details.response === null` as `Abort`.
 
 4. In `automated` mode, do not call `ask_user`. With `failure_policy: best-effort`, choose `retry` once for the same stage input, emit synthetic `gate.presented` / `gate.approved` events with `context.gate_mode: "automated"`, and then follow the retry branch. With `failure_policy: fail-closed`, choose `abort`, emit synthetic gate telemetry, and then follow the abort branch.
 5. After the decision, capture `gate_responded_at` for interactive decisions, or use the current timestamp for automated decisions. Emit `gate.approved` with `decision.choice` set to `retry` or `abort`, `decision.reason`, `context.gate: "error-handling"`, and `context.gate_mode`.
