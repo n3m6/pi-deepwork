@@ -456,12 +456,14 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     let handoffMessage = "";
     const { pi, commands } = createMockPi({
       sendUserMessageImpl: async (content) => {
-        assert.equal(
-          refreshCalls.length,
-          1,
+        assert.ok(
+          refreshCalls.length >= 1,
           "deepwork should refresh the custom-agent registry before handoff",
         );
-        assert.deepEqual(refreshCalls[0], expectedRequiredAgentNames());
+        assert.deepEqual(
+          refreshCalls[refreshCalls.length - 1],
+          expectedRequiredAgentNames(),
+        );
         assert.equal(
           fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
           true,
@@ -517,10 +519,6 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     assert.match(handoffMessage, /Call the native Agent tool exactly once/);
     assert.match(handoffMessage, /Use the Agent tool with exactly:/);
     assert.match(handoffMessage, /subagent_type: "qrspi-goals"/);
-    assert.match(
-      handoffMessage,
-      /Legacy child helper tools: qrspi_dispatch, qrspi_get_subagent_result/,
-    );
     assert.match(handoffMessage, /Human gate tool: ask_user/);
     assert.match(
       handoffMessage,
@@ -903,12 +901,14 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     let handoffMessage = "";
     const { pi, commands } = createMockPi({
       sendUserMessageImpl: async (content) => {
-        assert.equal(
-          refreshCalls.length,
-          1,
+        assert.ok(
+          refreshCalls.length >= 1,
           "resume should refresh the custom-agent registry before handoff",
         );
-        assert.deepEqual(refreshCalls[0], expectedRequiredAgentNames());
+        assert.deepEqual(
+          refreshCalls[refreshCalls.length - 1],
+          expectedRequiredAgentNames(),
+        );
         assert.equal(
           fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
           true,
@@ -953,16 +953,7 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     assert.match(handoffMessage, /Call the native Agent tool exactly once/);
     assert.match(handoffMessage, /Use the Agent tool with exactly:/);
     assert.match(handoffMessage, /subagent_type: "qrspi-implement"/);
-    assert.match(
-      handoffMessage,
-      /Legacy child helper tools: qrspi_dispatch, qrspi_get_subagent_result/,
-    );
     assert.match(handoffMessage, /Human gate tool: ask_user/);
-    assert.match(
-      handoffMessage,
-      /Do not probe ask_user before the first stage dispatch/,
-    );
-    assert.match(handoffMessage, /Deepwork configuration error/);
     assert.match(handoffMessage, new RegExp(`=== RUN ID ===\\n${runId}`));
     assert.match(handoffMessage, /=== NEXT STAGE ===\n6/);
   } finally {

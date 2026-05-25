@@ -96,27 +96,16 @@ test("/deepwork-resume command is registered exactly once with description and h
   assert.equal(typeof cmd.handler, "function");
 });
 
-test("legacy qrspi_dispatch tool is registered exactly once with required fields", () => {
+test("legacy qrspi_dispatch and qrspi_get_subagent_result tools are NOT registered", () => {
   const { pi, tools } = createMockPi();
   activate(pi);
 
-  const dispatchTools = tools.filter(
-    (t) => t.definition.name === "qrspi_dispatch",
+  const legacyTools = tools.filter(
+    (t) =>
+      t.definition.name === "qrspi_dispatch" ||
+      t.definition.name === "qrspi_get_subagent_result",
   );
-  assert.equal(dispatchTools.length, 1);
-  const tool = dispatchTools[0]!.definition;
-  assert.ok(typeof tool.name === "string" && tool.name.length > 0);
-  assert.ok(
-    typeof tool.description === "string" && tool.description.length > 0,
-  );
-  assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
-  assert.equal(typeof tool.execute, "function");
-
-  const props = tool.parameters.properties as Record<string, unknown>;
-  assert.ok("subagent_type" in props);
-  assert.ok("prompt" in props);
-  assert.ok("description" in props);
-  assert.ok("run_in_background" in props);
+  assert.equal(legacyTools.length, 0);
 });
 
 test("legacy question wrapper tool is not registered", () => {
@@ -128,27 +117,6 @@ test("legacy question wrapper tool is not registered", () => {
     (t) => t.definition.name === removedQuestionTool,
   );
   assert.equal(questionTools.length, 0);
-});
-
-test("qrspi_get_subagent_result tool is registered exactly once with required fields", () => {
-  const { pi, tools } = createMockPi();
-  activate(pi);
-
-  const resultTools = tools.filter(
-    (t) => t.definition.name === "qrspi_get_subagent_result",
-  );
-  assert.equal(resultTools.length, 1);
-  const tool = resultTools[0]!.definition;
-  assert.ok(typeof tool.name === "string" && tool.name.length > 0);
-  assert.ok(
-    typeof tool.description === "string" && tool.description.length > 0,
-  );
-  assert.ok(typeof tool.parameters === "object" && tool.parameters !== null);
-  assert.equal(typeof tool.execute, "function");
-
-  const props = tool.parameters.properties as Record<string, unknown>;
-  assert.ok("agent_id" in props);
-  assert.ok("wait" in props);
 });
 
 test("resources_discover event listener is subscribed", () => {

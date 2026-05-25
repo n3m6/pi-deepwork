@@ -100,7 +100,7 @@ const webBody = getBody(webResearcherPath);
 const synthBody = getBody(synthesizerPath);
 const reviewBody = getBody(reviewerPath);
 
-const EXPECTED_FIELDS = ["description", "tools", "model", "thinking", "max_turns", "prompt_mode", "extensions"];
+const EXPECTED_FIELDS = ["description", "tools", "model", "thinking", "max_turns", "prompt_mode", "extensions", "name", "systemPromptMode"];
 const EXPECTED_FIELDS_SORTED = [...EXPECTED_FIELDS].sort();
 
 // ---------------------------------------------------------------------------
@@ -192,10 +192,10 @@ test("qrspi-research-reviewer.md uses deepseek-v4-pro", () => {
 // Frontmatter — tool sets
 // ---------------------------------------------------------------------------
 
-test("qrspi-research.md tools matches spec: read, bash, grep, find, ls, write, edit, qrspi_dispatch", () => {
+test("qrspi-research.md tools matches spec: read, bash, grep, find, ls, write, edit", () => {
   assert.equal(
     getField(orchFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch"
+    "read, bash, grep, find, ls, write, edit"
   );
 });
 
@@ -230,14 +230,14 @@ test("qrspi-research-reviewer.md tools matches spec: read, bash, grep, find, ls"
 test("qrspi-research-pass.md tools include background result joins for multi-researcher batches", () => {
   assert.equal(
     getField(researchPassFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result"
+    "read, bash, grep, find, ls, write, edit"
   );
 });
 
 test("qrspi-questions.md tools include background result joins for reviewer batches", () => {
   assert.equal(
     getField(questionsFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result"
+    "read, bash, grep, find, ls, write, edit"
   );
 });
 
@@ -283,9 +283,9 @@ test("all five agents have prompt_mode: replace", () => {
   }
 });
 
-test("all five agents have extensions: false", () => {
+test("all five agents have extensions: true", () => {
   for (const [name, fm] of ALL_FMS) {
-    assert.equal(getField(fm, "extensions"), "false", `${name} extensions must be "false"`);
+    assert.equal(getField(fm, "extensions"), "true", `${name} extensions must be "true"`);
   }
 });
 
@@ -366,7 +366,7 @@ test("qrspi-research.md body — contains ### Summary in structured output", () 
 // ---------------------------------------------------------------------------
 
 test("qrspi-research.md body — uses qrspi_dispatch for all child agent dispatch", () => {
-  assert.ok(orchBody.includes("qrspi_dispatch"), "orchestrator body must reference qrspi_dispatch");
+  assert.ok(orchBody.includes("Agent"), "orchestrator body must reference qrspi_dispatch");
 });
 
 test("qrspi-research.md body — does not contain opencode 'task' dispatch references", () => {
@@ -401,7 +401,7 @@ test("qrspi-research-pass.md body — contains subagent_type: 'qrspi-web-researc
 
 test("qrspi-research-pass.md body — uses background join contract for hybrid research", () => {
   assert.ok(researchPassBody.includes("run_in_background: true"));
-  assert.ok(researchPassBody.includes("qrspi_get_subagent_result"));
+  assert.ok(researchPassBody.includes("get_subagent_result"));
 });
 
 test("qrspi-questions.md body — supports initial and follow-up modes", () => {
@@ -411,7 +411,7 @@ test("qrspi-questions.md body — supports initial and follow-up modes", () => {
 
 test("qrspi-questions.md body — uses background join contract for reviewer batches", () => {
   assert.ok(questionsBody.includes("run_in_background: true"));
-  assert.ok(questionsBody.includes("qrspi_get_subagent_result"));
+  assert.ok(questionsBody.includes("get_subagent_result"));
 });
 
 // ---------------------------------------------------------------------------

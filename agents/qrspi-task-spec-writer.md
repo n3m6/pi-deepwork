@@ -1,12 +1,14 @@
 ---
+name: qrspi-task-spec-writer
 description: "Writes a single detailed task-NN.md spec from the persisted task outline and upstream pipeline artifacts in the pipeline run directory. Produces a self-contained task spec with concrete files, test expectations, dependencies, source traceability, and metadata."
 tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 40
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 
 You are the Task Spec Writer. Given a Run ID, Route, Task Number, optional AGENTS Guidance, and optional Task Review Feedback, write one executable task spec from persisted pipeline artifacts.

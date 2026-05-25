@@ -10,7 +10,9 @@ export const ENABLED_AGENT_FIELDS = [
   "extensions",
   "max_turns",
   "model",
+  "name",
   "prompt_mode",
+  "systemPromptMode",
   "thinking",
   "tools",
 ].sort();

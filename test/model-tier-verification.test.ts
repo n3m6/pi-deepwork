@@ -3,12 +3,8 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-import { createDispatchTool, setPi } from "../src/shared-tools";
-import type { ExtensionContext } from "../src/types/pi-extensions";
-
 const projectRoot = process.cwd();
 const agentsDir = path.join(projectRoot, "agents");
-const managerSymbol = Symbol.for("pi-subagents:manager");
 
 const sonnetLowAgents = [
   "qrspi-goals-synthesizer.md",
@@ -109,23 +105,6 @@ function parseFrontmatter(filePath: string): Record<string, string> {
   return result;
 }
 
-function makeCtx(): ExtensionContext {
-  return {
-    hasUI: false,
-    ui: {
-      confirm: async () => true,
-      select: async () => undefined,
-    },
-    cwd: projectRoot,
-    sessionManager: {},
-    modelRegistry: {},
-    model: "test-model",
-    signal: new AbortController().signal,
-    abort: () => {},
-    shutdown: () => {},
-  } as ExtensionContext;
-}
-
 test("agents directory contains exactly the expected 55 agent files", () => {
   const files = fs
     .readdirSync(agentsDir)
@@ -170,36 +149,5 @@ test("no agent uses an unexpected model or thinking value", () => {
       allowedThinking.has(thinking),
       `${file} has unexpected thinking ${thinking}`,
     );
-  }
-});
-
-test("qrspi_dispatch returns a clear prerequisite message when pi-subagents is unavailable", async () => {
-  const previousManager = Reflect.get(globalThis, managerSymbol);
-  Reflect.deleteProperty(globalThis, managerSymbol);
-  setPi({} as never);
-
-  try {
-    const tool = createDispatchTool();
-    const result = await tool.execute(
-      "call-1",
-      {
-        subagent_type: "qrspi-goals",
-        prompt: "Do a thing",
-        description: "fallback test",
-      },
-      new AbortController().signal,
-      () => {},
-      makeCtx(),
-    );
-
-    assert.match(result.content, /pi-subagents/i);
-    assert.match(result.content, /install/i);
-  } finally {
-    setPi(null);
-    if (previousManager === undefined) {
-      Reflect.deleteProperty(globalThis, managerSymbol);
-    } else {
-      Reflect.set(globalThis, managerSymbol, previousManager);
-    }
   }
 });

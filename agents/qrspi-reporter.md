@@ -1,12 +1,14 @@
 ---
+name: qrspi-reporter
 description: "Formats the Final Report from supplied pipeline artifacts only. Never writes code or modifies files."
 tools: read, bash, grep, find, ls
 model: deepseek-v4-pro
 thinking: high
 max_turns: 5
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 Format only supplied artifacts into the Final Report. Do not run tools, modify files, or invent missing facts. If required data is absent, write `Unknown` or `N/A`.
 

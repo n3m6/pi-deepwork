@@ -1,12 +1,14 @@
 ---
+name: qrspi-plan
 description: "Stage 6 orchestrator — reads route-appropriate inputs, dispatches the plan writer for outlines, runs the outline-level plan review loop, generates task specs after plan acceptance, runs per-task spec review, appends review status, and dispatches the baseline checker. Writes plan.md, phase-manifest.md, task outlines, canonical tasks/task-NN.md, review artifacts, and baseline-results.md."
-tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 80
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 
 You are the QRSPI Plan stage orchestrator. You write pipeline state files inside `.pipeline/<run-id>/` only. You never write code or project source. You sequence six steps: read inputs, create directories, produce outlines, review outlines, generate and review task specs, record baseline.
@@ -104,7 +106,7 @@ bash: mkdir -p .pipeline/<run-id>/phases
 
 #### Step C.1 — Dispatch Plan Writer
 
-Use the qrspi_dispatch tool with subagent_type: "qrspi-plan-writer" to dispatch the plan writer. For **quick-fix**, omit the `=== DESIGN ===` and `=== STRUCTURE ===` fields.
+Use the Agent tool with subagent_type: "qrspi-plan-writer" to dispatch the plan writer. For **quick-fix**, omit the `=== DESIGN ===` and `=== STRUCTURE ===` fields.
 
 ```
 === GOALS ===
@@ -148,7 +150,7 @@ When `qrspi-plan-writer` returns:
 
 #### Step C.2 — Plan Review Loop (Outline Level)
 
-Set `review_round = 1`. For each round, use the qrspi_dispatch tool with subagent_type: "qrspi-plan-reviewer" to dispatch the plan reviewer:
+Set `review_round = 1`. For each round, use the Agent tool with subagent_type: "qrspi-plan-reviewer" to dispatch the plan reviewer:
 
 ```
 === RUN ID ===
@@ -189,7 +191,7 @@ Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 - FAIL and `review_round < 6`:
   1. Extract the single most important defect as `ROOT CAUSE OF FAILURE`. Tie-break order: blocking correctness > missing coverage > vague outlines > style.
   2. Write one sentence on what must change as `MUTATION INSTRUCTION`.
-  3. Use the qrspi_dispatch tool with subagent_type: "qrspi-plan-writer" to re-dispatch the plan writer with the mutation prompt:
+  3. Use the Agent tool with subagent_type: "qrspi-plan-writer" to re-dispatch the plan writer with the mutation prompt:
 
      ```
      === RUN ID ===
@@ -230,7 +232,7 @@ Step D.1 (task-spec generation) runs after Step C.2 completes for every plan-rev
 
 #### Step D.1 — Generate Task Specs
 
-For each active `tasks/outlines/task-NN.outline` in task-number order, use the qrspi_dispatch tool with subagent_type: "qrspi-task-spec-writer" to dispatch the task spec writer:
+For each active `tasks/outlines/task-NN.outline` in task-number order, use the Agent tool with subagent_type: "qrspi-task-spec-writer" to dispatch the task spec writer:
 
 ```
 === RUN ID ===
@@ -259,7 +261,7 @@ Repeat for every active outline. Once all task specs are written, proceed to Ste
 
 **Guard:** Skip this entire step if the Step C.2 plan-review terminal state is `stable-cap` or `unclean-cap`. Set `task_spec_review_rounds = 0` and `task_spec_terminal_state = "skipped"` for telemetry, then proceed directly to Step E.
 
-Set `task_spec_round = 1`. For each round, for each task in task-number order, use the qrspi_dispatch tool with subagent_type: "qrspi-task-spec-reviewer" to dispatch the task spec reviewer:
+Set `task_spec_round = 1`. For each round, for each task in task-number order, use the Agent tool with subagent_type: "qrspi-task-spec-reviewer" to dispatch the task spec reviewer:
 
 ```
 === RUN ID ===
@@ -335,7 +337,7 @@ Do not edit any other section.
 
 ### Step F — Dispatch Baseline Checker
 
-Use the qrspi_dispatch tool with subagent_type: "qrspi-baseline-checker" to dispatch the baseline checker:
+Use the Agent tool with subagent_type: "qrspi-baseline-checker" to dispatch the baseline checker:
 
 ```
 === PIPELINE CONFIG ===

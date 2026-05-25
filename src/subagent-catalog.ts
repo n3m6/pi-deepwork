@@ -93,69 +93,6 @@ export function getProjectAgentsDir(workspaceRoot: string): string {
   return path.join(normalizeWorkspaceRoot(workspaceRoot), ".pi", "agents");
 }
 
-function normalizeAgentMarkdown(content: string): string {
-  return content.replace(/\r\n/g, "\n").trimEnd();
-}
-
-function buildCompatibleBundledAgentContent(
-  fileName: string,
-  sourceContent: string,
-): string {
-  const normalized = sourceContent.replace(/\r\n/g, "\n");
-
-  if (!normalized.startsWith("---\n")) {
-    return normalized;
-  }
-
-  const endIndex = normalized.indexOf("\n---\n", 4);
-  if (endIndex === -1) {
-    return normalized;
-  }
-
-  const frontmatterLines = normalized.slice(4, endIndex).split("\n");
-  const body = normalized.slice(endIndex + 5);
-  const compatibleFrontmatter: string[] = [];
-  let hasName = false;
-  let hasSystemPromptMode = false;
-  let promptMode: string | undefined;
-
-  for (const line of frontmatterLines) {
-    const trimmed = line.trim();
-
-    if (trimmed.startsWith("name:")) {
-      hasName = true;
-    }
-
-    if (trimmed.startsWith("systemPromptMode:")) {
-      hasSystemPromptMode = true;
-    }
-
-    if (trimmed.startsWith("prompt_mode:")) {
-      const value = trimmed.slice("prompt_mode:".length).trim();
-      if (value.length > 0) {
-        promptMode = value;
-      }
-    }
-
-    if (/^extensions:\s*false\s*$/i.test(trimmed)) {
-      compatibleFrontmatter.push("extensions:");
-      continue;
-    }
-
-    compatibleFrontmatter.push(line);
-  }
-
-  if (!hasName) {
-    compatibleFrontmatter.unshift(`name: ${fileName.replace(/\.md$/, "")}`);
-  }
-
-  if (!hasSystemPromptMode && promptMode !== undefined) {
-    compatibleFrontmatter.push(`systemPromptMode: ${promptMode}`);
-  }
-
-  return `---\n${compatibleFrontmatter.join("\n")}\n---\n${body}`;
-}
-
 export function ensureBundledProjectAgents(
   workspaceRoot: string,
 ): BundledAgentSyncResult {
@@ -176,33 +113,11 @@ export function ensureBundledProjectAgents(
     const sourcePath = path.join(bundledAgentsDir, fileName);
     const targetPath = path.join(projectAgentsDir, fileName);
 
-    const sourceContent = fs.readFileSync(sourcePath, "utf-8");
-    const compatibleContent = buildCompatibleBundledAgentContent(
-      fileName,
-      sourceContent,
-    );
-    const normalizedSourceContent = normalizeAgentMarkdown(sourceContent);
-    const normalizedCompatibleContent =
-      normalizeAgentMarkdown(compatibleContent);
-
-    if (fs.existsSync(targetPath)) {
-      const targetContent = normalizeAgentMarkdown(
-        fs.readFileSync(targetPath, "utf-8"),
-      );
-
-      if (targetContent === normalizedCompatibleContent) {
-        skipped.push(fileName);
-        continue;
-      }
-
-      if (targetContent !== normalizedSourceContent) {
-        skipped.push(fileName);
-        continue;
-      }
+    if (mirrorBundledAgent(sourcePath, targetPath)) {
+      synced.push(fileName);
+    } else {
+      skipped.push(fileName);
     }
-
-    fs.writeFileSync(targetPath, compatibleContent, "utf-8");
-    synced.push(fileName);
   }
 
   const missingRequired = findMissingProjectAgents(
@@ -218,6 +133,92 @@ export function ensureBundledProjectAgents(
     skipped,
     missingRequired,
   };
+}
+
+/**
+ * Mirror a single bundled agent file into the workspace's `.pi/agents/` dir.
+ *
+ * Prefers a symlink so updates to bundled agents flow through automatically and
+ * we don't accumulate stale duplicates. Falls back to a copy on platforms where
+ * symlinks fail (e.g. Windows without developer mode, certain CI sandboxes).
+ *
+ * Returns true if the target was created or updated, false if it was left
+ * untouched (already correct, or user-customized).
+ */
+function mirrorBundledAgent(sourcePath: string, targetPath: string): boolean {
+  let targetStat: fs.Stats | undefined;
+  try {
+    targetStat = fs.lstatSync(targetPath);
+  } catch {
+    targetStat = undefined;
+  }
+
+  if (targetStat?.isSymbolicLink()) {
+    try {
+      const currentLink = fs.readlinkSync(targetPath);
+      const resolvedLink = path.isAbsolute(currentLink)
+        ? currentLink
+        : path.resolve(path.dirname(targetPath), currentLink);
+      if (resolvedLink === sourcePath) {
+        return false;
+      }
+    } catch {
+      // fall through and replace
+    }
+    fs.rmSync(targetPath);
+    return writeMirror(sourcePath, targetPath);
+  }
+
+  if (targetStat?.isFile()) {
+    // Replace any file whose YAML frontmatter declares the same `name:` we
+    // would emit. This treats stale mirrors (including those produced by older
+    // versions of this extension) as managed and refreshes them to symlinks.
+    // Files without that fingerprint are treated as user customization and
+    // left untouched.
+    const expectedName = path.basename(targetPath).replace(/\.md$/, "");
+    const targetContent = fs.readFileSync(targetPath, "utf-8");
+    if (frontmatterDeclaresName(targetContent, expectedName)) {
+      fs.rmSync(targetPath);
+      return writeMirror(sourcePath, targetPath);
+    }
+    return false;
+  }
+
+  return writeMirror(sourcePath, targetPath);
+}
+
+function frontmatterDeclaresName(
+  content: string,
+  expectedName: string,
+): boolean {
+  const normalized = content.replace(/\r\n/g, "\n");
+  if (!normalized.startsWith("---\n")) {
+    return false;
+  }
+  const endIndex = normalized.indexOf("\n---\n", 4);
+  if (endIndex === -1) {
+    return false;
+  }
+  const frontmatter = normalized.slice(4, endIndex);
+  for (const line of frontmatter.split("\n")) {
+    const match = /^\s*name\s*:\s*(.+?)\s*$/.exec(line);
+    if (match) {
+      // Strip optional surrounding quotes.
+      const value = match[1]!.replace(/^["']|["']$/g, "");
+      return value === expectedName;
+    }
+  }
+  return false;
+}
+
+function writeMirror(sourcePath: string, targetPath: string): boolean {
+  try {
+    fs.symlinkSync(sourcePath, targetPath, "file");
+    return true;
+  } catch {
+    fs.copyFileSync(sourcePath, targetPath);
+    return true;
+  }
 }
 
 function findMissingProjectAgents(

@@ -1,12 +1,14 @@
 ---
+name: qrspi-review-code-simplifier
 description: "Per-task code simplifier — suggests semantics-preserving opportunities to reduce unnecessary complexity in QRSPI task changes."
 tools: read, bash, grep, find, ls
 model: deepseek-v4-pro
 thinking: high
 max_turns: 25
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 Review only provided changed-file contents for concrete, semantics-preserving simplifications. Omit speculative or style-only suggestions. Always PASS; findings are advisory.
 

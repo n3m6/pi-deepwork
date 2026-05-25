@@ -63,22 +63,22 @@ test("stage 6 implementation agents use the expected model profile", () => {
   }
 });
 
-test("stage 6 agents that dispatch subagents expose qrspi_dispatch", () => {
-  const tools = [
-    frontmatter["qrspi-implement.md"].tools ?? "",
-    frontmatter["qrspi-fast-impl-loop.md"].tools ?? "",
-    frontmatter["qrspi-e2e-regression-checker.md"].tools ?? "",
-    frontmatter["qrspi-baseline-regression-checker.md"].tools ?? "",
-  ];
+test("stage 6 agents that dispatch subagents have extensions: true", () => {
+  const dispatchingAgents = [
+    "qrspi-implement.md",
+    "qrspi-fast-impl-loop.md",
+    "qrspi-e2e-regression-checker.md",
+    "qrspi-baseline-regression-checker.md",
+  ] as const;
 
-  for (const value of tools) {
-    assert.ok(value === "all" || value.includes("qrspi_dispatch"), `dispatching agent tools must include qrspi_dispatch: ${value}`);
+  for (const name of dispatchingAgents) {
+    assert.equal(frontmatter[name].extensions, "true", `${name} must have extensions: true to use native Agent tool`);
   }
 });
 
 test("stage 6 implementation orchestrator uses background join semantics for batch work", () => {
   assert.match(implementBody, /run_in_background: true/);
-  assert.match(implementBody, /qrspi_get_subagent_result/);
+  assert.match(implementBody, /get_subagent_result/);
 });
 
 test("qrspi-implement documents the Stage 6 orchestration contract", () => {

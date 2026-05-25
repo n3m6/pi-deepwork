@@ -30,11 +30,6 @@ import { parseStateYaml, yamlify } from "./application/pipeline-state-codec";
 import { runDryRun } from "./application/use-cases/run-dry-run";
 import { generateRunId, getStatePath, makeInitialState } from "./pipeline";
 import {
-  createDispatchTool,
-  createGetSubagentResultTool,
-  setPi,
-} from "./shared-tools";
-import {
   ensureRegisteredSubagents,
   getProjectAgentsDir,
   REQUIRED_QRSPI_STAGE_AGENTS,
@@ -371,7 +366,17 @@ export default function activate(pi: ExtensionAPI): void {
     );
   }
 
-  setPi(pi);
+  // Best-effort agent mirror + registry refresh on activation so qrspi-* agents
+  // are visible before the user invokes /deepwork for the first time.
+  try {
+    ensureRegisteredSubagents(process.cwd(), REQUIRED_QRSPI_STAGE_AGENTS);
+  } catch (e: unknown) {
+    console.warn(
+      `[pi-deepwork] Best-effort agent registration on activate() failed: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    );
+  }
 
   pi.registerCommand("deepwork", {
     description:
@@ -393,13 +398,25 @@ export default function activate(pi: ExtensionAPI): void {
     handler: createDeepworkResumeHandler(pi),
   });
 
-  pi.registerTool(createDispatchTool());
-  pi.registerTool(createGetSubagentResultTool());
+  pi.on("resources_discover", () => {
+    // Re-mirror agents and refresh registry on every session start so qrspi-*
+    // are visible even when the user invokes the deepwork skill without running
+    // the /deepwork slash command first.
+    try {
+      ensureRegisteredSubagents(process.cwd(), REQUIRED_QRSPI_STAGE_AGENTS);
+    } catch (e: unknown) {
+      console.warn(
+        `[pi-deepwork] Best-effort agent registration on resources_discover failed: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+    }
 
-  pi.on("resources_discover", () => ({
-    skillPaths: getDiscoveredSkillPaths(
-      path.join(runtimePackageRoot, "skills"),
-      skillCompat,
-    ),
-  }));
+    return {
+      skillPaths: getDiscoveredSkillPaths(
+        path.join(runtimePackageRoot, "skills"),
+        skillCompat,
+      ),
+    };
+  });
 }

@@ -54,8 +54,7 @@ export function formatRuntimeDiscoverySnapshot(
 - Registry layouts refreshed: ${layouts}
 - Registered QRSPI agents: ${qrspiAgents}
 - Stage launcher: native Agent tool with registered QRSPI custom agent types
-- Human gate tool: ask_user from pi-ask-user, required only when an interactive gate is reached
-- Legacy child helper tools: qrspi_dispatch, qrspi_get_subagent_result`;
+- Human gate tool: ask_user from pi-ask-user, required only when an interactive gate is reached`;
 }
 
 const STAGE_AGENT_BY_NEXT_STAGE: Readonly<Record<string, string>> = {

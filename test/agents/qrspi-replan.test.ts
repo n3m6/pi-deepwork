@@ -20,7 +20,7 @@ test("stage 8 replan agents have parseable frontmatter with enabled schema", () 
 });
 
 test("stage 8 replan agents use the expected tools and model profile", () => {
-  assert.ok((frontmatter["qrspi-replan.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-replan.md must expose qrspi_dispatch");
+  assert.equal(frontmatter["qrspi-replan.md"].extensions, "true", "qrspi-replan.md must use native Agent tool (extensions: true)");
   assert.equal(frontmatter["qrspi-replan.md"].model, "deepseek-v4-pro");
   assert.equal(frontmatter["qrspi-replan.md"].thinking, "high");
 

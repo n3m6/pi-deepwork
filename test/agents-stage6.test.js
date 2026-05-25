@@ -106,6 +106,8 @@ const REQUIRED_FIELDS = [
   'prompt_mode',
   'extensions',
   'enabled',
+  'name',
+  'systemPromptMode',
 ];
 
 // ---------------------------------------------------------------------------
@@ -190,10 +192,7 @@ test('qrspi-baseline-checker.md frontmatter — exact fields', () => {
 // ---------------------------------------------------------------------------
 
 test('qrspi-plan.md frontmatter — tools field', () => {
-  assert.equal(
-    planFM.tools,
-    'read, bash, grep, find, ls, write, edit, qrspi_dispatch',
-  );
+  assert.equal(planFM.tools, 'read, bash, grep, find, ls, write, edit');
 });
 
 test('qrspi-plan-writer.md frontmatter — tools includes write and edit', () => {
@@ -309,36 +308,32 @@ test('All 6 agents — thinking field is high', () => {
   );
 });
 
-test('All 6 agents — extensions field is false', () => {
-  assert.equal(
-    planFM.extensions,
-    'false',
-    'qrspi-plan extensions must be false',
-  );
+test('All 6 agents — extensions field is true', () => {
+  assert.equal(planFM.extensions, 'true', 'qrspi-plan extensions must be true');
   assert.equal(
     planWriterFM.extensions,
-    'false',
-    'qrspi-plan-writer extensions must be false',
+    'true',
+    'qrspi-plan-writer extensions must be true',
   );
   assert.equal(
     taskSpecWriterFM.extensions,
-    'false',
-    'qrspi-task-spec-writer extensions must be false',
+    'true',
+    'qrspi-task-spec-writer extensions must be true',
   );
   assert.equal(
     taskSpecReviewerFM.extensions,
-    'false',
-    'qrspi-task-spec-reviewer extensions must be false',
+    'true',
+    'qrspi-task-spec-reviewer extensions must be true',
   );
   assert.equal(
     planReviewerFM.extensions,
-    'false',
-    'qrspi-plan-reviewer extensions must be false',
+    'true',
+    'qrspi-plan-reviewer extensions must be true',
   );
   assert.equal(
     baselineCheckerFM.extensions,
-    'false',
-    'qrspi-baseline-checker extensions must be false',
+    'true',
+    'qrspi-baseline-checker extensions must be true',
   );
 });
 
@@ -408,11 +403,8 @@ test('All 6 agents — prompt_mode field is replace', () => {
 // G. Orchestrator body: dispatch references
 // ---------------------------------------------------------------------------
 
-test('qrspi-plan.md body — uses qrspi_dispatch (not task) for subagent dispatch', () => {
-  assert.ok(
-    planBody.includes('qrspi_dispatch'),
-    'body must contain qrspi_dispatch',
-  );
+test('qrspi-plan.md body — uses native Agent tool for subagent dispatch', () => {
+  assert.ok(planBody.includes('Agent'), 'body must contain Agent');
   assert.ok(
     !planBody.includes('the task tool'),
     'body must not contain "the task tool"',

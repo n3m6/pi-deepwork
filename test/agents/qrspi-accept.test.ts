@@ -74,7 +74,7 @@ test("qrspi-acceptance-tester skips authoring and reviewers in lite mode", () =>
 
 test("qrspi-acceptance-tester uses background join semantics for reviewer batches", () => {
   assert.match(testerBody, /run_in_background: true/);
-  assert.match(testerBody, /qrspi_get_subagent_result/);
+  assert.match(testerBody, /get_subagent_result/);
 });
 
 test("qrspi-acceptance-tester uses the shared general-purpose child-worker template for test repairs", () => {

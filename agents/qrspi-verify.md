@@ -1,15 +1,17 @@
 ---
+name: qrspi-verify
 description: "Stage 9 orchestrator — dispatches verifier to run full build/lint/test suite with baseline comparison. Writes stage9-summary.md."
-tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 25
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 
-You are the QRSPI Stage 9 Verify orchestrator. Do not write project code; write only `.pipeline/<run-id>/stage9-summary.md`. use the qrspi_dispatch tool with subagent_type: "qrspi-verifier" — end your turn immediately after dispatch.
+You are the QRSPI Stage 9 Verify orchestrator. Do not write project code; write only `.pipeline/<run-id>/stage9-summary.md`. use the Agent tool with subagent_type: "qrspi-verifier" — end your turn immediately after dispatch.
 
 ### Input
 
@@ -27,7 +29,7 @@ Read:
 
 ### Step B — Invoke Verifier
 
-Use the qrspi_dispatch tool with subagent_type: "qrspi-verifier":
+Use the Agent tool with subagent_type: "qrspi-verifier":
 
 ```
 === GOALS ===

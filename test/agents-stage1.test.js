@@ -94,6 +94,8 @@ const EXPECTED_FIELDS = [
   'max_turns',
   'prompt_mode',
   'extensions',
+  'name',
+  'systemPromptMode',
 ];
 
 // ---------------------------------------------------------------------------
@@ -108,7 +110,7 @@ test('qrspi-goals.md frontmatter — exact fields', () => {
 test('qrspi-goals.md frontmatter — tools field', () => {
   assert.equal(
     orchFM.tools,
-    'read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user',
+    'read, bash, grep, find, ls, write, edit, ask_user',
   );
 });
 
@@ -168,11 +170,8 @@ test('qrspi-goals-reviewer.md frontmatter — max_turns field', () => {
 // qrspi-goals.md — Body: dispatch, question, and read conventions
 // ---------------------------------------------------------------------------
 
-test('qrspi-goals.md body — uses qrspi_dispatch (not task) for subagent dispatch', () => {
-  assert.ok(
-    orchBody.includes('qrspi_dispatch'),
-    'body must contain qrspi_dispatch',
-  );
+test('qrspi-goals.md body — uses native Agent tool for subagent dispatch', () => {
+  assert.ok(orchBody.includes('Agent'), 'body must contain Agent');
   // Verify "task" is not used as a dispatch tool reference
   // "the task tool" and "via task" are opencode-isms that should not appear
   assert.ok(

@@ -88,7 +88,7 @@ const orchBody = getBody(orchestratorPath);
 const synthBody = getBody(synthesizerPath);
 const reviewBody = getBody(reviewerPath);
 
-const EXPECTED_FIELDS = ["description", "tools", "model", "thinking", "max_turns", "prompt_mode", "extensions"];
+const EXPECTED_FIELDS = ["description", "tools", "model", "thinking", "max_turns", "prompt_mode", "extensions", "name", "systemPromptMode"];
 
 // ---------------------------------------------------------------------------
 // Preamble: files exist and have parseable frontmatter
@@ -142,7 +142,7 @@ test("qrspi-design.md frontmatter has required field: prompt_mode", () => {
 });
 
 test("qrspi-design.md frontmatter has required field: extensions", () => {
-  // extensions must be present (may be "false" or "true")
+  // extensions must be present and set to "true" (enables native Agent tool)
   const val = getField(orchFM, "extensions");
   assert.ok(val.length > 0, "extensions must be non-empty");
 });
@@ -159,7 +159,7 @@ test("qrspi-design.md frontmatter — exact fields (no extra, no missing)", () =
 test("qrspi-design.md frontmatter — tools field exact value", () => {
   assert.equal(
     getField(orchFM, "tools"),
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, ask_user"
+    "read, bash, grep, find, ls, write, edit, ask_user"
   );
 });
 
@@ -180,7 +180,7 @@ test("qrspi-design.md frontmatter — prompt_mode field", () => {
 });
 
 test("qrspi-design.md frontmatter — extensions field", () => {
-  assert.equal(getField(orchFM, "extensions"), "false");
+  assert.equal(getField(orchFM, "extensions"), "true");
 });
 
 test("qrspi-design.md frontmatter — no opencode-only fields (mode, hidden, temperature, steps, permission)", () => {
@@ -249,7 +249,7 @@ test("qrspi-design-synthesizer.md frontmatter — prompt_mode field", () => {
 });
 
 test("qrspi-design-synthesizer.md frontmatter — extensions field", () => {
-  assert.equal(getField(synthFM, "extensions"), "false");
+  assert.equal(getField(synthFM, "extensions"), "true");
 });
 
 test("qrspi-design-synthesizer.md frontmatter — no opencode-only fields (mode, hidden, temperature, steps, permission)", () => {
@@ -318,7 +318,7 @@ test("qrspi-design-reviewer.md frontmatter — prompt_mode field", () => {
 });
 
 test("qrspi-design-reviewer.md frontmatter — extensions field", () => {
-  assert.equal(getField(reviewFM, "extensions"), "false");
+  assert.equal(getField(reviewFM, "extensions"), "true");
 });
 
 test("qrspi-design-reviewer.md frontmatter — no opencode-only fields (mode, hidden, temperature, steps, permission)", () => {
@@ -330,14 +330,14 @@ test("qrspi-design-reviewer.md frontmatter — no opencode-only fields (mode, hi
 });
 
 // ---------------------------------------------------------------------------
-// Reviewer read-only constraint — no write/edit/qrspi_dispatch/ask_user
+// Reviewer read-only constraint — no write/edit/Agent/ask_user
 // ---------------------------------------------------------------------------
 
-test("qrspi-design-reviewer.md frontmatter tools does not include write, edit, qrspi_dispatch, or ask_user", () => {
+test("qrspi-design-reviewer.md frontmatter tools does not include write, edit, or ask_user", () => {
   const tools = getField(reviewFM, "tools");
   assert.ok(!tools.includes("write"), "reviewer tools must not include write");
   assert.ok(!tools.includes("edit"), "reviewer tools must not include edit");
-  assert.ok(!tools.includes("qrspi_dispatch"), "reviewer tools must not include qrspi_dispatch");
+  assert.ok(!tools.includes("qrspi_dispatch"), "reviewer tools must not include qrspi_dispatch (uses extensions for Agent if needed)");
   assert.ok(!tools.includes("ask_user"), "reviewer tools must not include ask_user");
 });
 
@@ -506,7 +506,7 @@ test("qrspi-design-reviewer.md body — contains structured Output section", () 
 // ---------------------------------------------------------------------------
 
 test("qrspi-design.md body — uses qrspi_dispatch (not opencode task) for subagent dispatch", () => {
-  assert.ok(orchBody.includes("qrspi_dispatch"), "body must contain qrspi_dispatch");
+  assert.ok(orchBody.includes("Agent"), "body must contain qrspi_dispatch");
   // Verify opencode task patterns are absent
   assert.ok(!orchBody.includes("the task tool"), "body must not contain 'the task tool'");
   assert.ok(!/Invoke\s+\S+\s+as a subagent/i.test(orchBody),

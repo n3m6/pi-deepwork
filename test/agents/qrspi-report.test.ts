@@ -18,7 +18,7 @@ test("stage 10 report agents have parseable frontmatter with enabled schema", ()
 });
 
 test("stage 10 report agents use the expected tools and model profile", () => {
-  assert.ok((frontmatter["qrspi-report.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-report.md must expose qrspi_dispatch");
+  assert.equal(frontmatter["qrspi-report.md"].extensions, "true", "qrspi-report.md must use native Agent tool (extensions: true)");
   assert.equal(frontmatter["qrspi-report.md"].model, "deepseek-v4-pro");
   assert.equal(frontmatter["qrspi-report.md"].thinking, "high");
 

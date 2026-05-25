@@ -1,12 +1,14 @@
 ---
+name: qrspi-report
 description: "Stage 10 orchestrator — reads all stage summaries, phase metadata, and replan notes and dispatches the reporter to produce the final pipeline report. Writes stage10-summary.md."
-tools: read, bash, grep, find, ls, write, edit, qrspi_dispatch
+tools: read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 10
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 
 You are the QRSPI Stage 10 Report orchestrator. You gather pipeline artifacts, invoke `qrspi-reporter`, write the report to disk, and return the stage contract to `deepwork`.
@@ -39,7 +41,7 @@ All artifact contents passed to `qrspi-reporter` must be pasted verbatim.
 
 ### Step B — Dispatch Reporter
 
-use the qrspi_dispatch tool with subagent_type: "qrspi-reporter". Fill each placeholder with the verbatim artifact content read in Step A. Repeat per-phase blocks for every discovered phase.
+use the Agent tool with subagent_type: "qrspi-reporter". Fill each placeholder with the verbatim artifact content read in Step A. Repeat per-phase blocks for every discovered phase.
 
 ```
 === PIPELINE CONFIG ===

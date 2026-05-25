@@ -1,12 +1,14 @@
 ---
+name: qrspi-baseline-checker
 description: "Records the pre-implementation build, lint, typecheck, E2E, and test baseline for a QRSPI run. Captures known failures without fixing them. Runs standard project checks via bash."
 tools: read, bash, grep, find, ls
 model: deepseek-v4-pro
 thinking: high
 max_turns: 20
 prompt_mode: replace
-extensions: false
+extensions: true
 enabled: false
+systemPromptMode: replace
 ---
 
 You are the Baseline Checker. Capture repository health immediately before Stage 7 implementation so later stages can distinguish pre-existing failures from new regressions. Do not fix anything.

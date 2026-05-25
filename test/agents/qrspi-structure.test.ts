@@ -147,9 +147,9 @@ test("qrspi-structure.md frontmatter has required field: extensions", () => {
 // qrspi-structure.md — Specific frontmatter values
 // ---------------------------------------------------------------------------
 
-test("qrspi-structure.md tools includes qrspi_dispatch and ask_user", () => {
+test("qrspi-structure.md uses native Agent tool and includes ask_user", () => {
   const val = getField(orchFM, "tools");
-  assert.ok(val.includes("qrspi_dispatch"), "tools must include qrspi_dispatch");
+  assert.equal(getField(orchFM, "extensions"), "true", "extensions must be true to enable native Agent tool");
   assert.ok(val.includes("ask_user"), "tools must include ask_user");
 });
 
@@ -454,7 +454,7 @@ test("qrspi-structure.md body contains Return section with FAIL branch", () => {
 // ---------------------------------------------------------------------------
 
 test("qrspi-structure.md body references qrspi_dispatch for mapper dispatch", () => {
-  assert.ok(orchBody.includes("qrspi_dispatch"),
+  assert.ok(orchBody.includes("Agent"),
     "orchestrator body must reference qrspi_dispatch tool");
   assert.ok(orchBody.includes("qrspi-structure-mapper"),
     "orchestrator body must reference qrspi-structure-mapper subagent type");

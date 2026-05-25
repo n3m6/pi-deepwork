@@ -18,7 +18,7 @@ test("stage 9 verify agents have parseable frontmatter with enabled schema", () 
 });
 
 test("stage 9 verify agents use the expected tools and model profile", () => {
-  assert.ok((frontmatter["qrspi-verify.md"].tools ?? "").includes("qrspi_dispatch"), "qrspi-verify.md must expose qrspi_dispatch");
+  assert.equal(frontmatter["qrspi-verify.md"].extensions, "true", "qrspi-verify.md must use native Agent tool (extensions: true)");
   assert.equal(frontmatter["qrspi-verify.md"].model, "deepseek-v4-pro");
   assert.equal(frontmatter["qrspi-verify.md"].thinking, "high");
 

@@ -165,21 +165,21 @@ For resumable live runs, the extension also injects a Deepwork resume prompt int
 
 ### Background subagent orchestration
 
-Deepwork's top-level stage dispatch uses pi-subagents' native `Agent` tool directly. Child QRSPI stage agents still use the legacy `qrspi_dispatch` compatibility wrapper for their nested leaf-agent calls because current pi-subagents removes its own native `Agent`, `get_subagent_result`, and `steer_subagent` tools from child-agent sessions to prevent recursive nesting.
+All QRSPI stage agents use the pi-subagents native `Agent` tool directly for both top-level stage dispatch and nested leaf-agent calls. Subagents run with `extensions: true` so they receive the same native `Agent`, `get_subagent_result`, and `steer_subagent` tools that the orchestrator uses.
 
-When a child QRSPI agent needs to launch a background leaf subagent and continue only after polling or waiting for the result:
+When an orchestrator needs to launch a background leaf subagent and continue only after polling or waiting for the result:
 
-- Use `qrspi_dispatch` with `run_in_background: true` to start the child task and capture the returned `agentId`.
-- Use `qrspi_get_subagent_result` with that `agentId` to poll status, or pass `wait: true` to block until completion.
-- Current scope is launch plus result retrieval. There is still no dedicated steering wrapper for child-agent background work, so background flows should be designed as fire-and-join rather than fire-and-steer.
+- Call `Agent` with `run_in_background: true` to start the child task and capture the returned `agentId`.
+- Call `get_subagent_result` with that `agentId` to poll status, or pass `wait: true` to block until completion.
+- Background flows should be designed as fire-and-join rather than fire-and-steer.
 
-Example wrapper flow inside an orchestrator prompt:
+Example background-join flow inside an orchestrator prompt:
 
 ```text
-1. Call qrspi_dispatch with run_in_background:true.
+1. Call Agent with run_in_background:true.
 2. Record the returned agentId.
-3. Re-check with qrspi_get_subagent_result agent_id:"<id>".
-4. If you need the final output in the same turn, call qrspi_get_subagent_result with wait:true.
+3. Re-check with get_subagent_result agent_id:"<id>".
+4. If you need the final output in the same turn, call get_subagent_result with wait:true.
 ```
 
 ## What the Pipeline Produces
@@ -281,7 +281,7 @@ Use this checklist in a real pi environment after installation. It is the operat
 5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/` under the active workspace, writes telemetry, validates mirrored QRSPI registration, then hands off to Deepwork through `pi.sendUserMessage()`.
 6. Confirm the first live Deepwork turn contains `=== RUNTIME DISCOVERY ===` and `=== NEXT DISPATCH ===`, does not search for `SKILL.md`, does not call `subagent list`, does not create symlinks, does not probe `ask_user`, and directly dispatches `qrspi-goals` through the native `Agent` tool.
 7. At the first interactive Goals gate, confirm the stage agent calls `ask_user` directly and records the response in the normal gate telemetry instead of returning a question for the top-level orchestrator to interpret.
-8. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
+8. If you want to verify child-agent background orchestration, dispatch a background child task through the native `Agent` tool with `run_in_background: true`, capture the returned `agentId`, then retrieve it through `get_subagent_result` with and without `wait: true`.
 9. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
 10. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
 11. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
@@ -293,7 +293,7 @@ Expected operator flow:
 3. Start a live run to confirm scaffold plus `pi.sendUserMessage()` handoff.
 4. If handoff fails, confirm the run is reported as scaffolded but inactive, then recover it through `/deepwork-resume` after fixing the runtime issue.
 5. Resume a live run to confirm `state.md`-driven re-entry.
-6. Optionally verify background child-agent launch plus join using `qrspi_dispatch` and `qrspi_get_subagent_result`.
+6. Optionally verify background child-agent launch plus join using the native `Agent` tool with `run_in_background: true` and `get_subagent_result`.
 
 ## Development Notes
 

@@ -38,12 +38,12 @@ const body = getBody(raw);
 test("qrspi-code-review.md tools expose dispatch and result join helpers", () => {
   assert.equal(
     frontmatter.tools,
-    "read, bash, grep, find, ls, write, edit, qrspi_dispatch, qrspi_get_subagent_result",
+    "read, bash, grep, find, ls, write, edit",
   );
 });
 
 test("qrspi-code-review.md body uses background launch plus result joins", () => {
   assert.match(body, /run_in_background: true/);
-  assert.match(body, /qrspi_get_subagent_result/);
+  assert.match(body, /get_subagent_result/);
   assert.match(body, /Launch each selected reviewer/);
 });
