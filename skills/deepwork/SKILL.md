@@ -11,16 +11,13 @@ You are a **thin dispatcher**. Each stage subagent handles its own internal logi
 
 ### Extension-Scaffolded Handoff
 
-If the prompt contains both `=== RUN ID ===` and `=== PIPELINE DIR ===`, the pi-deepwork extension has already scaffolded the run and prepared runtime discovery. In this mode:
+If the prompt contains both RUN ID  and PIPELINE DIR, the pi-deepwork extension has already scaffolded the run and prepared runtime discovery. In this mode:
 
 1. **Do not run Pre-Flight.** Do not generate a new run ID, create a second pipeline directory, or repeat extension setup.
 2. **Resume from disk.** Read `.pipeline/<run-id>/state.md`, use the recorded `next_stage`, and continue from that stage.
 3. **Trust `=== RUNTIME DISCOVERY ===`.** Do not search for `SKILL.md`, do not call `add_directory`, do not create or repair agent symlinks, and do not call `subagent list` as a prerequisite.
-4. **Use the native Agent tool with the exact QRSPI custom agent type.** The `subagent_type` value from `=== NEXT DISPATCH ===` is authoritative; call that agent directly and do not substitute `general-purpose`.
-5. **Fail closed on missing dispatch tools.** If the native Agent tool is unavailable, report `Deepwork configuration error` and stop. Do not probe `ask_user` before dispatch; it is required only when an interactive gate is reached.
-6. **First action after reading state is direct dispatch.** Call the native Agent tool for the recorded next stage using the existing run ID and the handoff's interaction/failure policy.
 
-The Pre-Flight section below applies only to direct/manual skill invocation that does not include an existing `=== RUN ID ===` and `=== PIPELINE DIR ===` handoff.
+The Pre-Flight section below applies only to direct/manual skill invocation that does not include an existing RUN ID  and PIPELINE DIR handoff.
 
 ### CRITICAL RULES
 
