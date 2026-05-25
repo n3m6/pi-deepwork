@@ -1,6 +1,6 @@
 ---
 name: deepwork
-description: "QRSPI deepwork orchestrator skill for end-to-end pipeline execution: it sequences stages, dispatches subagents, manages state transitions, and writes pipeline artifacts under .pipeline/qrspi-<run-id>/ when handling deepwork runs."
+description: "QRSPI deepwork orchestrator skill for end-to-end pipeline execution: it sequences stages, dispatches subagents, manages state transitions, and writes pipeline artifacts under .pipeline/qrspi-<run-id>/ when handling deepwork runs. Installed body lives at <pi-deepwork-clone>/skills/deepwork/SKILL.md where <pi-deepwork-clone> is typically ~/.pi/agent/git/github.com/n3m6/pi-deepwork (global pi install) or <workspace>/.pi/git/github.com/n3m6/pi-deepwork (project-local pi install); if the path advertised in the skill catalog fails to read, run `ls ~/.pi/agent/git/github.com/n3m6/pi-deepwork/skills/deepwork/SKILL.md` or `find ~/.pi -path '*/pi-deepwork/skills/deepwork/SKILL.md' 2>/dev/null` to resolve the real location before guessing further."
 ---
 
 # Deepwork Orchestrator Skill
