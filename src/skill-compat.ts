@@ -6,6 +6,7 @@ export interface SkillCompatInstallResult {
   applied: boolean;
   mode?: "symlink" | "copied" | "existing";
   targetRoot?: string;
+  skillPath?: string;
   error?: string;
 }
 
@@ -141,6 +142,7 @@ export function ensureSkillCompatInstall(
       applied: true,
       mode: "existing",
       targetRoot: layout.targetRoot,
+      skillPath: targetSkillPath,
     };
   }
 
@@ -153,6 +155,7 @@ export function ensureSkillCompatInstall(
         applied: true,
         mode: "symlink",
         targetRoot: layout.targetRoot,
+        skillPath: targetSkillPath,
       };
     } catch {
       // Fall back to a small compatibility mirror when symlink creation fails.
@@ -165,11 +168,13 @@ export function ensureSkillCompatInstall(
       applied: true,
       mode: pathExists(layout.targetRoot) ? "copied" : "existing",
       targetRoot: layout.targetRoot,
+      skillPath: targetSkillPath,
     };
   } catch (error: unknown) {
     return {
       applied: false,
       targetRoot: layout.targetRoot,
+      skillPath: targetSkillPath,
       error: error instanceof Error ? error.message : String(error),
     };
   }

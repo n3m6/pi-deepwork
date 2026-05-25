@@ -33,11 +33,14 @@ import {
   setPi,
 } from "./shared-tools";
 import {
-  ensureBundledProjectAgents,
+  ensureRegisteredSubagents,
   getProjectAgentsDir,
-  refreshSubagentRegistry,
+  REQUIRED_QRSPI_STAGE_AGENTS,
 } from "./subagent-catalog";
-import { ensureRuntimeSkillCompatInstall } from "./skill-compat";
+import {
+  ensureRuntimeSkillCompatInstall,
+  getRuntimePackageRoot,
+} from "./skill-compat";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -48,6 +51,20 @@ interface RuntimeHandoffResult {
   delivered: boolean;
   error?: string;
 }
+
+interface RuntimeDiscoverySnapshot {
+  skillPath: string;
+  projectAgentsDir: string;
+  totalBundledAgents: number;
+  syncedAgents: number;
+  skippedAgents: number;
+  registeredQrspiAgents: string[];
+  registryLayouts: string[];
+}
+
+type AgentPrepResult =
+  | { ok: true; discovery: RuntimeDiscoverySnapshot }
+  | { ok: false; error: string };
 
 function yamlify(state: PipelineState): string {
   return `---
@@ -182,7 +199,84 @@ function buildOrchestrationContract(): string {
 - Operate only as the Deepwork orchestrator.
 - Do not write or edit project source files directly.
 - Delegate every stage via qrspi_dispatch.
+- Do not search for SKILL.md, call add_directory, create agent symlinks, or call subagent list as a prerequisite.
+- Do not invoke QRSPI stages through generic Agent/subagent tools or a general-purpose fallback.
 - If the deepwork skill or qrspi_dispatch/qrspi_question tools are unavailable, stop immediately and report "Deepwork configuration error". Do not fall back to direct implementation.`;
+}
+
+function formatRuntimeDiscoverySnapshot(
+  discovery: RuntimeDiscoverySnapshot,
+): string {
+  const layouts =
+    discovery.registryLayouts.length > 0
+      ? discovery.registryLayouts.join(", ")
+      : "none";
+  const qrspiAgents =
+    discovery.registeredQrspiAgents.length > 0
+      ? discovery.registeredQrspiAgents.join(", ")
+      : "none";
+
+  return `=== RUNTIME DISCOVERY ===
+- Skill source: ${discovery.skillPath}
+- Project agent directory: ${discovery.projectAgentsDir}
+- Bundled agents: ${discovery.totalBundledAgents} total; ${discovery.syncedAgents} synced; ${discovery.skippedAgents} skipped
+- Registry layouts refreshed: ${layouts}
+- Registered QRSPI agents: ${qrspiAgents}
+- Expected tools: qrspi_dispatch, qrspi_question, qrspi_get_subagent_result`;
+}
+
+const STAGE_AGENT_BY_NEXT_STAGE: Readonly<Record<string, string>> = {
+  "1": "qrspi-goals",
+  goals: "qrspi-goals",
+  "2": "qrspi-research",
+  research: "qrspi-research",
+  "3": "qrspi-design",
+  design: "qrspi-design",
+  "4": "qrspi-structure",
+  structure: "qrspi-structure",
+  "5": "qrspi-plan",
+  plan: "qrspi-plan",
+  "6": "qrspi-implement",
+  implement: "qrspi-implement",
+  "7": "qrspi-accept",
+  accept: "qrspi-accept",
+  "8": "qrspi-replan",
+  replan: "qrspi-replan",
+  "9": "qrspi-verify",
+  verify: "qrspi-verify",
+  "10": "qrspi-report",
+  report: "qrspi-report",
+};
+
+function getStageAgentForNextStage(nextStageValue: string): string {
+  return (
+    STAGE_AGENT_BY_NEXT_STAGE[nextStageValue.trim().toLowerCase()] ?? "unknown"
+  );
+}
+
+function buildNextDispatchContract(
+  nextStageValue: string,
+  runId: string,
+  task?: string,
+): string {
+  const stageAgent = getStageAgentForNextStage(nextStageValue);
+  const userTaskBlock =
+    task === undefined ? "" : `\n\n=== USER TASK ===\n${task}`;
+
+  return `=== NEXT DISPATCH ===
+Call qrspi_dispatch directly for the recorded next stage. Do not run discovery first.
+
+subagent_type: "${stageAgent}"
+description: "Stage ${nextStageValue} dispatch"
+prompt: |
+  === RUN ID ===
+  ${runId}${userTaskBlock}
+
+  === INTERACTION MODE ===
+  Use the value from this handoff prompt.
+
+  === FAILURE POLICY ===
+  Use the value from this handoff prompt.`;
 }
 
 function buildLiveRunHandoffPrompt(
@@ -190,20 +284,24 @@ function buildLiveRunHandoffPrompt(
   task: string,
   interactionMode: InteractionMode,
   failurePolicy: FailurePolicy,
+  discovery: RuntimeDiscoverySnapshot,
 ): string {
-  return `Continue the existing Deepwork pipeline run that the runtime already scaffolded. Do not create a new run ID. Use Resume Mode against the existing pipeline directory on disk and continue from the recorded next stage in state.md.\n\n${buildOrchestrationContract()}\n\n=== RUN ID ===\n${runId}\n\n=== MODE ===\nlive\n\n=== PIPELINE DIR ===\n.pipeline/${runId}\n\n=== USER TASK ===\n${task}\n\n=== INTERACTION MODE ===\n${interactionMode}\n\n=== FAILURE POLICY ===\n${failurePolicy}`;
+  return `Continue the existing Deepwork pipeline run that the runtime already scaffolded. Do not create a new run ID. Use Resume Mode against the existing pipeline directory on disk and continue from the recorded next stage in state.md.\n\n${buildOrchestrationContract()}\n\n${formatRuntimeDiscoverySnapshot(discovery)}\n\n${buildNextDispatchContract("1", runId, task)}\n\n=== RUN ID ===\n${runId}\n\n=== MODE ===\nlive\n\n=== PIPELINE DIR ===\n.pipeline/${runId}\n\n=== USER TASK ===\n${task}\n\n=== INTERACTION MODE ===\n${interactionMode}\n\n=== FAILURE POLICY ===\n${failurePolicy}`;
 }
 
-function buildResumeHandoffPrompt(parsed: {
-  run_id: string;
-  mode: PipelineMode;
-  next_stage: string;
-  last_completed_stage: string;
-  route: string;
-  interaction_mode: InteractionMode;
-  failure_policy: FailurePolicy;
-}): string {
-  return `Resume the existing Deepwork pipeline run from disk. Do not create a new run ID. Use Resume Mode and continue from the recorded next stage.\n\n${buildOrchestrationContract()}\n\n=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== LAST COMPLETED STAGE ===\n${parsed.last_completed_stage}\n\n=== NEXT STAGE ===\n${parsed.next_stage}\n\n=== PIPELINE DIR ===\n.pipeline/${parsed.run_id}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}`;
+function buildResumeHandoffPrompt(
+  parsed: {
+    run_id: string;
+    mode: PipelineMode;
+    next_stage: string;
+    last_completed_stage: string;
+    route: string;
+    interaction_mode: InteractionMode;
+    failure_policy: FailurePolicy;
+  },
+  discovery: RuntimeDiscoverySnapshot,
+): string {
+  return `Resume the existing Deepwork pipeline run from disk. Do not create a new run ID. Use Resume Mode and continue from the recorded next stage.\n\n${buildOrchestrationContract()}\n\n${formatRuntimeDiscoverySnapshot(discovery)}\n\n${buildNextDispatchContract(parsed.next_stage, parsed.run_id)}\n\n=== RUN ID ===\n${parsed.run_id}\n\n=== MODE ===\n${parsed.mode}\n\n=== ROUTE ===\n${parsed.route}\n\n=== LAST COMPLETED STAGE ===\n${parsed.last_completed_stage}\n\n=== NEXT STAGE ===\n${parsed.next_stage}\n\n=== PIPELINE DIR ===\n.pipeline/${parsed.run_id}\n\n=== INTERACTION MODE ===\n${parsed.interaction_mode}\n\n=== FAILURE POLICY ===\n${parsed.failure_policy}`;
 }
 
 function formatStartHandoffFailure(runId: string, error: string): string {
@@ -510,26 +608,64 @@ function scanPipelineRunIds(): string[] {
   }
 }
 
-function ensureWorkspaceQrsiAgents(
-  workspaceRoot: string,
-): { ok: true } | { ok: false; error: string } {
-  try {
-    ensureBundledProjectAgents(workspaceRoot);
+function ensureWorkspaceQrsiAgents(workspaceRoot: string): AgentPrepResult {
+  const runtimePackageRoot = getRuntimePackageRoot(__dirname);
+  const registration = ensureRegisteredSubagents(
+    workspaceRoot,
+    REQUIRED_QRSPI_STAGE_AGENTS,
+  );
 
-    const refreshResult = refreshSubagentRegistry(workspaceRoot);
-    if (!refreshResult.refreshed && refreshResult.error) {
+  if (!registration.ok) {
+    if (registration.refreshResult?.error) {
       console.warn(
-        `[pi-deepwork] Unable to refresh pi-subagents agent registry before Deepwork handoff: ${refreshResult.error}`,
+        `[pi-deepwork] Unable to refresh pi-subagents agent registry before Deepwork handoff: ${registration.refreshResult.error}`,
       );
     }
 
-    return { ok: true };
-  } catch (error: unknown) {
     return {
       ok: false,
-      error: `Failed to prepare QRSPI agent definitions under ${getProjectAgentsDir(workspaceRoot)}: ${describeError(error)}`,
+      error:
+        registration.error ??
+        `Failed to prepare QRSPI agent definitions under ${getProjectAgentsDir(workspaceRoot)}.`,
     };
   }
+
+  const syncResult = registration.syncResult;
+  const refreshResult = registration.refreshResult;
+
+  return {
+    ok: true,
+    discovery: {
+      skillPath: path.join(
+        runtimePackageRoot,
+        "skills",
+        "deepwork",
+        "SKILL.md",
+      ),
+      projectAgentsDir: registration.projectAgentsDir,
+      totalBundledAgents: syncResult?.total ?? 0,
+      syncedAgents: syncResult?.synced.length ?? 0,
+      skippedAgents: syncResult?.skipped.length ?? 0,
+      registeredQrspiAgents:
+        refreshResult?.agentNames
+          .filter((agentName) => agentName.startsWith("qrspi-"))
+          .sort() ?? [],
+      registryLayouts: refreshResult?.layouts ?? [],
+    },
+  };
+}
+
+function getDiscoveredSkillPaths(
+  bundledSkillsRoot: string,
+  skillCompat: { skillPath?: string },
+): string[] {
+  const skillPaths = [bundledSkillsRoot];
+
+  if (skillCompat.skillPath && fs.existsSync(skillCompat.skillPath)) {
+    skillPaths.push(path.dirname(path.dirname(skillCompat.skillPath)));
+  }
+
+  return [...new Set(skillPaths)];
 }
 
 function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
@@ -674,6 +810,7 @@ function createDeepworkHandler(pi: ExtensionAPI): CommandHandler {
         task,
         parsedInteractionMode,
         parsedFailurePolicy,
+        agentPrep.discovery,
       ),
     );
     const handoffSummary = handoff.delivered
@@ -751,7 +888,7 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
 
     const handoff = await handoffToSession(
       pi,
-      buildResumeHandoffPrompt(parsed),
+      buildResumeHandoffPrompt(parsed, agentPrep.discovery),
     );
     const handoffSummary = handoff.delivered
       ? "The active session was handed off to Deepwork via pi.sendUserMessage()."
@@ -768,6 +905,7 @@ function createDeepworkResumeHandler(pi: ExtensionAPI): CommandHandler {
 }
 
 export default function activate(pi: ExtensionAPI): void {
+  const runtimePackageRoot = getRuntimePackageRoot(__dirname);
   const skillCompat = ensureRuntimeSkillCompatInstall(__dirname);
   if (skillCompat.error) {
     console.warn(
@@ -802,6 +940,9 @@ export default function activate(pi: ExtensionAPI): void {
   pi.registerTool(createQuestionTool());
 
   pi.on("resources_discover", () => ({
-    skillPaths: [path.join(__dirname, "..", "skills")],
+    skillPaths: getDiscoveredSkillPaths(
+      path.join(runtimePackageRoot, "skills"),
+      skillCompat,
+    ),
   }));
 }

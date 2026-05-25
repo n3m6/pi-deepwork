@@ -7,7 +7,10 @@ import { mock } from "node:test";
 
 import activate from "../src/index";
 import { getDryRunArtifactPaths } from "../src/pipeline";
-import { __setSubagentModuleLoaderForTests } from "../src/subagent-catalog";
+import {
+  __setSubagentModuleLoaderForTests,
+  REQUIRED_QRSPI_STAGE_AGENTS,
+} from "../src/subagent-catalog";
 import type {
   ExtensionAPI,
   ExtensionContext,
@@ -122,6 +125,16 @@ function extractRunId(confirmCalls: ConfirmCall[]): string | null {
     if (match) return match[1]!;
   }
   return null;
+}
+
+function makeRequiredAgentMap(cwd: string): Map<string, unknown> {
+  return new Map(
+    REQUIRED_QRSPI_STAGE_AGENTS.map((agentName) => [agentName, { cwd }]),
+  );
+}
+
+function expectedRequiredAgentNames(): string[] {
+  return [...REQUIRED_QRSPI_STAGE_AGENTS].sort();
 }
 
 // ---------------------------------------------------------------------------
@@ -417,11 +430,7 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     __setSubagentModuleLoaderForTests((moduleId: string) => {
       if (moduleId === "@tintinweb/pi-subagents/src/custom-agents.ts") {
         return {
-          loadCustomAgents: (cwd: string) =>
-            new Map<string, unknown>([
-              ["qrspi-goals", { cwd }],
-              ["qrspi-research", { cwd }],
-            ]),
+          loadCustomAgents: (cwd: string) => makeRequiredAgentMap(cwd),
         };
       }
 
@@ -452,7 +461,7 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
           1,
           "deepwork should refresh the custom-agent registry before handoff",
         );
-        assert.deepEqual(refreshCalls[0], ["qrspi-goals", "qrspi-research"]);
+        assert.deepEqual(refreshCalls[0], expectedRequiredAgentNames());
         assert.equal(
           fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
           true,
@@ -501,6 +510,15 @@ test("deepwork handler hands the runtime-scaffolded run to pi.sendUserMessage", 
     assert.match(
       handoffMessage,
       /Do not write or edit project source files directly/,
+    );
+    assert.match(handoffMessage, /=== RUNTIME DISCOVERY ===/);
+    assert.match(handoffMessage, /Project agent directory:/);
+    assert.match(handoffMessage, /=== NEXT DISPATCH ===/);
+    assert.match(handoffMessage, /subagent_type: "qrspi-goals"/);
+    assert.match(handoffMessage, /Do not search for SKILL\.md/);
+    assert.match(
+      handoffMessage,
+      /Do not invoke QRSPI stages through generic Agent\/subagent tools/,
     );
     assert.match(handoffMessage, /Deepwork configuration error/);
     assert.match(handoffMessage, /=== RUN ID ===\nqrspi-\d{8}-\d{6}/);
@@ -859,11 +877,7 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
     __setSubagentModuleLoaderForTests((moduleId: string) => {
       if (moduleId === "@tintinweb/pi-subagents/dist/custom-agents.js") {
         return {
-          loadCustomAgents: (cwd: string) =>
-            new Map<string, unknown>([
-              ["qrspi-goals", { cwd }],
-              ["qrspi-research", { cwd }],
-            ]),
+          loadCustomAgents: (cwd: string) => makeRequiredAgentMap(cwd),
         };
       }
 
@@ -886,7 +900,7 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
           1,
           "resume should refresh the custom-agent registry before handoff",
         );
-        assert.deepEqual(refreshCalls[0], ["qrspi-goals", "qrspi-research"]);
+        assert.deepEqual(refreshCalls[0], expectedRequiredAgentNames());
         assert.equal(
           fs.existsSync(path.join(tmpDir, ".pi", "agents", "qrspi-goals.md")),
           true,
@@ -926,6 +940,9 @@ test("deepwork-resume hands the recovered run to pi.sendUserMessage", async () =
       handoffMessage,
       /Do not write or edit project source files directly/,
     );
+    assert.match(handoffMessage, /=== RUNTIME DISCOVERY ===/);
+    assert.match(handoffMessage, /=== NEXT DISPATCH ===/);
+    assert.match(handoffMessage, /subagent_type: "qrspi-implement"/);
     assert.match(handoffMessage, /Deepwork configuration error/);
     assert.match(handoffMessage, new RegExp(`=== RUN ID ===\\n${runId}`));
     assert.match(handoffMessage, /=== NEXT STAGE ===\n6/);

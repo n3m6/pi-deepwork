@@ -75,6 +75,7 @@ test("runtime setup creates a readable npm-compatible Deepwork skill path", () =
     );
     assert.equal(result.applied, true);
     assert.ok(result.targetRoot, "targetRoot should be reported");
+    assert.ok(result.skillPath, "skillPath should be reported");
     assert.match(result.mode ?? "", /symlink|copied|existing/);
 
     const compatSkillPath = path.join(
@@ -83,6 +84,7 @@ test("runtime setup creates a readable npm-compatible Deepwork skill path", () =
       "deepwork",
       "SKILL.md",
     );
+    assert.equal(result.skillPath, compatSkillPath);
     assert.equal(fs.readFileSync(compatSkillPath, "utf-8"), "# Deepwork\n");
   });
 });

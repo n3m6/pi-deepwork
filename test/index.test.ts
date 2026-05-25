@@ -191,6 +191,10 @@ test("resources_discover handler returns skillPaths array with at least one path
       result.skillPaths![0]!.length > 0,
     "first skillPath must be a non-empty string",
   );
+  assert.ok(
+    fs.existsSync(path.join(result.skillPaths![0]!, "deepwork", "SKILL.md")),
+    "first skillPath must contain deepwork/SKILL.md",
+  );
 });
 
 test("skills/deepwork/SKILL.md exists on disk", () => {

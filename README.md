@@ -114,10 +114,12 @@ Current live-mode behavior:
 - scaffold `.pipeline/<run-id>/` under the active workspace root from `ctx.cwd`
 - write initial `state.md` and telemetry files
 - inject the `deepwork` skill through `resources_discover`
+- validate that the required QRSPI stage-agent files were mirrored and registered before the live or resume handoff
 - refresh pi-subagents' custom-agent registry before the live or resume handoff so the first Deepwork turn can already see the mirrored `qrspi-*` agent types
 - send a Deepwork kickoff prompt into the active session via `pi.sendUserMessage()` so the orchestrator continues from the scaffolded `state.md`
-- refresh pi-subagents' custom-agent registry again when `qrspi_dispatch` launches a stage agent, so the mirrored `qrspi-*` definitions stay visible for the dispatch path even if the runtime cached an older registry
-- instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, and must stop with a configuration error if the Deepwork skill or `qrspi_dispatch` / `qrspi_question` tools are unavailable
+- include a runtime discovery snapshot and exact next `qrspi_dispatch` target in the handoff prompt, so the first Deepwork turn dispatches directly instead of searching for skill or agent files
+- refresh and validate pi-subagents' custom-agent registry again when `qrspi_dispatch` launches a `qrspi-*` agent, so missing registration fails closed instead of falling back to `general-purpose`
+- instruct the resumed assistant to fail closed: it must remain in Deepwork orchestration mode, must not implement directly, must not use generic `Agent` / `subagent` discovery for QRSPI stages, and must stop with a configuration error if the Deepwork skill or `qrspi_dispatch` / `qrspi_question` tools are unavailable
 - if `pi.sendUserMessage()` fails, keep the scaffolded run on disk and report that no Deepwork orchestrator is active yet; recovery is to fix the runtime configuration and rerun `/deepwork-resume run-id:"<run-id>"`
 
 The extension does not mutate `ctx.sessionManager` directly. pi documents that surface as read-only; runtime handoff happens through the documented message APIs.
@@ -208,9 +210,9 @@ Check agent discovery first:
 - or confirm the current project has the agent `.md` files directly under `.pi/agents/`
 - verify that the directory contains the expected `.md` agent definitions
 
-If `qrspi-goals` or another QRSPI stage agent is reported as an unknown agent type and pi-subagents falls back to `general-purpose`, the stage-agent markdown files were not discovered or the subagent registry did not refresh after they were mirrored into `.pi/agents/`. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
+If `qrspi-goals` or another QRSPI stage agent is not registered, current pi-deepwork builds should fail closed with a configuration error before launching the stage. Older logs where an unknown agent type falls back to `general-purpose` mean the stage-agent markdown files were not discovered or the subagent registry did not refresh after they were mirrored into `.pi/agents/`. pi-subagents only scans the flat `~/.pi/agent/agents/*.md` and `.pi/agents/*.md` paths; nested directories are ignored.
 
-On a healthy live or resume handoff, the first Deepwork turn should already be able to see the mirrored `qrspi-*` types. If `subagent list` still shows only builtin agents immediately after `/deepwork` or `/deepwork-resume`, confirm the current repository now has `.pi/agents/*.md` and rerun after refreshing the installed extension copy.
+On a healthy live or resume handoff, the first Deepwork turn receives a `=== RUNTIME DISCOVERY ===` snapshot and a `=== NEXT DISPATCH ===` block. It should call `qrspi_dispatch` directly for the recorded stage, not run `find` for `SKILL.md`, call `add_directory`, manually create symlinks, or use `subagent list` as a prerequisite. If `subagent list` still shows only builtin agents immediately after `/deepwork` or `/deepwork-resume`, confirm the current repository now has `.pi/agents/*.md` and rerun after refreshing the installed extension copy.
 
 ### The first `deepwork` skill expansion shows `ENOENT`
 
@@ -261,11 +263,12 @@ Use this checklist in a real pi environment after installation. It is the operat
 2. Start pi in a disposable repository with git initialized, Node 18+, and access to the sonnet and haiku model tiers used by the agents.
 3. Confirm `/deepwork` and `/deepwork-resume` are present, and verify the `deepwork` skill is available in the session.
 4. Run `/deepwork task:"Smoke test dry run" dry-run:"true" route:"quick-fix"` and verify `.pipeline/<run-id>/state.md` records `mode: "dry-run"` and `next_stage: "done"`.
-5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/` under the active workspace, writes telemetry, then hands off to Deepwork through `pi.sendUserMessage()`.
-6. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
-7. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
-8. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
-9. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
+5. Run `/deepwork task:"Smoke test live run"` and verify the extension scaffolds `.pipeline/<run-id>/` under the active workspace, writes telemetry, validates mirrored QRSPI registration, then hands off to Deepwork through `pi.sendUserMessage()`.
+6. Confirm the first live Deepwork turn contains `=== RUNTIME DISCOVERY ===` and `=== NEXT DISPATCH ===`, does not search for `SKILL.md`, does not call `subagent list`, does not create symlinks, and directly dispatches `qrspi-goals` through `qrspi_dispatch`.
+7. If you want to verify child-agent background orchestration, dispatch a background child task through `qrspi_dispatch`, capture the returned `agentId`, then retrieve it through `qrspi_get_subagent_result` with and without `wait: true`.
+8. If live handoff fails, verify the UI explicitly reports that no Deepwork orchestrator is active and points you at `/deepwork-resume run-id:"<live-run-id>"`.
+9. Run `/deepwork-resume run-id:"<live-run-id>"` and confirm the resume prompt re-enters at the `next_stage` recorded in `state.md`.
+10. Confirm the expected artifacts exist under `.pipeline/<run-id>/`, including `state.md`, `telemetry/events.jsonl`, `telemetry/run-log.md`, and `telemetry/metrics-summary.md`.
 
 Expected operator flow:
 

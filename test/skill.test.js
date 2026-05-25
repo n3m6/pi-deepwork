@@ -146,6 +146,51 @@ test('SKILL.md uses qrspi_question with required parameters', () => {
   assert.ok(skillContent.includes('type'), 'Should include type parameter');
 });
 
+test('SKILL.md handles extension-scaffolded handoff without Pre-Flight', () => {
+  assert.ok(
+    skillContent.includes('### Extension-Scaffolded Handoff'),
+    'Should include extension-scaffolded handoff instructions',
+  );
+  assert.ok(
+    skillContent.includes('Do not run Pre-Flight'),
+    'Extension-scaffolded runs should skip Pre-Flight',
+  );
+  assert.ok(
+    skillContent.includes('=== RUN ID ===') &&
+      skillContent.includes('=== PIPELINE DIR ==='),
+    'Should key extension-scaffolded mode from handoff markers',
+  );
+  assert.ok(
+    skillContent.includes('Read `.pipeline/<run-id>/state.md`'),
+    'Should resume from state.md for scaffolded handoff',
+  );
+});
+
+test('SKILL.md forbids manual discovery and generic QRSPI fallback during handoff', () => {
+  assert.ok(
+    skillContent.includes('Do not search for `SKILL.md`'),
+    'Should forbid skill-path searching during handoff',
+  );
+  assert.ok(
+    skillContent.includes('do not call `add_directory`'),
+    'Should forbid add_directory during handoff',
+  );
+  assert.ok(
+    skillContent.includes('do not call `subagent list`'),
+    'Should forbid subagent list probing during handoff',
+  );
+  assert.ok(
+    skillContent.includes(
+      'Never invoke QRSPI stages through a generic `Agent` tool',
+    ),
+    'Should forbid generic Agent fallback for QRSPI stages',
+  );
+  assert.ok(
+    skillContent.includes('`general-purpose` fallback'),
+    'Should forbid general-purpose fallback for QRSPI stages',
+  );
+});
+
 // --- Required sections ---
 
 const requiredSections = [

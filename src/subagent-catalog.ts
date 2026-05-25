@@ -19,14 +19,42 @@ interface RegistryHelper {
   registerAgents(userAgents: Map<string, unknown>): void;
 }
 
+export const REQUIRED_QRSPI_STAGE_AGENTS = [
+  "qrspi-goals",
+  "qrspi-research",
+  "qrspi-design",
+  "qrspi-structure",
+  "qrspi-plan",
+  "qrspi-implement",
+  "qrspi-accept",
+  "qrspi-replan",
+  "qrspi-verify",
+  "qrspi-report",
+] as const;
+
 export interface BundledAgentSyncResult {
+  bundledAgentsDir: string;
   projectAgentsDir: string;
+  total: number;
   synced: string[];
   skipped: string[];
+  missingRequired: string[];
 }
 
 export interface RegistryRefreshResult {
   refreshed: boolean;
+  agentNames: string[];
+  layouts: string[];
+  error?: string;
+}
+
+export interface RegisteredSubagentsResult {
+  ok: boolean;
+  projectAgentsDir: string;
+  missingProjectAgents: string[];
+  missingRegisteredAgents: string[];
+  syncResult?: BundledAgentSyncResult;
+  refreshResult?: RegistryRefreshResult;
   error?: string;
 }
 
@@ -177,11 +205,31 @@ export function ensureBundledProjectAgents(
     synced.push(fileName);
   }
 
-  return {
+  const missingRequired = findMissingProjectAgents(
     projectAgentsDir,
+    REQUIRED_QRSPI_STAGE_AGENTS,
+  );
+
+  return {
+    bundledAgentsDir,
+    projectAgentsDir,
+    total: bundledAgentFiles.length,
     synced,
     skipped,
+    missingRequired,
   };
+}
+
+function findMissingProjectAgents(
+  projectAgentsDir: string,
+  agentNames: ReadonlyArray<string>,
+): string[] {
+  return [...new Set(agentNames)]
+    .filter(
+      (agentName) =>
+        !fs.existsSync(path.join(projectAgentsDir, `${agentName}.md`)),
+    )
+    .sort();
 }
 
 function getPiSubagentsCandidateRoots(workspaceRoot: string): string[] {
@@ -326,6 +374,8 @@ export function refreshSubagentRegistry(
   if (helpers.length === 0) {
     return {
       refreshed: false,
+      agentNames: [],
+      layouts: [],
       error:
         errors[0] ??
         "Unable to load the pi-subagents internal agent registry modules.",
@@ -333,11 +383,18 @@ export function refreshSubagentRegistry(
   }
 
   const refreshErrors: string[] = [];
+  const refreshedLayouts: string[] = [];
+  const agentNames = new Set<string>();
 
   try {
     for (const helper of helpers) {
       try {
-        helper.registerAgents(helper.loadCustomAgents(resolvedWorkspaceRoot));
+        const userAgents = helper.loadCustomAgents(resolvedWorkspaceRoot);
+        helper.registerAgents(userAgents);
+        refreshedLayouts.push(helper.layout);
+        for (const agentName of userAgents.keys()) {
+          agentNames.add(agentName);
+        }
       } catch (error: unknown) {
         refreshErrors.push(
           `${helper.layout}: ${error instanceof Error ? error.message : String(error)}`,
@@ -346,17 +403,105 @@ export function refreshSubagentRegistry(
     }
 
     if (refreshErrors.length < helpers.length) {
-      return { refreshed: true };
+      const result: RegistryRefreshResult = {
+        refreshed: true,
+        agentNames: [...agentNames].sort(),
+        layouts: refreshedLayouts,
+      };
+      if (refreshErrors.length > 0) {
+        result.error = refreshErrors.join("; ");
+      }
+      return result;
     }
 
     return {
       refreshed: false,
+      agentNames: [...agentNames].sort(),
+      layouts: refreshedLayouts,
       error: refreshErrors.join("; "),
     };
   } catch (error: unknown) {
     return {
       refreshed: false,
+      agentNames: [...agentNames].sort(),
+      layouts: refreshedLayouts,
       error: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+export function ensureRegisteredSubagents(
+  workspaceRoot: string,
+  requiredNames: ReadonlyArray<string> = REQUIRED_QRSPI_STAGE_AGENTS,
+): RegisteredSubagentsResult {
+  const projectAgentsDir = getProjectAgentsDir(workspaceRoot);
+  const uniqueRequiredNames = [...new Set(requiredNames)].sort();
+
+  let syncResult: BundledAgentSyncResult;
+  try {
+    syncResult = ensureBundledProjectAgents(workspaceRoot);
+  } catch (error: unknown) {
+    return {
+      ok: false,
+      projectAgentsDir,
+      missingProjectAgents: uniqueRequiredNames,
+      missingRegisteredAgents: uniqueRequiredNames,
+      error: `Failed to mirror bundled QRSPI agent definitions under ${projectAgentsDir}: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+
+  const missingProjectAgents = findMissingProjectAgents(
+    syncResult.projectAgentsDir,
+    uniqueRequiredNames,
+  );
+  if (missingProjectAgents.length > 0) {
+    return {
+      ok: false,
+      projectAgentsDir: syncResult.projectAgentsDir,
+      missingProjectAgents,
+      missingRegisteredAgents: missingProjectAgents,
+      syncResult,
+      error: `Missing mirrored QRSPI agent definitions under ${syncResult.projectAgentsDir}: ${missingProjectAgents.join(", ")}`,
+    };
+  }
+
+  const refreshResult = refreshSubagentRegistry(workspaceRoot);
+  if (!refreshResult.refreshed) {
+    return {
+      ok: false,
+      projectAgentsDir: syncResult.projectAgentsDir,
+      missingProjectAgents: [],
+      missingRegisteredAgents: uniqueRequiredNames,
+      syncResult,
+      refreshResult,
+      error:
+        refreshResult.error ??
+        "Unable to refresh the pi-subagents custom-agent registry.",
+    };
+  }
+
+  const registeredNames = new Set(refreshResult.agentNames);
+  const missingRegisteredAgents = uniqueRequiredNames.filter(
+    (agentName) => !registeredNames.has(agentName),
+  );
+  if (missingRegisteredAgents.length > 0) {
+    return {
+      ok: false,
+      projectAgentsDir: syncResult.projectAgentsDir,
+      missingProjectAgents: [],
+      missingRegisteredAgents,
+      syncResult,
+      refreshResult,
+      error: `QRSPI agent definitions were mirrored under ${syncResult.projectAgentsDir}, but pi-subagents did not register: ${missingRegisteredAgents.join(", ")}`,
+    };
+  }
+
+  return {
+    ok: true,
+    projectAgentsDir: syncResult.projectAgentsDir,
+    missingProjectAgents: [],
+    missingRegisteredAgents: [],
+    syncResult,
+    refreshResult,
+  };
 }

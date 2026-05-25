@@ -5,7 +5,10 @@ import type {
   ModelRegistryLike,
   ToolDefinition,
 } from "./types/pi-extensions";
-import { refreshSubagentRegistry } from "./subagent-catalog";
+import {
+  ensureRegisteredSubagents,
+  refreshSubagentRegistry,
+} from "./subagent-catalog";
 
 // ──────────────────────────────────────────────
 // Module-level state — set by activate() before tool registration
@@ -116,6 +119,10 @@ function isNonEmptyArray(v: unknown): v is unknown[] {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function requiresRegisteredQrspiAgent(subagentType: string): boolean {
+  return subagentType.toLowerCase().startsWith("qrspi-");
 }
 
 /** Build SpawnOptions, omitting undefined keys. */
@@ -546,11 +553,21 @@ export function createDispatchTool(): ToolDefinition {
       return dispatchFailResponse("Extension not activated.");
     }
 
-    const refreshResult = refreshSubagentRegistry(ctx.cwd);
-    if (!refreshResult.refreshed && refreshResult.error) {
-      console.warn(
-        `[pi-deepwork] Unable to refresh pi-subagents agent registry: ${refreshResult.error}`,
-      );
+    if (requiresRegisteredQrspiAgent(subagentType)) {
+      const registration = ensureRegisteredSubagents(ctx.cwd, [subagentType]);
+      if (!registration.ok) {
+        return dispatchFailResponse(
+          registration.error ??
+            `QRSPI agent type "${subagentType}" is not registered.`,
+        );
+      }
+    } else {
+      const refreshResult = refreshSubagentRegistry(ctx.cwd);
+      if (!refreshResult.refreshed && refreshResult.error) {
+        console.warn(
+          `[pi-deepwork] Unable to refresh pi-subagents agent registry: ${refreshResult.error}`,
+        );
+      }
     }
 
     // 4. Resolve optional model override before spawn.

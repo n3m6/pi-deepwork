@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 import {
   createDispatchTool,
   createGetSubagentResultTool,
@@ -66,6 +69,10 @@ function resetGlobalState(): void {
   delete (globalThis as Record<string, unknown>)[
     MANAGER_SYMBOL as unknown as string
   ];
+}
+
+function createTempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), "deepwork-dispatch-test-"));
 }
 
 /** Cast details to MockResult for assertions. */
@@ -174,6 +181,69 @@ test("dispatch: missing pi-subagents manager returns FAIL with install message",
   setPi(null);
 });
 
+test("dispatch: missing qrspi registration fails before spawn", async () => {
+  resetGlobalState();
+  setPi({ api: "fake" } as any);
+  const tmpDir = createTempDir();
+  let spawnCalled = false;
+
+  try {
+    __setSubagentModuleLoaderForTests((moduleId: string) => {
+      if (moduleId === "@tintinweb/pi-subagents/src/custom-agents.ts") {
+        return {
+          loadCustomAgents: (cwd: string) =>
+            new Map<string, unknown>([["qrspi-other", { cwd }]]),
+        };
+      }
+
+      if (moduleId === "@tintinweb/pi-subagents/src/agent-types.ts") {
+        return {
+          registerAgents: () => {},
+        };
+      }
+
+      throw new Error(`unexpected module: ${moduleId}`);
+    });
+
+    (globalThis as Record<string, unknown>)[
+      MANAGER_SYMBOL as unknown as string
+    ] = {
+      spawn: () => {
+        spawnCalled = true;
+        return "agent-never-runs";
+      },
+      getRecord: () => undefined,
+      hasRunning: () => false,
+      waitForAll: async () => {},
+    };
+
+    const tool = createDispatchTool();
+    const ctx = makeMockCtx({ cwd: tmpDir });
+    const result = await tool.execute(
+      "id",
+      {
+        subagent_type: "qrspi-goals",
+        prompt: "do work",
+        description: "missing registry",
+      },
+      new AbortController().signal,
+      () => {},
+      ctx,
+    );
+
+    assert.ok(result.content.includes("### Status — FAIL"));
+    assert.match(result.content, /did not register: qrspi-goals/);
+    assert.equal(spawnCalled, false);
+  } finally {
+    setPi(null);
+    __setSubagentModuleLoaderForTests();
+    delete (globalThis as Record<string, unknown>)[
+      MANAGER_SYMBOL as unknown as string
+    ];
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 // ---------------------------------------------------------------------------
 // createDispatchTool — foreground success
 // ---------------------------------------------------------------------------
@@ -232,7 +302,7 @@ test("dispatch: foreground success returns PASS with agent ID and result text", 
   const result = await tool.execute(
     "id",
     {
-      subagent_type: "qrspi-goals-synthesizer",
+      subagent_type: "general-purpose",
       prompt: "do work",
       description: "foreground test",
     },
@@ -292,7 +362,7 @@ test("dispatch: background mode returns RUNNING and marks the spawn as backgroun
   const result = await tool.execute(
     "id",
     {
-      subagent_type: "qrspi-goals-synthesizer",
+      subagent_type: "general-purpose",
       prompt: "do work",
       description: "background test",
       run_in_background: true,
@@ -341,7 +411,7 @@ test("dispatch: foreground subagent failed returns FAIL with error", async () =>
   const result = await tool.execute(
     "id",
     {
-      subagent_type: "qrspi-goals-synthesizer",
+      subagent_type: "general-purpose",
       prompt: "do work",
       description: "failure test",
     },
