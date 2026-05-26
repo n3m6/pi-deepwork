@@ -199,7 +199,7 @@ On feedback (response `id: "decision"` value is "provide feedback", or non-empty
 
 ```
 4. Read `.pipeline/<run-id>/feedback/design-round-*.md` using the Read tool.
-5. Send a spawn request for synthesizer with original inputs plus `=== FEEDBACK HISTORY ===` [all feedback content]. Capture handle and poll until completed.
+5. Re-dispatch `qrspi-design-synthesizer` via `subagent` with the original inputs plus `=== FEEDBACK HISTORY ===` [all feedback content verbatim]. Use the returned subagent result as the return text.
 6. Overwrite `design.md`, reset `review_round = 1`, return to Step D.
 
 ### Return

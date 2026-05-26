@@ -133,6 +133,13 @@ test('SKILL.md writes pipeline state under .pipeline/qrspi-<run-id>/', () => {
   assert.ok(/telemetry\/events\.jsonl/.test(skillBody),
     'telemetry stream path must be telemetry/events.jsonl');
   assert.ok(/state\.md/.test(skillBody), 'must reference state.md');
+  assert.ok(/Write initial `.pipeline\/qrspi-<run-id>\/state\.md` as YAML frontmatter with no body:/
+    .test(skillBody),
+  'initial state write must require YAML frontmatter');
+  assert.ok(/run_id: qrspi-<run-id>/.test(skillBody),
+    'initial state contract must include run_id');
+  assert.ok(/mode: live/.test(skillBody),
+    'initial state contract must include mode: live');
 });
 
 test('SKILL.md documents inbound intercom forwarding', () => {

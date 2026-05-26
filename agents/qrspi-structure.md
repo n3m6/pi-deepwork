@@ -160,7 +160,7 @@ Select **approve** to proceed, or provide your feedback for revision.
 ```
 
 d. `Read .pipeline/<run-id>/feedback/structure-round-*.md`
-e. Send a spawn request for `qrspi-structure-mapper` with original inputs plus `=== FEEDBACK HISTORY === [all feedback files]`. Capture handle and poll until completed.
+e. Re-dispatch `qrspi-structure-mapper` via `subagent` with the original inputs plus `=== FEEDBACK HISTORY ===` [all feedback files verbatim]. Use the returned subagent result as the return text.
 f. Overwrite `structure.md`, reset `review_round = 1`, return to Step C.
 
 ### Return

@@ -77,7 +77,7 @@ The skill will:
 1. Generate a run ID `qrspi-YYYYMMDD-HHMMSS`
 2. Scaffold `.pipeline/<run-id>/` in the active workspace
 3. Create a git branch `qrspi/<run-id>` (if `git` is available)
-4. Dispatch the QRSPI stages sequentially via the native `Agent` tool
+4. Dispatch the QRSPI stages sequentially via the `subagent` tool
 5. Commit a checkpoint after every stage boundary
 6. Write structured telemetry to `.pipeline/<run-id>/telemetry/events.jsonl`
 

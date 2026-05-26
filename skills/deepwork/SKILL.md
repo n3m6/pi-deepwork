@@ -563,19 +563,25 @@ After the user runs the recipe, ask them to restart pi (or open a new pi session
 7. **Create the pipeline branch** by running: `git checkout -b qrspi/<run-id> main`
    The run ID already starts with `qrspi-`, so the resulting branch name is `qrspi/qrspi-YYYYMMDD-HHMMSS` (for example, `qrspi/qrspi-20260525-151612`). Do not strip the `qrspi-` prefix when forming the branch name.
    If `git` is not available, skip this step with a warning and continue using only `.pipeline/` file state.
-8. Write initial `.pipeline/qrspi-<run-id>/state.md` with:
-   - `route: unknown`
-   - `current_phase: 1`
-   - `total_phases: 0`
-   - `last_completed_stage: none`
-   - `next_stage: goals`
-   - `stages_completed: []`
-   - `phase_history: []`
-   - `backward_loops: 0`
-   - `resume_source: fresh`
+8. Write initial `.pipeline/qrspi-<run-id>/state.md` as YAML frontmatter with no body:
 
-- `interaction_mode: interactive` unless the runtime provided `automated`
-- `failure_policy: fail-closed` unless the runtime provided `best-effort`
+```yaml
+---
+run_id: qrspi-<run-id>
+mode: live
+route: unknown
+current_phase: 1
+total_phases: 0
+last_completed_stage: none
+next_stage: goals
+stages_completed: []
+phase_history: []
+backward_loops: 0
+resume_source: fresh
+interaction_mode: [interactive unless the runtime provided automated]
+failure_policy: [fail-closed unless the runtime provided best-effort]
+---
+```
 
 9. **Emit `run.started`** event to `telemetry/events.jsonl` with `route: "unknown"` and `timing.started_at` set to the current UTC timestamp.
 
