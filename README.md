@@ -146,6 +146,91 @@ npm test                # runs node --test on the structural test files
 
 There is no build, lint, format, or typecheck step. To change pipeline behaviour, edit [skills/deepwork/SKILL.md](skills/deepwork/SKILL.md). To change an individual stage's prompt, edit the corresponding [agents/qrspi-\*.md](agents/) file.
 
+## Running live pi sessions and inspecting logs
+
+`npm test` only validates prompt structure. If you need to reproduce real runtime behaviour such as agent discovery, nested `subagent` dispatch, intercom routing, or resume-state handling, run a real `pi` session from a throwaway workspace and inspect the files pi writes. This works for humans and for other LLM agents that can drive `pi` from a terminal.
+
+### Start a throwaway test run
+
+Use a scratch workspace so the pipeline can write `.pipeline/<run-id>/` freely:
+
+```bash
+mkdir -p /tmp/pi-deepwork-repro
+cd /tmp/pi-deepwork-repro
+pi
+```
+
+Inside pi, optionally name the session for clearer intercom routing, then run deepwork:
+
+```text
+/name deepwork-debug
+/deepwork create a typescript project with an express server with an endpoint "/health"
+```
+
+If you are debugging an existing run, use the same workspace and resume it with:
+
+```text
+/deepwork resume run-id:qrspi-YYYYMMDD-HHMMSS
+```
+
+### Confirm which agent copy pi is using
+
+The active scan directory is usually `~/.pi/agent/agents/`, and those files are often symlinks into the installed clone under `~/.pi/agent/git/...`.
+
+```bash
+readlink -f ~/.pi/agent/agents/qrspi-questions.md
+ls ~/.pi/agent/agents/qrspi-*.md | wc -l
+```
+
+If the resolved path points at `~/.pi/agent/git/github.com/n3m6/pi-deepwork/`, edits in your current workspace are not live until you either reinstall/update pi-deepwork or copy the changed `agents/qrspi-*.md` files into that installed clone. For project-scope installs, inspect `<workspace>/.pi/agents/` instead.
+
+### Inspect pi session logs and subagent artifacts
+
+pi writes runtime traces under `~/.pi/agent/sessions/`. Each workspace gets its own slugged directory.
+
+Useful locations:
+
+- `~/.pi/agent/sessions/<workspace-slug>/<timestamp>_<uuid>.jsonl` — top-level pi session transcript
+- `~/.pi/agent/sessions/<workspace-slug>/subagent-artifacts/<child-id>_<agent>_<index>_input.md` — subagent input payload
+- `~/.pi/agent/sessions/<workspace-slug>/subagent-artifacts/<child-id>_<agent>_<index>_output.md` — subagent return payload when the child completed
+- `~/.pi/agent/sessions/<workspace-slug>/<timestamp>_<uuid>/<child-id>/run-0/session.jsonl` — full nested child-session trace
+
+List the workspace session directory, then search by run ID, child ID, or an error string:
+
+```bash
+ls ~/.pi/agent/sessions/
+ls ~/.pi/agent/sessions/<workspace-slug>/
+rg -n "qrspi-YYYYMMDD-HHMMSS|Unknown agent|contact_supervisor|gate_mode" \
+  ~/.pi/agent/sessions/<workspace-slug> -g '*.jsonl' -g '*.md'
+```
+
+This is usually faster and more reliable than scrolling the live pi UI.
+
+### Inspect workspace pipeline state
+
+The runtime session logs tell you what pi attempted. The workspace `.pipeline/<run-id>/` directory tells you what the pipeline actually persisted.
+
+```bash
+ls .pipeline/
+ls .pipeline/<run-id>/
+sed -n '1,200p' .pipeline/<run-id>/state.md
+sed -n '1,200p' .pipeline/<run-id>/telemetry/events.jsonl
+```
+
+The most useful files during a repro are usually:
+
+- `.pipeline/<run-id>/state.md` — current stage, route, interaction mode, and resume target
+- `.pipeline/<run-id>/telemetry/events.jsonl` — stage boundaries, gate events, and backward-loop decisions
+- `.pipeline/<run-id>/research/`, `.pipeline/<run-id>/reviews/`, and similar stage folders — artifacts written by the active stage before it failed or stalled
+
+### Recommended debugging flow
+
+1. Start from the top-level session JSONL and identify the subagent ID or failing stage.
+2. Open the matching `subagent-artifacts/*_input.md` and `*_output.md` files.
+3. If a child has an input artifact but no output artifact, inspect `<timestamp>_<uuid>/<child-id>/run-0/session.jsonl` for the exact tool result loop.
+4. Compare the runtime trace with `.pipeline/<run-id>/state.md` and `telemetry/events.jsonl` to see whether the stage stalled before or after persisting state.
+5. If `subagent` says `Unknown agent`, verify the scanned file has valid YAML frontmatter (`---` fences) and that you are checking the installed clone, not only the workspace copy.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
