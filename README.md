@@ -32,6 +32,38 @@ pi install git:github.com/n3m6/pi-deepwork@main
 
 Pi clones the repo into `~/.pi/agent/git/github.com/n3m6/pi-deepwork/` and auto-runs `npm install`, which triggers the bundled `postinstall` hook. The hook detects it is running inside a pi clone and symlinks `agents/qrspi-*.md` into `~/.pi/agent/agents/` (or `$PI_CODING_AGENT_DIR/agents/` if that env var is set). After install, restart pi or open a new pi session so `pi-subagents` rescans agents.
 
+### Required `pi-subagents` depth
+
+Current deepwork runs need nested research fanout at depth 3:
+
+```text
+top-level pi session -> qrspi-research -> qrspi-research-pass -> researcher
+```
+
+Before starting pi, set the `pi-subagents` recursion cap to at least `3`.
+
+The simplest one-shot option is an environment variable:
+
+```bash
+export PI_SUBAGENT_MAX_DEPTH=3
+```
+
+Or configure it once in the `pi-subagents` extension config. If you use the default global agent dir, create or edit:
+
+```text
+~/.pi/agent/extensions/subagent/config.json
+```
+
+with:
+
+```json
+{ "maxSubagentDepth": 3 }
+```
+
+If you run pi with a custom `PI_CODING_AGENT_DIR`, use `<PI_CODING_AGENT_DIR>/extensions/subagent/config.json` instead. `PI_SUBAGENT_MAX_DEPTH` takes precedence over the config file. Do not set `PI_SUBAGENT_DEPTH` manually; `pi-subagents` manages it internally.
+
+After changing either setting, restart pi or open a new pi session before running `/deepwork`.
+
 For project-scope installs:
 
 ```bash
@@ -66,11 +98,21 @@ Inside pi, verify that the `subagent` tool can list the 55 `qrspi-*` agents befo
 
 ## Use
 
-Start a new pipeline run by invoking `/deepwork` with a task description:
+Run deepwork from the workspace you want it to modify:
+
+```bash
+cd /path/to/target/workspace
+export PI_SUBAGENT_MAX_DEPTH=3   # or configure maxSubagentDepth once as shown above
+pi
+```
+
+Inside pi, start a new pipeline run by invoking `/deepwork` with a task description:
 
 ```text
 /deepwork create a typescript project with an express server with an endpoint "/health"
 ```
+
+If you configured `maxSubagentDepth` in `config.json` instead of exporting `PI_SUBAGENT_MAX_DEPTH`, you can omit the export line and just launch `pi`.
 
 The skill will:
 

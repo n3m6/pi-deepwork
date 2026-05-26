@@ -1,6 +1,6 @@
 ---
 name: qrspi-research-pass
-description: "Nested research batch runner — researches one question batch, writes per-question findings and a batch summary, and runs a bounded batch-local review loop before returning PASS-compatible terminal state. Goal-blind with respect to goals and requirements."
+description: "Nested research batch runner — researches one question batch, writes per-question findings and a batch summary, and runs a bounded batch-local review loop before returning PASS-compatible terminal state. Goal-blind with respect to goals and requirements. If a runtime blocks deeper nesting, this agent must fail fast rather than retry-loop."
 tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
@@ -24,6 +24,7 @@ Insert the following verbatim into every child prompt you compose:
 3. **Direct dispatch.** Invoke child agents with `subagent`. Never describe a handoff in plain text.
 4. **Launch full researcher batches before joining.** When dispatching multiple researchers in one step, use one `subagent({ context: "fresh", tasks: [...] })` call and use the returned batch results before proceeding.
 5. **Batch-local cap states.** Cap the batch review loop at 2 rounds. If round 2 FAILs with `### Fix Guidance` whitespace-normalized identical to the prior round's, treat that batch as `stable-cap` and stop. Otherwise, if round 2 FAILs, terminate with `terminal_review_state = "unclean-cap"` and return `### Status — PASS`.
+6. **Fail fast on blocked nesting.** If any child result contains `Nested subagent call blocked`, return FAIL immediately. Do not retry the same dispatch.
 
 ### Input
 

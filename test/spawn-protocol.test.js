@@ -109,3 +109,60 @@ for (const agentFile of DISPATCHERS) {
     );
   });
 }
+
+test('qrspi-research.md — inlines Stage 2 question batching', () => {
+  const body = readBody('qrspi-research.md');
+
+  assert.ok(
+    !body.includes('agent: "qrspi-questions"'),
+    'qrspi-research.md must not dispatch qrspi-questions from the active runtime path',
+  );
+  assert.ok(
+    body.includes('agent: "qrspi-question-generator"'),
+    'qrspi-research.md must dispatch qrspi-question-generator directly',
+  );
+  assert.ok(
+    body.includes('agent: "qrspi-question-leakage-reviewer"'),
+    'qrspi-research.md must dispatch qrspi-question-leakage-reviewer directly',
+  );
+  assert.ok(
+    body.includes('agent: "qrspi-question-quality-reviewer"'),
+    'qrspi-research.md must dispatch qrspi-question-quality-reviewer directly',
+  );
+  assert.ok(
+    body.includes('Nested subagent call blocked'),
+    'qrspi-research.md must fail fast on blocked nested dispatch results',
+  );
+});
+
+test('Stage 2 question leaf agents — no nested subagent dispatch', () => {
+  const leafAgents = [
+    'qrspi-question-generator.md',
+    'qrspi-question-leakage-reviewer.md',
+    'qrspi-question-quality-reviewer.md',
+  ];
+
+  for (const agentFile of leafAgents) {
+    const body = readBody(agentFile);
+    assert.ok(
+      !body.includes('subagent({'),
+      `${agentFile} must remain a leaf agent for Stage 2 depth safety`,
+    );
+  }
+});
+
+test('Nested Stage 2 helpers — fail fast on blocked nesting', () => {
+  const nestedHelpers = ['qrspi-questions.md', 'qrspi-research-pass.md'];
+
+  for (const agentFile of nestedHelpers) {
+    const body = readBody(agentFile);
+    assert.ok(
+      body.includes('Nested subagent call blocked'),
+      `${agentFile} must explicitly detect blocked nested dispatch results`,
+    );
+    assert.ok(
+      body.includes('return FAIL immediately'),
+      `${agentFile} must fail fast instead of retrying blocked nested dispatches`,
+    );
+  }
+});

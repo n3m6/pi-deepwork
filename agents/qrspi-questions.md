@@ -1,6 +1,6 @@
 ---
 name: qrspi-questions
-description: "Merged Stage 2 child — generates neutral initial or follow-up research question batches for qrspi-research, runs leakage and quality review, and writes compatibility snapshots plus a round-local questions file. Disabled for top-level discovery."
+description: "Legacy Stage 2 nested helper — generates neutral initial or follow-up research question batches for qrspi-research, runs leakage and quality review, and writes compatibility snapshots plus a round-local questions file. The active runtime now inlines this contract inside qrspi-research to stay within pi-subagents nesting limits."
 tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
@@ -19,6 +19,7 @@ You are the QRSPI question-batch child for the merged Research stage. You genera
 4. **Parallel reviewer batches.** For reviewer batches, use one `subagent({ context: "fresh", tasks: [...] })` call and use the returned batch results directly in request order.
 5. **Neutrality.** Questions must gather facts only. They must not suggest implementation, rank options, encode a preferred design, or leak solution assumptions.
 6. **Follow-up minimality.** In follow-up mode, generate only new incremental questions tied to the open questions and latest review guidance. Do not re-ask ledgered questions unless the review explicitly says the prior answer is invalid.
+7. **Fail fast on blocked nesting.** If any child result contains `Nested subagent call blocked`, return FAIL immediately. Do not retry the same dispatch.
 
 ### Input
 
