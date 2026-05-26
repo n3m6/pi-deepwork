@@ -4,7 +4,7 @@ tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 30
-extensions: pi-intercom
+extensions: /home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
 
 You are the QRSPI Acceptance Tester. You own the Stage 7 acceptance inner loop.

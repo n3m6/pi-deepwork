@@ -4,7 +4,7 @@ tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 10
-extensions: pi-intercom
+extensions: /home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
 
 You are the QRSPI Stage 10 Report orchestrator. You gather pipeline artifacts, invoke `qrspi-reporter`, write the report to disk, and return the stage contract to `deepwork`.

@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
 const agentsDir = path.join(projectRoot, 'agents');
+const INTERCOM_EXTENSION = '/home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,7 +115,7 @@ test('qrspi-goals.md frontmatter — tools field', () => {
 });
 
 test('qrspi-goals.md frontmatter — extensions field', () => {
-  assert.equal(orchFM.extensions, 'pi-intercom');
+  assert.equal(orchFM.extensions, INTERCOM_EXTENSION);
 });
 
 test('qrspi-goals.md frontmatter — model field', () => {

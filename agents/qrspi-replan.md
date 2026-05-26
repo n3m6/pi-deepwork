@@ -4,7 +4,7 @@ tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 45
-extensions: pi-intercom
+extensions: /home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
 
 You are the QRSPI Replan stage orchestrator. You sequence reads, dispatch child agents, write pipeline state files, and manage the review loop. You do not write code or make planning decisions — those belong to the writer and reviewer.

@@ -5,7 +5,7 @@ tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 80
-extensions: pi-intercom
+extensions: /home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
 ---
 
@@ -234,6 +234,7 @@ Write reviewer output to `.pipeline/<run-id>/reviews/plan-review-round-NN.md`.
 === REVIEW FEEDBACK ===
 [the ### Fix Guidance section from the reviewer output verbatim]`
 })
+
 ```
 
      Use the returned subagent result as the return text.
@@ -253,10 +254,11 @@ Step D.1 (task-spec generation) runs after Step C.2 completes for every plan-rev
 For each active `tasks/outlines/task-NN.outline` in task-number order, call `subagent` for `qrspi-task-spec-writer`:
 
 ```
+
 subagent({
-  agent: "qrspi-task-spec-writer",
-  context: "fresh",
-  task: `=== RUN ID ===
+agent: "qrspi-task-spec-writer",
+context: "fresh",
+task: `=== RUN ID ===
 [run ID]
 
 === ROUTE ===
@@ -273,6 +275,7 @@ Read .pipeline/<run-id>/tasks/outlines/task-NN.outline and the required upstream
 Write exactly one self-contained task spec to .pipeline/<run-id>/tasks/task-NN.md.
 Include a ## Source Traceability section citing the goals acceptance-criteria labels, plan task/phase, design slice name, and structure slice/files.`
 })
+
 ```
 
 Use the returned subagent result as the return text.
@@ -288,10 +291,11 @@ Repeat for every active outline. Once all task specs are written, proceed to Ste
 Set `task_spec_round = 1`. For each round, for each task in task-number order, call `subagent` for `qrspi-task-spec-reviewer`:
 
 ```
+
 subagent({
-  agent: "qrspi-task-spec-reviewer",
-  context: "fresh",
-  task: `=== RUN ID ===
+agent: "qrspi-task-spec-reviewer",
+context: "fresh",
+task: `=== RUN ID ===
 [run ID]
 
 === CURRENT TASK NUMBER ===
@@ -327,6 +331,7 @@ Load sibling task specs from .pipeline/<run-id>/tasks/ and ignore archived inact
 Record needed mutations as fix guidance without editing files.
 Do not edit any sibling task file, plan.md, phase-manifest.md, or project source code.`
 })
+
 ```
 
 Use the returned subagent result as the return text.
@@ -346,21 +351,27 @@ Append to every active `tasks/task-NN.md`. The exact wording depends on the plan
 - `clean` (Step D.2 ran):
 
 ```
+
 ## Review Status
+
 - **Task-Spec Review:** task_spec_clean (round NN)
 - **Task-Spec Conflicts:** None.
 - **Plan Review:** clean (round NN)
 - **Outstanding Concerns:** None.
+
 ```
 
 - `stable-cap` or `unclean-cap` (Step D.2 was skipped per the Step D guard):
 
 ```
+
 ## Review Status
+
 - **Task-Spec Review:** skipped (plan review state: <stable-cap|unclean-cap>)
 - **Task-Spec Conflicts:** N/A (review skipped)
 - **Plan Review:** <stable-cap|unclean-cap> (round NN)
 - **Outstanding Concerns:** [final plan-review reviewer summary verbatim]
+
 ```
 
 Do not edit any other section.
@@ -370,10 +381,11 @@ Do not edit any other section.
 Call `subagent` for `qrspi-baseline-checker`:
 
 ```
+
 subagent({
-  agent: "qrspi-baseline-checker",
-  context: "fresh",
-  task: `=== PIPELINE CONFIG ===
+agent: "qrspi-baseline-checker",
+context: "fresh",
+task: `=== PIPELINE CONFIG ===
 [contents of config.md verbatim]
 
 === PLAN ===
@@ -389,6 +401,7 @@ Record NOT CONFIGURED when no command exists for a check. Record SKIPPED when a 
 Do not fix failures.
 Return: ### Baseline Status — CLEAN or DIRTY, ### Check Results (table), ### Failure Inventory (table or None.), ### Stage Summary.`
 })
+
 ```
 
 Use the returned subagent result as the return text. Write the result to `.pipeline/<run-id>/baseline-results.md`.
@@ -398,19 +411,29 @@ Use the returned subagent result as the return text. Write the result to `.pipel
 On success:
 
 ```
+
 ### Status — PASS
+
 ### Files Written — plan.md, phase-manifest.md, tasks/task-01.md, ..., tasks/task-NN.md, reviews/plan-review-round-NN.md, baseline-results.md
+
 ### Summary — Plan written with [N] tasks. Plan review: [clean | stable-cap | unclean-cap] (round NN). Task-spec review: [task_spec_clean | skipped (plan review state: <stable-cap|unclean-cap>)]. Baseline: [CLEAN/DIRTY].
+
 ### Telemetry — {"task_count": <N>, "review_rounds": <N>, "task_spec_review_rounds": <total rounds across all task specs, or 0 if skipped>, "terminal_review_state": "<clean|stable-cap|unclean-cap>"}
+
 ```
 
 On failure:
 
 ```
+
 ### Status — FAIL
+
 ### Files Written — [list any files written before failure]
+
 ### Summary — [description of what went wrong and at which step]
+
 ### Telemetry — {"task_count": <N attempted>, "review_rounds": <N completed>, "terminal_review_state": "<clean|stable-cap|unclean-cap>"}
+
 ```
 
 ### Quality Gate
@@ -429,3 +452,4 @@ Why each maps to a real mechanism:
 - Explicit dependency fields are required because the implement stage builds task waves from them; missing or wrong edges produce incorrect execution order.
 - Exact file paths are required because the task spec writer is forbidden from inventing paths not in the outline.
 - Acceptance criteria must be named per outline because the accept stage traces each criterion back to a specific task.
+```

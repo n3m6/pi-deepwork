@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
 const agentsDir = path.join(projectRoot, 'agents');
+const INTERCOM_EXTENSION = '/home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -307,7 +308,11 @@ test('All 6 agents — thinking field is high', () => {
 });
 
 test('All 6 agents — extensions field matches the nicobailon allowlist', () => {
-  assert.equal(planFM.extensions, 'pi-intercom', 'qrspi-plan extensions must allow pi-intercom');
+  assert.equal(
+    planFM.extensions,
+    INTERCOM_EXTENSION,
+    'qrspi-plan extensions must allow the pi-intercom entry path',
+  );
   assert.equal(
     planWriterFM.extensions,
     '',
