@@ -5,7 +5,7 @@ const path = require('node:path');
 
 const projectRoot = path.resolve(__dirname, '..');
 const agentsDir = path.join(projectRoot, 'agents');
-const INTERCOM_EXTENSION = '/home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts';
+const INTERCOM_EXTENSION = '~/.pi/agent/npm/node_modules/pi-intercom/index.ts';
 
 // ---------------------------------------------------------------------------
 // Helpers

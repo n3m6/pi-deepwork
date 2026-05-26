@@ -5,7 +5,7 @@ tools: subagent, read, bash, grep, find, ls, write, edit
 model: deepseek-v4-pro
 thinking: high
 max_turns: 70
-extensions: /home/n3m6/.pi/agent/npm/node_modules/pi-intercom/index.ts
+extensions: ~/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
 ---
 
