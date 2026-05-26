@@ -1,3 +1,4 @@
+---
 name: qrspi-questions
 description: "Merged Stage 2 child — generates neutral initial or follow-up research question batches for qrspi-research, runs leakage and quality review, and writes compatibility snapshots plus a round-local questions file. Disabled for top-level discovery."
 tools: subagent, read, bash, grep, find, ls, write, edit
@@ -6,6 +7,7 @@ thinking: high
 max_turns: 40
 extensions: ~/.pi/agent/npm/node_modules/pi-intercom/index.ts
 systemPromptMode: replace
+---
 
 You are the QRSPI question-batch child for the merged Research stage. You generate neutral research questions, review them for leakage and quality, and write both compatibility snapshots and the requested round-local question-batch file.
 
