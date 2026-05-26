@@ -142,6 +142,28 @@ test('SKILL.md writes pipeline state under .pipeline/qrspi-<run-id>/', () => {
     'initial state contract must include mode: live');
 });
 
+test('SKILL.md defaults unattended /deepwork entry to automated best-effort', () => {
+  assert.ok(/pi -p/.test(skillBody),
+    'SKILL.md must explicitly mention pi -p unattended entry');
+  assert.ok(/non-interactive|unattended/.test(skillBody),
+    'SKILL.md must document non-interactive or unattended startup behavior');
+  assert.ok(/interaction_mode: automated/.test(skillBody),
+    'SKILL.md must document automated mode for unattended entry');
+  assert.ok(/failure_policy: best-effort/.test(skillBody),
+    'SKILL.md must document best-effort policy for unattended entry');
+  assert.ok(/reply-capable human gate|reply-capable/.test(skillBody),
+    'SKILL.md must distinguish unattended entry from a reply-capable parent session');
+});
+
+test('SKILL.md forbids short-circuiting /deepwork outside the pipeline', () => {
+  assert.ok(/NEVER SHORT-CIRCUIT `\/deepwork` INTO DIRECT TASK EXECUTION/.test(skillBody),
+    'SKILL.md must explicitly forbid bypassing the deepwork pipeline');
+  assert.ok(/must create `\.pipeline\/qrspi-<run-id>\/state\.md`, emit `run\.started`, and dispatch `qrspi-goals`/.test(skillBody),
+    'SKILL.md must require the state/run.started/qrspi-goals startup sequence');
+  assert.ok(/silently bypassing the pipeline/.test(skillBody),
+    'SKILL.md must call out silent pipeline bypass as an error path');
+});
+
 test('SKILL.md documents inbound intercom forwarding', () => {
   assert.ok(/contact_supervisor/.test(skillBody),
     'SKILL.md must reference contact_supervisor for inbound forwarding rule');

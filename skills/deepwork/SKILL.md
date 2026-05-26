@@ -30,6 +30,8 @@ You are a **thin dispatcher**. Each stage subagent handles its own internal logi
 11. **RESUME FROM DISK, NOT MEMORY.** On resume, prefer `.pipeline/qrspi-<run-id>/state.md`. If it is missing or inconsistent, infer progress from pipeline artifacts on disk before dispatching the next stage.
 12. **EMIT TELEMETRY AT EVERY STAGE BOUNDARY.** Follow the **Telemetry** section to record `run.*`, `stage.*`, `gate.*`, `backward_loop.*`, and `checkpoint.*` events into `telemetry/events.jsonl` and regenerate `telemetry/run-log.md` at each stage boundary. Telemetry files are diagnostic only and must never affect resume or recovery logic.
 13. **Stage subagents are trusted to honor their allowed file surfaces** — test files only for Stage 7, pipeline artifacts only for Stages 8/9/10. The orchestrator does not perform diff-based cross-checks against allowed-file lists.
+14. **DEFAULT UNATTENDED RUNS TO AUTOMATION BEFORE STAGE 1.** If `/deepwork` is running in a non-interactive parent session (for example `pi -p`, an unattended smoke test, or any invocation with no reply-capable human gate), initialize the run as `interaction_mode: automated` and `failure_policy: best-effort` unless the user explicitly requested another combination. Persist those values into `state.md`, preserve them on resume, and pass them through every stage dispatch so child agents never attempt `contact_supervisor` or other human-gate behavior in an unattended parent.
+15. **NEVER SHORT-CIRCUIT `/deepwork` INTO DIRECT TASK EXECUTION.** A `/deepwork` invocation must stay in orchestrator mode even for trivial tasks and smoke tests. Do not satisfy the user's repo change directly from the top-level skill, do not edit project files outside the stage pipeline, and do not treat `/deepwork` as a plain natural-language task. A valid `/deepwork` run must create `.pipeline/qrspi-<run-id>/state.md`, emit `run.started`, and dispatch `qrspi-goals`. If that cannot happen, stop with a deepwork configuration/runtime error instead of silently bypassing the pipeline.
 
 ### Pipeline
 
@@ -307,7 +309,7 @@ If the user provides a run ID, asks to resume, or points at an existing `.pipeli
 
 1. **Read `state.md`:** Use `cat .pipeline/qrspi-<run-id>/state.md` to read the recovery state. If it exists and contains valid YAML frontmatter, recover `route`, `current_phase`, `last_completed_stage`, `next_stage`, `stages_completed`, `phase_history`, `backward_loops`, `resume_source`, `interaction_mode`, and `failure_policy` from it.
 2. **Validate the state:** If `next_stage` is `done`, the run is already complete. Present the preserved report path and stop.
-3. **Missing state.md:** If `state.md` is missing or invalid, infer progress from artifacts on disk. Scan `.pipeline/qrspi-<run-id>/` for stage artifacts (e.g. `goals.md` → Stage 1 done, `research/summary.md` → Stage 2 done, `design.md` → Stage 3 done, `structure.md` → Stage 4 done, `plan.md` → Stage 5 done, `phase-manifest.md` for phase count, per-phase `stage7-summary.md` for implementation progress, `stage8-summary.md` for acceptance progress). Reconstruct `next_stage` and `current_phase` from the found artifacts. Set `resume_source: artifacts`. If automation fields are missing, default to `interaction_mode: interactive` and `failure_policy: fail-closed`.
+3. **Missing state.md:** If `state.md` is missing or invalid, infer progress from artifacts on disk. Scan `.pipeline/qrspi-<run-id>/` for stage artifacts (e.g. `goals.md` → Stage 1 done, `research/summary.md` → Stage 2 done, `design.md` → Stage 3 done, `structure.md` → Stage 4 done, `plan.md` → Stage 5 done, `phase-manifest.md` for phase count, per-phase `stage7-summary.md` for implementation progress, `stage8-summary.md` for acceptance progress). Reconstruct `next_stage` and `current_phase` from the found artifacts. Set `resume_source: artifacts`. If automation fields are missing, default to `interaction_mode: automated` and `failure_policy: best-effort` for unattended/non-interactive resume entry, otherwise default to `interaction_mode: interactive` and `failure_policy: fail-closed`.
    - **Validate inferred completion:** Before treating a stage artifact file as complete, verify it contains `### Status — PASS`. If the artifact shows `### Status — FAIL` or the marker is absent, do not mark the stage complete — restart from the stage that produced the artifact rather than the next stage. This prevents incomplete mid-stage artifacts from being treated as finished work.
 4. **Initialize telemetry:** Count lines in `.pipeline/<run-id>/telemetry/events.jsonl` and set `telemetry_seq = line_count + 1`.
 5. **Emit `run.resumed`:** Emit a `run.resumed` event with `route`, `stage` (the recovered next stage), and `context.resume_source`. Treat the next dispatch into the recovered stage as a re-entry: increment that stage's `stage_instance` before its new `stage.started` event.
@@ -357,6 +359,7 @@ Rules:
 - `resume_source` — `resume` when recovered from `state.md`, `artifacts` when reconstructed from files on disk, and `fresh` on a brand-new run.
 - `interaction_mode` — `interactive` to ask humans at gates, or `automated` to apply the automation policy without human prompts.
 - `failure_policy` — `fail-closed` to stop on ambiguous automation decisions, or `best-effort` to continue when the prompt defines a safe automatic fallback.
+- For non-interactive or unattended entry (for example `pi -p`, unattended smoke tests, or any parent session that cannot answer `ask_user`), default fresh runs and automation-field recovery to `interaction_mode: automated` and `failure_policy: best-effort` unless the user explicitly requested another combination.
 - Phase directory names are always zero-padded two-digit identifiers: `phases/phase-01`, `phases/phase-02`, ..., `phases/phase-NN`.
 - `state.md` is a stage-boundary checkpoint only. If a run is interrupted mid-stage, restart `next_stage` from the beginning of that stage instead of attempting sub-step recovery.
 
@@ -553,17 +556,18 @@ ls ~/.pi/agent/agents/qrspi-*.md | wc -l
 After the user runs the recipe, ask them to restart pi (or open a new pi session) and re-run `/deepwork`. The qrspi agents must appear in `subagent({ action: "list" })` before Stage 1 can dispatch. Do not retry dispatch from inside this skill until that has happened.
 
 1. If the user explicitly wants to resume an existing run, follow **Resume Mode** instead of creating a new run.
-2. The user provides a task description (natural language or markdown). If no task is provided, ask for one using `ask_user` with `question: "What should Deepwork work on?"`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
-3. Validate the task description is actionable. If too vague, ask one focused clarifying question using `ask_user` with `question`, optional `context`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
-4. **Generate a run ID** by running: `date +%Y%m%d-%H%M%S`
+2. **Determine startup automation defaults before any `ask_user` path exists.** If the invocation is unattended or non-interactive (for example `pi -p`, a CI smoke test, or any `/deepwork` run where the parent session cannot answer inline gates), set `interaction_mode: automated` and `failure_policy: best-effort` before writing `state.md`. If the user explicitly provided `interaction_mode` and/or `failure_policy`, those explicit values win. Only default to `interaction_mode: interactive` and `failure_policy: fail-closed` when the parent session is actually reply-capable.
+3. The user provides a task description (natural language or markdown). If no task is provided, ask for one using `ask_user` with `question: "What should Deepwork work on?"`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
+4. Validate the task description is actionable. If too vague, ask one focused clarifying question using `ask_user` with `question`, optional `context`, `allowFreeform: true`, `allowMultiple: false`, and `displayMode: "inline"`.
+5. **Generate a run ID** by running: `date +%Y%m%d-%H%M%S`
    Prepend `qrspi-` to form the run ID: `qrspi-<timestamp>`.
-5. **Create the pipeline directory and phase parent** by running: `mkdir -p .pipeline/qrspi-<run-id>/phases`
-6. **Create the telemetry directory** by running: `mkdir -p .pipeline/qrspi-<run-id>/telemetry`
+6. **Create the pipeline directory and phase parent** by running: `mkdir -p .pipeline/qrspi-<run-id>/phases`
+7. **Create the telemetry directory** by running: `mkdir -p .pipeline/qrspi-<run-id>/telemetry`
    Initialize `telemetry_seq = 1`. Create an empty `events.jsonl` by writing an empty file.
-7. **Create the pipeline branch** by running: `git checkout -b qrspi/<run-id> main`
+8. **Create the pipeline branch** by running: `git checkout -b qrspi/<run-id> main`
    The run ID already starts with `qrspi-`, so the resulting branch name is `qrspi/qrspi-YYYYMMDD-HHMMSS` (for example, `qrspi/qrspi-20260525-151612`). Do not strip the `qrspi-` prefix when forming the branch name.
    If `git` is not available, skip this step with a warning and continue using only `.pipeline/` file state.
-8. Write initial `.pipeline/qrspi-<run-id>/state.md` as YAML frontmatter with no body:
+9. Write initial `.pipeline/qrspi-<run-id>/state.md` as YAML frontmatter with no body:
 
 ```yaml
 ---
@@ -578,16 +582,26 @@ stages_completed: []
 phase_history: []
 backward_loops: 0
 resume_source: fresh
-interaction_mode: [interactive unless the runtime provided automated]
-failure_policy: [fail-closed unless the runtime provided best-effort]
+interaction_mode:
+  [
+    automated for non-interactive/unattended entry,
+    otherwise interactive,
+    unless the user explicitly provided another value,
+  ]
+failure_policy:
+  [
+    best-effort for non-interactive/unattended entry,
+    otherwise fail-closed,
+    unless the user explicitly provided another value,
+  ]
 ---
 ```
 
-9. **Emit `run.started`** event to `telemetry/events.jsonl` with `route: "unknown"` and `timing.started_at` set to the current UTC timestamp.
+10. **Emit `run.started`** event to `telemetry/events.jsonl` with `route: "unknown"` and `timing.started_at` set to the current UTC timestamp.
 
-10. Display visual progress status using pi's plan mode syntax or a user-visible status summary showing the upcoming pipeline stages.
+11. Display visual progress status using pi's plan mode syntax or a user-visible status summary showing the upcoming pipeline stages.
 
-11. Proceed immediately to **Stage 1**.
+12. Proceed immediately to **Stage 1**.
 
 ### Stage 1 — Goals
 
