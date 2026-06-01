@@ -1,33 +1,18 @@
 #!/usr/bin/env bash
-# pi-deepwork uninstaller
-#
-# Removes every qrspi-*.md symlink from ~/.pi/agent/agents/ and the cloned
-# repo under ~/.pi/agent/git/github.com/n3m6/pi-deepwork. Safe to re-run.
+# pi-deepwork uninstaller wrapper
 
 set -euo pipefail
 
-PI_HOME="${PI_HOME:-$HOME/.pi}"
-GIT_DIR="$PI_HOME/agent/git/github.com/n3m6/pi-deepwork"
-AGENTS_DIR="$PI_HOME/agent/agents"
+REPO_REF="${PI_DEEPWORK_REF:-git:github.com/n3m6/pi-deepwork}"
 
-echo "==> Uninstalling pi-deepwork"
-
-# 1. Remove qrspi-* symlinks from the flat agents dir
-shopt -s nullglob
-removed=0
-for link in "$AGENTS_DIR"/qrspi-*.md; do
-  rm -f "$link"
-  removed=$((removed + 1))
-done
-shopt -u nullglob
-echo "==> Removed $removed qrspi-* agent links from $AGENTS_DIR"
-
-# 2. Remove the cloned repo
-if [[ -d "$GIT_DIR" ]]; then
-  rm -rf "$GIT_DIR"
-  echo "==> Removed clone at $GIT_DIR"
-else
-  echo "==> No clone found at $GIT_DIR (already removed)"
+if ! command -v pi >/dev/null 2>&1; then
+  echo "ERROR: pi is required to remove pi-deepwork cleanly." >&2
+  echo "Run this once pi is available:" >&2
+  echo "  pi remove $REPO_REF" >&2
+  exit 1
 fi
+
+echo "==> Removing pi-deepwork via pi"
+pi remove "$REPO_REF"
 
 echo "==> Done."

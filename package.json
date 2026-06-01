@@ -1,15 +1,66 @@
 {
   "name": "@n3m6/pi-deepwork",
-  "version": "0.5.0",
-  "private": true,
-  "description": "QRSPI deepwork prompt pack for pi (markdown-only, zero runtime deps)",
+  "version": "0.7.0",
+  "description": "Deterministic QRSPI deepwork extension for pi.",
+  "type": "module",
   "license": "MIT",
+  "main": "src/index.ts",
+  "files": [
+    "src",
+    "agents",
+    "docs",
+    "README.md",
+    "AGENTS.md",
+    "install.sh",
+    "uninstall.sh",
+    "LICENSE"
+  ],
+  "keywords": [
+    "pi-package",
+    "pi",
+    "pi-extension",
+    "deepwork",
+    "qrspi"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/n3m6/pi-deepwork.git"
   },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
   "scripts": {
-    "postinstall": "node scripts/postinstall.mjs",
-    "test": "node --test test/agents-stage1.test.js test/agents-stage2.test.js test/agents-stage6.test.js test/skill.test.js test/postinstall.test.js test/spawn-protocol.test.js"
+    "test": "node --import tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "0.78.0",
+    "@earendil-works/pi-coding-agent": "0.78.0",
+    "@types/node": "25.9.1",
+    "tsx": "4.22.4",
+    "typebox": "1.1.39",
+    "typescript": "6.0.3"
   }
 }
