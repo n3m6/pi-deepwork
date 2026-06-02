@@ -1,7 +1,7 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { CheckpointManager } from "../checkpoint.js";
+import { CheckpointManager, commitIdentityArgs } from "../checkpoint.js";
 import { parseMarkdownSections } from "../markdown.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { WorktreeManager, type TaskWorktree } from "../worktrees.js";
@@ -304,7 +304,7 @@ async function commitWorktreeChanges(
     timeout: 60_000,
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
   });
-  await runtime.services.pi.exec("git", ["commit", "-m", `qrspi: phase ${phase} task ${taskId} ${title}`], {
+  await runtime.services.pi.exec("git", [...commitIdentityArgs(), "commit", "-m", `qrspi: phase ${phase} task ${taskId} ${title}`], {
     cwd: worktreeRoot,
     timeout: 60_000,
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),

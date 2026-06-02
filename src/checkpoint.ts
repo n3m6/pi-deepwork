@@ -18,6 +18,15 @@ export class CheckpointManager {
 
   async createRunBranch(runId: string, signal?: AbortSignal): Promise<GitOperationResult> {
     const branch = `qrspi/${runId}`;
+    const existingHead = await this.execGit(["rev-parse", "--verify", "HEAD"], signal);
+    if (!existingHead.ok) {
+      const orphan = await this.execGit(["checkout", "--orphan", branch], signal);
+      if (!orphan.ok) {
+        return orphan;
+      }
+      return this.execGit([...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${runId}`], signal);
+    }
+
     const base = await this.execGit(["rev-parse", "--verify", "main"], signal);
     const targetBase = base.ok ? "main" : "HEAD";
     return this.execGit(["checkout", "-b", branch, targetBase], signal);
@@ -37,7 +46,7 @@ export class CheckpointManager {
       return add;
     }
 
-    return this.execGit(["commit", "-m", `qrspi: stage ${stage} ${action}`], signal);
+    return this.execGit([...commitIdentityArgs(), "commit", "-m", `qrspi: stage ${stage} ${action}`], signal);
   }
 
   async currentBranch(signal?: AbortSignal): Promise<string | undefined> {
@@ -79,6 +88,10 @@ export class CheckpointManager {
       };
     }
   }
+}
+
+export function commitIdentityArgs(): string[] {
+  return ["-c", "user.name=qrspi", "-c", "user.email=qrspi@example.invalid"];
 }
 
 export function phaseBranchName(runId: string, phase: number, taskId: string): string {

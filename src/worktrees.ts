@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { phaseBranchName, worktreeRootPath } from "./checkpoint.js";
+import { commitIdentityArgs, phaseBranchName, worktreeRootPath } from "./checkpoint.js";
 
 export interface TaskWorktree {
   branch: string;
@@ -25,6 +25,7 @@ export class WorktreeManager {
     const worktreeRoot = worktreeRootPath(this.runId, this.repoRoot, phase, taskId);
     await mkdir(path.dirname(worktreeRoot), { recursive: true });
     await this.cleanup({ branch, worktreeRoot, taskId, phase }, signal);
+    await this.ensureRunBranch(signal);
     await this.exec(["worktree", "add", "-b", branch, worktreeRoot, `qrspi/${this.runId}`], signal);
     return { branch, worktreeRoot, taskId, phase };
   }
@@ -53,7 +54,7 @@ export class WorktreeManager {
       return { ok: true };
     }
 
-    await this.exec(["commit", "-m", commitMessage], signal);
+    await this.exec([...commitIdentityArgs(), "commit", "-m", commitMessage], signal);
     await this.cleanup(worktree, signal);
     return { ok: true };
   }
@@ -97,5 +98,23 @@ export class WorktreeManager {
       throw new Error(result.stderr.trim() || result.stdout.trim() || `git ${args.join(" ")} failed`);
     }
     return result;
+  }
+
+  private async ensureRunBranch(signal?: AbortSignal): Promise<void> {
+    const runBranch = `qrspi/${this.runId}`;
+    const existing = await this.exec(["rev-parse", "--verify", runBranch], signal, true);
+    if (existing.code === 0) {
+      return;
+    }
+    const head = await this.exec(["rev-parse", "--verify", "HEAD"], signal, true);
+    if (head.code !== 0) {
+      const orphan = await this.exec(["checkout", "--orphan", runBranch], signal, true);
+      if (orphan.code !== 0) {
+        throw new Error(orphan.stderr.trim() || orphan.stdout.trim() || `git checkout --orphan ${runBranch} failed`);
+      }
+      await this.exec([...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${this.runId}`], signal);
+      return;
+    }
+    await this.exec(["branch", runBranch, "HEAD"], signal);
   }
 }

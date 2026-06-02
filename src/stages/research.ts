@@ -10,10 +10,9 @@ export const researchStage: StageModule = {
       return {
         status: "FAIL",
         filesWritten: questions.filesWritten,
-        summary: questions.summary ?? "Question generation/review did not converge.",
+        summary: questions.summary ?? "Question generation/review did not converge; research cannot continue without approved questions.",
         telemetry: {
           review_rounds: questions.reviewRounds,
-          ...(questions.dispatchFailure ? {} : { terminal_review_state: "unclean-cap" as const }),
         },
       };
     }

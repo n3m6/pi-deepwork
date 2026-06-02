@@ -7,6 +7,7 @@ interface ResearchQuestion {
   id: string;
   title: string;
   tag: "codebase" | "web" | "hybrid";
+  block: string;
 }
 
 export interface ResearchPassResult {
@@ -22,47 +23,17 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
   const questions = parseQuestions(questionsMarkdown);
 
   for (const question of questions) {
-    const findings: string[] = [];
-    if (question.tag === "codebase" || question.tag === "hybrid") {
-      const codebase = await dispatchLeaf(
-        runtime,
-        "qrspi-codebase-researcher",
-        [`=== QUESTION ===`, `${question.id}: ${question.title}`].join("\n"),
-      );
-      const codebaseFailure = dispatchFailureSummary(codebase, `Codebase research failed for ${question.id}`);
-      if (codebaseFailure) {
-        return {
-          status: "FAIL",
-          filesWritten,
-          reviewRounds: 0,
-          summary: codebaseFailure,
-          dispatchFailure: true,
-        };
-      }
-      findings.push(codebase.text);
+    const result = await writeQuestionResearch(runtime, question);
+    if (!result.ok) {
+      return {
+        status: "FAIL",
+        filesWritten,
+        reviewRounds: 0,
+        summary: result.summary,
+        dispatchFailure: true,
+      };
     }
-    if (question.tag === "web" || question.tag === "hybrid") {
-      const web = await dispatchLeaf(
-        runtime,
-        "qrspi-web-researcher",
-        [`=== QUESTION ===`, `${question.id}: ${question.title}`].join("\n"),
-      );
-      const webFailure = dispatchFailureSummary(web, `Web research failed for ${question.id}`);
-      if (webFailure) {
-        return {
-          status: "FAIL",
-          filesWritten,
-          reviewRounds: 0,
-          summary: webFailure,
-          dispatchFailure: true,
-        };
-      }
-      findings.push(web.text);
-    }
-
-    const questionFile = path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`);
-    await writeArtifact(questionFile, findings.join("\n\n"));
-    filesWritten.push(path.relative(runtime.artifacts.runDir, questionFile));
+    filesWritten.push(result.fileWritten);
   }
 
   const researchArtifactList = questions
@@ -89,16 +60,20 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       reviewRounds: 0,
     };
   }
-
-  const questionArtifacts = await Promise.all(
-    questions.map(async (question) => {
-      const questionFile = path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`);
-      return readArtifact(questionFile);
-    }),
-  );
+  const summaryArtifactFailure = await ensureResearchSummaryArtifact(runtime, summary.text, "Research synthesis failed");
+  if (summaryArtifactFailure) {
+    return {
+      status: "FAIL",
+      filesWritten,
+      reviewRounds: 0,
+      summary: summaryArtifactFailure,
+      dispatchFailure: true,
+    };
+  }
 
   let reviewRounds = 1;
   while (reviewRounds <= 3) {
+    const questionArtifacts = await readQuestionArtifacts(runtime, questions);
     const review = await dispatchLeaf(
       runtime,
       "qrspi-research-reviewer",
@@ -155,6 +130,21 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       };
     }
 
+    const questionsToRevise = questionsReferencedByReview(review.text, questions);
+    for (const question of questionsToRevise) {
+      const result = await writeQuestionResearch(runtime, question, review.text);
+      if (!result.ok) {
+        return {
+          status: "FAIL",
+          filesWritten,
+          reviewRounds,
+          summary: result.summary,
+          dispatchFailure: true,
+        };
+      }
+      filesWritten.push(result.fileWritten);
+    }
+
     const revisedSummary = await dispatchLeaf(
       runtime,
       "qrspi-research-synthesizer",
@@ -166,6 +156,9 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
         "",
         "Revise `research/summary.md` to address every FAIL finding. Preserve only facts supported by the per-question artifacts.",
       ].join("\n"),
+      {
+        tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+      },
     );
     const revisionFailure = dispatchFailureSummary(revisedSummary, "Research synthesis revision failed");
     if (revisionFailure) {
@@ -182,6 +175,20 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
         status: "FAIL",
         filesWritten,
         reviewRounds,
+      };
+    }
+    const revisedSummaryArtifactFailure = await ensureResearchSummaryArtifact(
+      runtime,
+      revisedSummary.text,
+      "Research synthesis revision failed",
+    );
+    if (revisedSummaryArtifactFailure) {
+      return {
+        status: "FAIL",
+        filesWritten,
+        reviewRounds,
+        summary: revisedSummaryArtifactFailure,
+        dispatchFailure: true,
       };
     }
 
@@ -207,6 +214,133 @@ function parseQuestions(markdown: string): ResearchQuestion[] {
       id,
       title,
       tag: tag ?? "codebase",
+      block,
     };
   });
+}
+
+async function writeQuestionResearch(
+  runtime: StageRuntime,
+  question: ResearchQuestion,
+  reviewFeedback?: string,
+): Promise<{ ok: true; fileWritten: string } | { ok: false; summary: string }> {
+  const findings: string[] = [];
+  if (question.tag === "codebase" || question.tag === "hybrid") {
+    const codebase = await dispatchLeaf(
+      runtime,
+      "qrspi-codebase-researcher",
+      buildResearcherPrompt(question, reviewFeedback),
+    );
+    const codebaseFailure = dispatchFailureSummary(
+      codebase,
+      `${reviewFeedback ? "Codebase research revision" : "Codebase research"} failed for ${question.id}`,
+    );
+    if (codebaseFailure) {
+      return { ok: false, summary: codebaseFailure };
+    }
+    findings.push(codebase.text);
+  }
+  if (question.tag === "web" || question.tag === "hybrid") {
+    const web = await dispatchLeaf(
+      runtime,
+      "qrspi-web-researcher",
+      buildResearcherPrompt(question, reviewFeedback),
+    );
+    const webFailure = dispatchFailureSummary(
+      web,
+      `${reviewFeedback ? "Web research revision" : "Web research"} failed for ${question.id}`,
+    );
+    if (webFailure) {
+      return { ok: false, summary: webFailure };
+    }
+    findings.push(web.text);
+  }
+
+  const questionFile = path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`);
+  await writeArtifact(questionFile, findings.join("\n\n"));
+  return { ok: true, fileWritten: path.relative(runtime.artifacts.runDir, questionFile) };
+}
+
+function buildResearcherPrompt(question: ResearchQuestion, reviewFeedback?: string): string {
+  return [
+    "=== QUESTION ===",
+    question.block.trim(),
+    "",
+    "=== RESEARCH SCOPE ===",
+    "Treat `.pipeline/`, `.git/`, `node_modules/`, and other generated or VCS metadata as out of scope unless the question explicitly asks about those directories.",
+    "Honor the question's Answer shape, scope boundary, and stop condition.",
+    reviewFeedback ? "" : undefined,
+    reviewFeedback ? "=== REVIEW FEEDBACK ===" : undefined,
+    reviewFeedback,
+    reviewFeedback ? "" : undefined,
+    reviewFeedback ? "Revise the findings for this question only. Address every reviewer finding that names this question artifact." : undefined,
+  ]
+    .filter((part): part is string => Boolean(part))
+    .join("\n");
+}
+
+async function readQuestionArtifacts(runtime: StageRuntime, questions: ResearchQuestion[]): Promise<string[]> {
+  return Promise.all(
+    questions.map(async (question) => {
+      const questionFile = path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`);
+      return readArtifact(questionFile);
+    }),
+  );
+}
+
+async function ensureResearchSummaryArtifact(runtime: StageRuntime, synthesizerText: string, label: string): Promise<string | undefined> {
+  try {
+    await readArtifact(runtime.artifacts.researchSummaryFile);
+    return undefined;
+  } catch {
+    if (/^#\s+Research Summary\b/m.test(synthesizerText)) {
+      await writeArtifact(runtime.artifacts.researchSummaryFile, synthesizerText);
+      return undefined;
+    }
+    return `${label}: synthesizer returned without writing research/summary.md.`;
+  }
+}
+
+function questionsReferencedByReview(reviewText: string, questions: ResearchQuestion[]): ResearchQuestion[] {
+  const artifactFindings = extractReviewSection(reviewText, "Artifact Findings");
+  const perQuestionIssues = extractReviewSection(reviewText, "Per-Question Issues");
+  const normalizedPerQuestionIssues = perQuestionIssues.trim().toLowerCase();
+  return questions.filter((question) => {
+    const id = question.id.toLowerCase();
+    const escapedId = escapeRegExp(id);
+    const artifactNamePattern = `(?:research/)?${escapedId}\\.md`;
+    const failedArtifactPattern = new RegExp(
+      `(?:${artifactNamePattern}[^\\n|]*\\|\\s*FAIL\\b|\\bFAIL\\b[^\\n|]*${artifactNamePattern})`,
+      "i",
+    );
+    if (failedArtifactPattern.test(artifactFindings)) {
+      return true;
+    }
+    if (!normalizedPerQuestionIssues || normalizedPerQuestionIssues === "none." || normalizedPerQuestionIssues === "none") {
+      return false;
+    }
+    return new RegExp(`\\b${escapedId}\\b|${artifactNamePattern}`, "i").test(perQuestionIssues);
+  });
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractReviewSection(markdown: string, sectionName: string): string {
+  const lines = markdown.split("\n");
+  const headingPattern = new RegExp(`^#{2,3}\\s+${escapeRegExp(sectionName)}\\s*$`, "i");
+  const nextHeadingPattern = /^#{2,3}\s+/;
+  const start = lines.findIndex((line) => headingPattern.test(line.trim()));
+  if (start === -1) {
+    return "";
+  }
+  const body: string[] = [];
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (nextHeadingPattern.test(lines[index]?.trim() ?? "")) {
+      break;
+    }
+    body.push(lines[index] ?? "");
+  }
+  return body.join("\n");
 }

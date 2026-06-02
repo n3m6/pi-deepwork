@@ -6,6 +6,41 @@ import path from "node:path";
 
 import { WorktreeManager, type TaskWorktree } from "../src/worktrees.js";
 
+test("prepare creates missing run branch from HEAD before adding task worktree", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-worktree-"));
+  const calls: string[][] = [];
+  const manager = new WorktreeManager(
+    {
+      async exec(_command, args) {
+        calls.push(args);
+        if (args[0] === "rev-parse" && args[2] === "qrspi/qrspi-20260601-040000") {
+          return { stdout: "", stderr: "missing branch", code: 1, killed: false };
+        }
+        return { stdout: "ok", stderr: "", code: 0, killed: false };
+      },
+    },
+    workspace,
+    workspace,
+    "qrspi-20260601-040000",
+  );
+
+  await manager.prepare(1, "01");
+
+  assert.deepEqual(calls.slice(2, 5), [
+    ["rev-parse", "--verify", "qrspi/qrspi-20260601-040000"],
+    ["rev-parse", "--verify", "HEAD"],
+    ["branch", "qrspi/qrspi-20260601-040000", "HEAD"],
+  ]);
+  assert.deepEqual(calls.at(-1), [
+    "worktree",
+    "add",
+    "-b",
+    "qrspi-task/qrspi-20260601-040000/phase-01/01",
+    path.join(path.dirname(workspace), ".qrspi-worktrees", "qrspi-20260601-040000", "phase-01", "01"),
+    "qrspi/qrspi-20260601-040000",
+  ]);
+});
+
 test("squashMerge aborts and reports conflicts without cleanup", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-worktree-"));
   const calls: string[][] = [];

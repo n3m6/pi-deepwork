@@ -16,6 +16,9 @@ export async function runFastImplTestSubstage(
     [
       "Write or update only the tests needed for this task.",
       "Prefer deterministic, behavior-focused tests. Do not modify unrelated production code.",
+      "Do not create new test infrastructure, package manifests, or test directories unless the task spec explicitly lists those files or the repository already has a matching harness.",
+      "For trivial file-creation tasks with no existing harness, perform a read-back verification and return PASS with no test files written.",
+      "All file operations must stay inside the provided worktree. If the task spec contains an absolute path to the original workspace, treat it as a repository-relative path under this worktree instead.",
       `Task: ${options.taskId}`,
       `Attempt: ${options.attempt}`,
       `Worktree root: ${options.worktreeRoot}`,

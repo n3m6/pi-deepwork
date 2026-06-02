@@ -27,6 +27,7 @@ Flag material issues in:
 - **Field completeness** — all four fields present: `Tag`, `Covers`, `Answer shape`, `Decision unblocked`.
 - **Covers** — initial mode cites only IDs from the normalized goal inventory. Follow-up mode cites only supplied open-question references such as `OPEN-1`, or equivalent numbered open-question labels. Optional short labels must be recognizably related to the underlying item.
 - **Bounded scope** — `Answer shape` names a concrete artifact form, a scope boundary, and a completion condition. Reject vague shapes like "an understanding of X" or "information about Y." The question must be specific enough to yield concrete findings in bounded research effort.
+- **Generated-artifact scope** — reject questions scoped to `.pipeline/`, generated run artifacts, `.git/`, or dependency/vendor folders unless the normalized inventory explicitly asks about those paths.
 - **Decision necessity** — `Decision unblocked` names one primary real downstream design, planning, or verification decision. A tightly coupled secondary decision is acceptable when the same evidence directly informs both. Flag vague, trivial, or non-existent downstream decisions for drop, merge, or rewrite.
 
 ### Set-Level Checks
@@ -34,6 +35,7 @@ Flag material issues in:
 Flag material issues in:
 
 - **Coverage** — initial mode: every normalized goal ID appears in at least one question's `Covers` field and has the investigative coverage it implies. Follow-up mode: every material open question is covered by at least one new question, or the question set explicitly omits it because valid ledgered evidence already answers it. Always produce the traceability matrix.
+- **Direct-spec traceability** — if an inventory ID is already fully specified by the goal and has no investigative unknown, it may be covered only in a neutral question's `Covers` field. Do not fail that question for decision necessity solely because one attached ID is direct-spec traceability; evaluate the question's primary evidence need.
 - **Dependency materiality** — dependency-validation questions exist only when named libraries, runtimes, tools, or external constraints could materially affect approach, compatibility, maintenance risk, or verification strategy.
 - **Redundancy** — no two questions ask materially the same thing.
 

@@ -33,6 +33,14 @@ npm run verify
 
 That runs `tsc --noEmit` and the TypeScript test suite under `node --test` with `tsx`.
 
+Headless pi smoke test from a target repository:
+
+```bash
+bash -lc 'set -a; source "$HOME/.env"; set +a; timeout 20m pi --no-extensions --extension "/home/n3m6/src/pi-deepwork/src/index.ts" --provider deepseek --model deepseek-v4-flash --mode text --no-session -p "/deepwork mode:automated failure:best-effort create a SMOKE.md file containing exactly one sentence: Deepwork smoke test." < /dev/null'
+```
+
+Always close stdin with `< /dev/null`; otherwise `pi` can wait indefinitely in headless runs. Use `--extension <repo>/src/index.ts` when testing local edits before reinstalling the package.
+
 ## Coding conventions
 
 - Keep the runtime deterministic. Prefer explicit state transitions and typed payloads over parsing freeform text where possible.

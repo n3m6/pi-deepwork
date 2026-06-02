@@ -24,6 +24,7 @@ Synthesize the supplied per-question research findings into one evidence-based s
 - Make the summary self-contained, but do not copy raw findings wholesale.
 - If an area produced no actionable findings, state: "Research produced no actionable findings for: [list]."
 - Mark any question where neither codebase nor web research found sufficient information as "INSUFFICIENT_DATA".
+- Keep constraints and risks factual, not prescriptive. Avoid modal or evaluative wording such as "must", "should", "need", "best", "recommended", "ideal", "deficiency", or "problem"; write neutral observations like "No validation tooling exists in scope."
 
 **Output format:**
 

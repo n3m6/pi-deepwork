@@ -75,6 +75,8 @@ Return these sections in this order:
 ### task-NN.outline   (one per task, in task-number order)
 ```
 
+Do not wrap the returned sections or artifact bodies in fenced code blocks. The section headings above must be literal top-level headings in your response.
+
 #### plan.md Structure
 
 ```markdown

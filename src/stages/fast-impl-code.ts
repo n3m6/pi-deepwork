@@ -17,6 +17,7 @@ export async function runFastImplCodeSubstage(
       "Implement the production-code portion of this task in the provided worktree.",
       "Do not edit test files in this step.",
       "Keep the implementation minimal and constrained to the task spec.",
+      "All file operations must stay inside the provided worktree. If the task spec contains an absolute path to the original workspace, treat it as a repository-relative path under this worktree instead.",
       `Task: ${options.taskId}`,
       `Attempt: ${options.attempt}`,
       `Worktree root: ${options.worktreeRoot}`,

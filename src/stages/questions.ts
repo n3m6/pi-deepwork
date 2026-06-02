@@ -1,5 +1,5 @@
 import { normalizeNewlines } from "../markdown.js";
-import type { StageRuntime } from "../types.js";
+import type { LeafAgentDefinition, StageRuntime } from "../types.js";
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
 export interface QuestionBatchResult {
@@ -23,10 +23,11 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
   let reviewRound = 1;
   let feedback = "";
   while (reviewRound <= 3) {
-    const generated = await dispatchLeaf(
-      runtime,
-      "qrspi-question-generator",
-      [
+    const generatorTarget = createFastQuestionTarget(runtime, "qrspi-question-generator");
+    const signal = runtime.services.eventContext.signal;
+    const generated = await runtime.services.dispatcher.dispatch({
+      target: generatorTarget,
+      prompt: [
         "=== MODE ===",
         "initial",
         "",
@@ -46,7 +47,10 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
       ]
         .filter(Boolean)
         .join("\n"),
-    );
+      cwd: runtime.artifacts.workspaceRoot,
+      ...(signal ? { signal } : {}),
+      tools: readOnlyTools(generatorTarget.tools),
+    });
     const generationFailure = dispatchFailureSummary(generated, "Question generation failed");
     if (generationFailure) {
       return {
@@ -61,17 +65,33 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
 
     await writeArtifact(runtime.artifacts.researchQuestionsFile, generated.text);
 
-    const signal = runtime.services.eventContext.signal;
+    const leakageReviewer = createFastReviewTarget(runtime, "qrspi-question-leakage-reviewer");
+    const qualityReviewer = createFastReviewTarget(runtime, "qrspi-question-quality-reviewer");
     const reviewResults = await runtime.services.dispatcher.dispatchParallel([
       {
-        target: runtime.services.agentDefinitions.get("qrspi-question-leakage-reviewer")!,
-        prompt: generated.text,
+        target: leakageReviewer,
+        prompt: [
+          "=== MODE ===",
+          "initial",
+          "",
+          "=== GOALS ===",
+          goals,
+          "",
+          "=== REQUIREMENTS ===",
+          requirements,
+          "",
+          "=== QUESTIONS ===",
+          generated.text,
+        ].join("\n"),
         cwd: runtime.artifacts.workspaceRoot,
         ...(signal ? { signal } : {}),
       },
       {
-        target: runtime.services.agentDefinitions.get("qrspi-question-quality-reviewer")!,
+        target: qualityReviewer,
         prompt: [
+          "=== MODE ===",
+          "initial",
+          "",
           "=== GOALS ===",
           goals,
           "",
@@ -192,4 +212,26 @@ function renderInventorySection(prefix: string, body: string | undefined, number
     .map((line) => line.trim())
     .filter((line) => line.startsWith("-") || (numbered && /^\d+\./.test(line)));
   return lines.map((line, index) => `${prefix}-${index + 1}: ${line.replace(/^[-\d.\s]+/, "").trim()}`).join("\n");
+}
+
+function createFastReviewTarget(runtime: StageRuntime, agentName: string): LeafAgentDefinition {
+  return createFastQuestionTarget(runtime, agentName, 8);
+}
+
+function createFastQuestionTarget(runtime: StageRuntime, agentName: string, maxTurns = 10): LeafAgentDefinition {
+  const target = runtime.services.agentDefinitions.get(agentName);
+  if (!target) {
+    throw new Error(`Missing question-stage agent definition: ${agentName}`);
+  }
+  const reviewTarget: LeafAgentDefinition = {
+    ...target,
+    thinkingLevel: "low",
+    maxTurns: Math.min(target.maxTurns, maxTurns),
+  };
+  delete reviewTarget.modelName;
+  return reviewTarget;
+}
+
+function readOnlyTools(tools: string[]): string[] {
+  return tools.filter((tool) => tool !== "write" && tool !== "edit");
 }

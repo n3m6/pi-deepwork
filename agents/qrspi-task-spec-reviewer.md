@@ -35,6 +35,7 @@ Apply all checks. Mark each PASS or FAIL.
 
 - Metadata, Dependencies, Traceability, and Files match the task outline exactly. No field is silently dropped or contradicted.
 - Every file path in `## Files` appears in the outline's `Files` field or in `structure.md`. No path is invented.
+- Every file path in `## Files` is repository-relative. Fail absolute host paths, `file://` paths, or paths containing `..` that escape the repository, even if the outline used an absolute workspace path.
 - `## Traceability` matches the outline's Acceptance Criteria and NFR fields exactly. No criteria dropped, added, or relabeled.
 
 **Upstream traceability**
@@ -45,6 +46,7 @@ Apply all checks. Mark each PASS or FAIL.
 
 - `## Description` is self-contained: no "see Task N", "see design.md", or shortcut references. Enough detail for an implementer to proceed without guessing.
 - Each test expectation states a concrete trigger and an observable outcome. No expectation names internal functions, helpers, or intermediate states; none is phrased as an implementation step.
+- Test expectations do not introduce new test infrastructure unless the task outline explicitly lists test files or upstream artifacts show an existing harness.
 - No TBD, TODO, "details omitted", or similar placeholder language remains in any section.
 
 **Dependencies**

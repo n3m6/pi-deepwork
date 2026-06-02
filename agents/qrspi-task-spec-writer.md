@@ -43,6 +43,8 @@ For `full` route, also read:
 6. **Apply AGENTS Guidance** without contradicting it. Reflect relevant constraints in the description, file list, and test expectations.
 7. **Keep the spec self-contained.** Include only task-relevant upstream details. Do not say "see Task N", "same as above", or "see design.md".
 8. **Do not run mutating shell commands.** Bash may be used only for read-only verification of file names and existing paths.
+9. **Use repository-relative paths only.** Never write absolute host paths in `## Description`, `## Files`, or `## Test Expectations`. Convert any outline path rooted at the workspace into its repository-relative path (for example, `/path/to/repo/SMOKE.md` becomes `SMOKE.md`). The implementer runs inside an isolated task worktree, so absolute workspace paths are wrong.
+10. **Do not introduce test infrastructure unless it is in scope.** If no test file is listed in the outline and no existing test harness exists, express verification as read-back/manual command expectations, not as new `package.json`, `tests/`, CI, or tooling files.
 
 ### Workflow
 
@@ -102,7 +104,8 @@ Before writing, verify:
 - `## Traceability` fields are populated from the outline's acceptance criteria, NFR, and gate metadata.
 - `## Source Traceability` has at least one non-N/A entry for full-route tasks.
 - Every `## Files` path is from an approved source (outline `Files` field or `structure.md`).
-- All `## Files` entries are exact file paths — not directories, globs, or patterns.
+- All `## Files` entries are exact repository-relative file paths — not absolute paths, directories, globs, or patterns.
+- No `## Files` path begins with `/`, contains `://`, or escapes the repository with `..`.
 - No placeholder language: TBD, TODO, "details omitted", "same as above".
 - Every `## Test Expectations` entry states a trigger and an observable outcome from the caller's perspective — not internal function calls, mock call arguments, or implementation steps ("calls X", "uses helper Y", "has method Z").
 - Every dependency entry explains what this task needs from the earlier task.

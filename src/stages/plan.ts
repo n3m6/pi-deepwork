@@ -150,11 +150,12 @@ async function runPlanWriter(
   return result.text;
 }
 
-async function writePlanArtifacts(runtime: StageRuntime, output: string): Promise<string[]> {
+export async function writePlanArtifacts(runtime: StageRuntime, output: string): Promise<string[]> {
   const filesWritten: string[] = [];
   const sections = parseMarkdownSections(output);
-  const plan = sections["plan.md"] ?? sections["Implementation Plan"];
-  const manifest = sections["phase-manifest.md"];
+  const fallbackSections = extractLoosePlanSections(output);
+  const plan = cleanArtifactMarkdown(sections["plan.md"] ?? sections["Implementation Plan"] ?? fallbackSections["plan.md"]);
+  const manifest = cleanArtifactMarkdown(sections["phase-manifest.md"] ?? fallbackSections["phase-manifest.md"]);
   if (!plan || !manifest) {
     throw new Error("Plan writer output is missing required sections.");
   }
@@ -163,16 +164,51 @@ async function writePlanArtifacts(runtime: StageRuntime, output: string): Promis
   await writeArtifact(runtime.artifacts.phaseManifestFile, manifest);
   filesWritten.push("plan.md", "phase-manifest.md");
 
-  for (const [heading, content] of Object.entries(sections)) {
+  for (const [heading, content] of Object.entries({ ...fallbackSections, ...sections })) {
     if (!/^task-\d+\.outline$/i.test(heading)) {
       continue;
     }
     const outlinePath = path.join(runtime.artifacts.outlinesDir, heading);
-    await writeArtifact(outlinePath, content);
+    await writeArtifact(outlinePath, cleanArtifactMarkdown(content));
     filesWritten.push(path.relative(runtime.artifacts.runDir, outlinePath));
   }
 
   return filesWritten;
+}
+
+function cleanArtifactMarkdown(markdown: string | undefined): string {
+  if (!markdown) {
+    return "";
+  }
+  const trimmed = markdown.trim();
+  const fence = trimmed.match(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```\s*$/i);
+  return (fence?.[1] ?? trimmed).trim();
+}
+
+function extractLoosePlanSections(output: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  for (const block of extractFencedBlocks(output)) {
+    const cleaned = cleanArtifactMarkdown(block);
+    if (/^#\s+Implementation Plan\b/m.test(cleaned)) {
+      sections["plan.md"] = cleaned;
+      continue;
+    }
+    if (/^---\s*\ntotal_phases:\s*\d+/m.test(cleaned) || /^total_phases:\s*\d+/m.test(cleaned)) {
+      sections["phase-manifest.md"] = cleaned;
+      continue;
+    }
+    const taskNumber = cleaned.match(/^Task:\s*(\d+)/m)?.[1];
+    if (taskNumber) {
+      sections[`task-${taskNumber.padStart(2, "0")}.outline`] = cleaned;
+    }
+  }
+  return sections;
+}
+
+function extractFencedBlocks(markdown: string): string[] {
+  return [...markdown.matchAll(/```(?:markdown|md)?\s*\n([\s\S]*?)\n```/gi)]
+    .map((match) => match[1]?.trim() ?? "")
+    .filter(Boolean);
 }
 
 async function runPlanReview(
