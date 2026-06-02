@@ -2,6 +2,7 @@ import { mkdir, readdir, symlink } from "node:fs/promises";
 import path from "node:path";
 
 import { parseMarkdownSections } from "../markdown.js";
+import { detectSimpleExactFileTask } from "../simple-file-task.js";
 import { fileExists } from "../state.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
@@ -15,6 +16,22 @@ export const planStage: StageModule = {
     const design = runtime.state.route === "full" ? await readArtifact(runtime.artifacts.designFile) : "N/A";
     const structure = runtime.state.route === "full" ? await readArtifact(runtime.artifacts.structureFile) : "N/A";
     const agentsGuidance = await safeRead(path.join(runtime.artifacts.workspaceRoot, "AGENTS.md"));
+    const simpleTask = await detectSimpleExactFileTask(runtime);
+    if (simpleTask && runtime.state.route === "quick-fix") {
+      const filesWritten = await writeSimplePlan(runtime, simpleTask.filePath, simpleTask.content);
+      await ensurePhaseLayout(runtime, 1);
+      return {
+        status: "PASS",
+        filesWritten,
+        summary: "Simple exact-file plan generated deterministically.",
+        telemetry: {
+          review_rounds: 0,
+          terminal_review_state: "clean",
+          deterministic_fast_path: "simple-exact-file",
+          child_agent_calls: {},
+        },
+      };
+    }
 
     let reviewRound = 1;
     let latestPlanWriterOutput = "";
@@ -361,6 +378,101 @@ async function ensurePhaseLayout(runtime: StageRuntime, totalPhases: number): Pr
   if (!(await fileExists(phaseOneTasksLink))) {
     await symlink(path.relative(path.join(runtime.artifacts.phasesDir, "phase-01"), runtime.artifacts.tasksDir), phaseOneTasksLink, "dir");
   }
+}
+
+async function writeSimplePlan(runtime: StageRuntime, filePath: string, content: string): Promise<string[]> {
+  const plan = [
+    "# Implementation Plan",
+    "",
+    "## Overview",
+    `Create \`${filePath}\` with exactly \`${content}\` and no additional bytes.`,
+    "",
+    "## Phase Summary",
+    "- **Phase 1 — Quick-fix:** Write and verify the exact file content.",
+    "",
+    "## Task Order",
+    "| # | Task | Dependencies | Phase | Slice |",
+    "| - | ---- | ------------ | ----- | ----- |",
+    `| 01 | Create \`${filePath}\` | None | Quick-fix | quick-fix |`,
+  ].join("\n");
+  const manifest = [
+    "---",
+    "total_phases: 1",
+    "---",
+    "",
+    "## Phase 1 — Quick-fix",
+    "",
+    "- **Tasks:** 01",
+    "- **Acceptance Criteria:** AC-1, AC-2",
+    "- **Replan Gate:** N/A (single-phase quick-fix route)",
+  ].join("\n");
+  const outline = [
+    "Task: 01",
+    `Title: Create ${filePath}`,
+    "Phase: Quick-fix",
+    "Route: quick-fix",
+    "Slice: quick-fix",
+    "Dependencies: None",
+    `Scope: Create \`${filePath}\` with exact content.`,
+    "Acceptance Criteria: AC-1, AC-2",
+    "NFRs: None",
+    "Gate Criteria: N/A",
+    "Files:",
+    `  - ${filePath} (CREATE) — exact content`,
+  ].join("\n");
+  const task = [
+    `# Task 01: Create ${filePath}`,
+    "",
+    "## Metadata",
+    "- **Task:** 01",
+    "- **Phase:** Quick-fix",
+    "- **Route:** quick-fix",
+    "- **Slice:** quick-fix",
+    "",
+    "## Dependencies",
+    "- None",
+    "",
+    "## Traceability",
+    "- **Acceptance Criteria:** AC-1, AC-2",
+    "- **NFRs:** None",
+    "- **Replan Gate Criteria:** N/A",
+    "",
+    "## Description",
+    `Create \`${filePath}\` in the repository root with exactly \`${content}\`. Do not add a trailing newline, leading/trailing whitespace, or any other characters.`,
+    "",
+    "## Files",
+    `- \`${filePath}\` (CREATE) — exact content only`,
+    "",
+    "## Test Expectations",
+    `- \`${filePath}\` exists as a regular file.`,
+    `- Its content is exactly \`${content}\`.`,
+    `- Its byte length is ${Buffer.byteLength(content, "utf8")}.`,
+  ].join("\n");
+  const baseline = [
+    "### Baseline Status — CLEAN",
+    "",
+    "### Check Results",
+    "No baseline commands are configured for this simple exact-file task.",
+    "",
+    "### Failure Inventory",
+    "None.",
+  ].join("\n");
+
+  const outlinePath = path.join(runtime.artifacts.outlinesDir, "task-01.outline");
+  const taskPath = path.join(runtime.artifacts.tasksDir, "task-01.md");
+  await writeArtifact(runtime.artifacts.planFile, plan);
+  await writeArtifact(runtime.artifacts.phaseManifestFile, manifest);
+  await writeArtifact(outlinePath, outline);
+  await writeArtifact(taskPath, task);
+  await writeArtifact(runtime.artifacts.baselineResultsFile, baseline);
+
+  return [
+    "plan.md",
+    "phase-manifest.md",
+    path.relative(runtime.artifacts.runDir, outlinePath),
+    path.relative(runtime.artifacts.runDir, taskPath),
+    "baseline-results.md",
+  ];
 }
 
 function parseTotalPhases(manifest: string): number {

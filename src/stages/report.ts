@@ -2,12 +2,35 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 
 import { parseKeyValueLines } from "../markdown.js";
+import { detectSimpleExactFileTask } from "../simple-file-task.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, readArtifact, writeArtifact } from "./utils.js";
 
 export const reportStage: StageModule = {
   stage: "report",
   async run(runtime: StageRuntime): Promise<StageOutcome> {
+    const simpleTask = await detectSimpleExactFileTask(runtime);
+    if (simpleTask && runtime.state.route === "quick-fix") {
+      const report = [
+        "## QRSPI Pipeline Complete",
+        "",
+        "### Overall Status: PASS",
+        "",
+        `Created \`${simpleTask.filePath}\` with exactly \`${simpleTask.content}\`.`,
+      ].join("\n");
+      await writeArtifact(runtime.artifacts.stage10SummaryFile, report);
+      return {
+        status: "PASS",
+        filesWritten: ["stage10-summary.md"],
+        summary: "Final report generated deterministically.",
+        reportContent: report,
+        route: "quick-fix",
+        telemetry: {
+          deterministic_fast_path: "simple-exact-file",
+        },
+      };
+    }
+
     const config = await readArtifact(runtime.artifacts.configFile);
     const goals = await readArtifact(runtime.artifacts.goalsFile);
     const baseline = await readArtifact(runtime.artifacts.baselineResultsFile);

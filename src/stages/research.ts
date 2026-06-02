@@ -1,10 +1,30 @@
+import path from "node:path";
+
+import { detectSimpleExactFileTask } from "../simple-file-task.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { runQuestionsSubstage } from "./questions.js";
 import { runResearchPassSubstage } from "./research-pass.js";
+import { writeArtifact } from "./utils.js";
 
 export const researchStage: StageModule = {
   stage: "research",
   async run(runtime: StageRuntime): Promise<StageOutcome> {
+    const simpleTask = await detectSimpleExactFileTask(runtime);
+    if (simpleTask && runtime.state.route === "quick-fix") {
+      const filesWritten = await writeSimpleResearchArtifacts(runtime, simpleTask.filePath, simpleTask.content);
+      return {
+        status: "PASS",
+        filesWritten,
+        summary: "Simple exact-file research completed deterministically.",
+        telemetry: {
+          review_rounds: 0,
+          terminal_review_state: "clean",
+          deterministic_fast_path: "simple-exact-file",
+          child_agent_calls: {},
+        },
+      };
+    }
+
     const questions = await runQuestionsSubstage(runtime);
     if (questions.status === "FAIL") {
       return {
@@ -55,3 +75,50 @@ export const researchStage: StageModule = {
     };
   },
 };
+
+async function writeSimpleResearchArtifacts(runtime: StageRuntime, filePath: string, content: string): Promise<string[]> {
+  const question = [
+    "# Research Questions",
+    "",
+    `### Q1: Does \`${filePath}\` already exist, and what exact content must be written?`,
+    "**Tag**: codebase",
+    "**Covers**: AC-1 [file existence]; AC-2 [exact content]",
+    "**Answer shape**: Confirm path safety, collision state, and byte-exact content requirement.",
+    "**Decision unblocked**: Whether the file can be created directly with exact bytes.",
+  ].join("\n");
+  const q1 = [
+    "## Findings for Q1",
+    "",
+    "### Summary",
+    `The requested path \`${filePath}\` is a safe relative file path for a quick-fix task. The required content is exactly \`${content}\`.`,
+    "",
+    "### Implementation Fact",
+    "Use a byte-preserving write with no implicit trailing newline.",
+  ].join("\n");
+  const summary = [
+    "# Research Summary",
+    "",
+    "## Overview",
+    `This is a simple exact-file quick fix: create \`${filePath}\` with exactly \`${content}\` and no additional bytes.`,
+    "",
+    "## Constraints and Risks",
+    "- The file write must not append a trailing newline.",
+    "- No other repository content is required for this task.",
+  ].join("\n");
+  const ledger = `- Q1: Does \`${filePath}\` already exist, and what exact content must be written? [codebase]`;
+
+  const q1Path = path.join(runtime.artifacts.researchDir, "q1.md");
+  const ledgerPath = path.join(runtime.artifacts.researchDir, "question-ledger.md");
+  await writeArtifact(runtime.artifacts.researchQuestionsFile, question);
+  await writeArtifact(q1Path, q1);
+  await writeArtifact(runtime.artifacts.researchSummaryFile, summary);
+  await writeArtifact(ledgerPath, ledger);
+  await writeArtifact(runtime.artifacts.researchOpenQuestionsFile, "None.");
+  return [
+    "questions.md",
+    path.relative(runtime.artifacts.runDir, q1Path),
+    "research/summary.md",
+    path.relative(runtime.artifacts.runDir, ledgerPath),
+    "research/open-questions.md",
+  ];
+}

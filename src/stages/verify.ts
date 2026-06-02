@@ -1,12 +1,38 @@
-import { readdir } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
+import { detectSimpleExactFileTask } from "../simple-file-task.js";
 import type { StageModule, StageOutcome, StageRuntime, VerifyStatus } from "../types.js";
 import { dispatchLeaf, readArtifact, writeArtifact } from "./utils.js";
 
 export const verifyStage: StageModule = {
   stage: "verify",
   async run(runtime: StageRuntime): Promise<StageOutcome> {
+    const simpleTask = await detectSimpleExactFileTask(runtime);
+    if (simpleTask && runtime.state.route === "quick-fix") {
+      const actual = await readFile(path.join(runtime.artifacts.workspaceRoot, simpleTask.filePath), "utf8").catch(() => undefined);
+      const status: VerifyStatus = actual === simpleTask.content ? "PASS" : "FAIL";
+      await writeArtifact(
+        runtime.artifacts.stage9SummaryFile,
+        [
+          "## QRSPI Verification",
+          "",
+          `### Overall Status — ${status}`,
+          "",
+          `Verified \`${simpleTask.filePath}\` ${status === "PASS" ? "contains" : "does not contain"} exactly \`${simpleTask.content}\`.`,
+        ].join("\n"),
+      );
+      return {
+        status,
+        filesWritten: ["stage9-summary.md"],
+        summary: `Verification ${status}.`,
+        telemetry: {
+          verify_status: status,
+          deterministic_fast_path: "simple-exact-file",
+        },
+      };
+    }
+
     const executionManifests = await readPhaseArtifacts(runtime, "execution-manifest.md");
     const stage7Summaries = await readPhaseArtifacts(runtime, "stage7-summary.md");
     const regressions = await readPhaseArtifacts(runtime, "regression-results.md");

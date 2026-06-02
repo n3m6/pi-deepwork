@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { createAskHumanTool } from "../gates.js";
 import { parseKeyValueLines } from "../markdown.js";
+import { parseSimpleExactFileTask } from "../simple-file-task.js";
 import type { DispatchResult } from "../types.js";
 import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
@@ -61,6 +62,28 @@ export const goalsStage: StageModule = {
     }
 
     await writeArtifact(runtime.artifacts.requirementsFile, userTask);
+    const simpleTask = parseSimpleExactFileTask(userTask);
+    if (simpleTask) {
+      await writeArtifact(runtime.artifacts.goalsFile, renderSimpleGoals(simpleTask.filePath, simpleTask.content));
+      await writeArtifact(runtime.artifacts.configFile, renderSimpleConfig(runtime.state.runId));
+      return {
+        status: "PASS",
+        filesWritten: ["requirements.md", "goals.md", "config.md"],
+        route: "quick-fix",
+        summary: "Simple exact-file task captured deterministically. Route: quick-fix.",
+        telemetry: {
+          review_rounds: 0,
+          terminal_review_state: "clean",
+          gate_status: "approved",
+          gate_mode: "automated",
+          gate_rounds: 0,
+          gate_wait_time_s: 0,
+          gate_round_details: [],
+          deterministic_fast_path: "simple-exact-file",
+        },
+      };
+    }
+
     const interview = await collectInterview(runtime, userTask);
     if ("failure" in interview) {
       return {
@@ -430,6 +453,46 @@ function renderInterviewRecord(entries: InterviewEntry[]): string {
 function parseRoute(configMarkdown: string): Route {
   const values = parseKeyValueLines(configMarkdown);
   return values.route === "quick-fix" ? "quick-fix" : "full";
+}
+
+function renderSimpleGoals(filePath: string, content: string): string {
+  return [
+    "# Goals",
+    "",
+    "## Intent",
+    `Create \`${filePath}\` with exact content.`,
+    "",
+    "## Functional Requirements",
+    `- The file \`${filePath}\` must exist in the repository root.`,
+    `- The file \`${filePath}\` must contain exactly \`${content}\`.`,
+    "",
+    "## Non-Functional Requirements",
+    "None specified.",
+    "",
+    "## Technical Specification",
+    "Use a byte-preserving write method so no trailing newline or extra whitespace is added.",
+    "",
+    "## Constraints",
+    "- Do not add any other files or content.",
+    "",
+    "## Non-Goals",
+    "- No unrelated repository changes.",
+    "",
+    "## Acceptance Criteria",
+    `1. A file named \`${filePath}\` exists in the repository root.`,
+    `2. The content of \`${filePath}\` is exactly \`${content}\`, with no additional characters, lines, or whitespace.`,
+  ].join("\n");
+}
+
+function renderSimpleConfig(runId: string): string {
+  return [
+    "---",
+    `created: ${new Date().toISOString().slice(0, 10)}`,
+    "route: quick-fix",
+    `run_id: ${runId}`,
+    "---",
+    "",
+  ].join("\n");
 }
 
 function inferFromTask(userTask: string, branch: string): string | undefined {
