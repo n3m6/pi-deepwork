@@ -14,6 +14,7 @@ export async function dispatchLeaf(
     cwd?: string;
     tools?: string[];
     customTools?: DispatchRequest["customTools"];
+    timeoutMs?: number;
   },
 ): Promise<DispatchResult> {
   const target = runtime.services.agentDefinitions.get(agentName);
@@ -27,6 +28,7 @@ export async function dispatchLeaf(
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
     tools: options?.tools ?? readOnlyTools(target.tools),
     ...(options?.customTools ? { customTools: options.customTools } : {}),
+    ...(options?.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
   });
 }
 

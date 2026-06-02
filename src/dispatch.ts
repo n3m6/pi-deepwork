@@ -83,7 +83,7 @@ export class PiSessionDispatcher implements Dispatcher {
         request.prompt,
         stageReturn,
         request.signal,
-        isLeaf ? DEFAULT_LEAF_TIMEOUT_MS : DEFAULT_GENERIC_TIMEOUT_MS,
+        request.timeoutMs ?? (isLeaf ? DEFAULT_LEAF_TIMEOUT_MS : DEFAULT_GENERIC_TIMEOUT_MS),
       );
       const text = extractAssistantText(session.messages);
       return {

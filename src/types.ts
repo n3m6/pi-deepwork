@@ -240,6 +240,7 @@ export interface DispatchRequest {
   signal?: AbortSignal;
   tools?: string[];
   customTools?: Array<ToolDefinition<any, any, any>>;
+  timeoutMs?: number;
 }
 
 export interface DispatchCustomToolCall {

@@ -51,3 +51,37 @@ test("telemetry recorder appends jsonl and renders summaries", async () => {
   assert.match(await readFile(artifacts.runLogFile, "utf8"), /Run Overview/);
   assert.match(await readFile(artifacts.metricsFile, "utf8"), /Metrics Summary/);
 });
+
+test("metrics summary marks stopped runs as partial", () => {
+  const state = createInitialState({
+    runId: "qrspi-20260601-000001",
+    interactionMode: "automated",
+    failurePolicy: "best-effort",
+    route: "full",
+  });
+  const stoppedState = {
+    ...state,
+    route: "full" as const,
+    lastCompletedStage: "goals" as const,
+    nextStage: "research" as const,
+    stagesCompleted: ["goals" as const],
+  };
+
+  const metrics = renderMetricsSummary(stoppedState.runId, stoppedState, [
+    {
+      schema_version: "1.0",
+      event_id: "qrspi-20260601-000001-1",
+      sequence: 1,
+      ts: "2026-06-01T00:00:00.000Z",
+      run_id: stoppedState.runId,
+      writer_agent: "deepwork",
+      writer_scope: "orchestrator",
+      event_type: "run.completed",
+      status: "PARTIAL",
+      route: "full",
+      summary: "Pipeline stopped. Route: full.",
+    },
+  ]);
+
+  assert.match(metrics, /Final status:\*\* stopped-partial/);
+});

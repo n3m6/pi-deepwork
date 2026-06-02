@@ -7,6 +7,14 @@ import { fileExists } from "../state.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
 
+interface TaskSpecsResult {
+  status: "PASS" | "FAIL";
+  filesWritten: string[];
+  summary?: string;
+}
+
+const PLAN_AGENT_TIMEOUT_MS = 600_000;
+
 export const planStage: StageModule = {
   stage: "plan",
   async run(runtime): Promise<StageOutcome> {
@@ -59,7 +67,27 @@ export const planStage: StageModule = {
       filesWritten.push(path.relative(runtime.artifacts.runDir, reviewFile));
 
       if (parseReviewStatus(review.text) === "PASS") {
-        const specFiles = await writeTaskSpecs(runtime, agentsGuidance);
+        const specResult = await writeTaskSpecs(runtime, agentsGuidance);
+        if (specResult.status === "FAIL") {
+          await writeArtifact(runtime.artifacts.baselineResultsFile, renderBaselineUnavailable(specResult.summary ?? "Task spec review did not converge."));
+          filesWritten.push("baseline-results.md", ...specResult.filesWritten);
+          const totalPhases = parseTotalPhases(await readArtifact(runtime.artifacts.phaseManifestFile));
+          await ensurePhaseLayout(runtime, totalPhases);
+
+          return {
+            status: "FAIL",
+            filesWritten,
+            summary: specResult.summary ?? "Task spec review did not converge.",
+            telemetry: {
+              review_rounds: reviewRound,
+              terminal_review_state: "unclean-cap",
+              child_agent_calls: {
+                "qrspi-plan-writer": reviewRound,
+                "qrspi-plan-reviewer": reviewRound,
+              },
+            },
+          };
+        }
         const baseline = await dispatchLeaf(
           runtime,
           "qrspi-baseline-checker",
@@ -75,7 +103,7 @@ export const planStage: StageModule = {
           ].join("\n"),
         );
         await writeArtifact(runtime.artifacts.baselineResultsFile, baseline.text);
-        filesWritten.push("baseline-results.md", ...specFiles);
+        filesWritten.push("baseline-results.md", ...specResult.filesWritten);
         const totalPhases = parseTotalPhases(await readArtifact(runtime.artifacts.phaseManifestFile));
         await ensurePhaseLayout(runtime, totalPhases);
 
@@ -89,8 +117,8 @@ export const planStage: StageModule = {
             child_agent_calls: {
               "qrspi-plan-writer": reviewRound,
               "qrspi-plan-reviewer": reviewRound,
-              "qrspi-task-spec-writer": specFiles.length,
-              "qrspi-task-spec-reviewer": specFiles.length,
+              "qrspi-task-spec-writer": specResult.filesWritten.length,
+              "qrspi-task-spec-reviewer": specResult.filesWritten.length,
               "qrspi-baseline-checker": 1,
             },
           },
@@ -163,6 +191,9 @@ async function runPlanWriter(
       "=== ROUTE ===",
       runtime.state.route === "unknown" ? "full" : runtime.state.route,
     ].join("\n"),
+    {
+      timeoutMs: PLAN_AGENT_TIMEOUT_MS,
+    },
   );
   return result.text;
 }
@@ -264,10 +295,13 @@ async function runPlanReview(
       "=== NEXT REMAINING PHASE ===",
       String(runtime.state.currentPhase),
     ].join("\n"),
+    {
+      timeoutMs: PLAN_AGENT_TIMEOUT_MS,
+    },
   );
 }
 
-async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Promise<string[]> {
+async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Promise<TaskSpecsResult> {
   const outlineFiles = (await readdir(runtime.artifacts.outlinesDir))
     .filter((entry) => /^task-\d+\.outline$/i.test(entry))
     .sort();
@@ -302,10 +336,15 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
         ].join("\n"),
         {
           tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+          timeoutMs: PLAN_AGENT_TIMEOUT_MS,
         },
       );
       if (/### Status\s+[—-]\s+FAIL\b/m.test(writer.text)) {
-        throw new Error(`Task spec writer failed for task ${taskNumber}: ${writer.text}`);
+        return {
+          status: "FAIL",
+          filesWritten: written,
+          summary: `Task spec writer failed for task ${taskNumber}: ${writer.text}`,
+        };
       }
 
       const taskSpecPath = path.join(runtime.artifacts.tasksDir, `task-${taskNumber}.md`);
@@ -345,6 +384,9 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
           "=== ROUND ===",
           String(reviewRound),
         ].join("\n"),
+        {
+          timeoutMs: PLAN_AGENT_TIMEOUT_MS,
+        },
       );
 
       const reviewFile = path.join(runtime.artifacts.reviewsDir, `task-${taskNumber}-review-round-${String(reviewRound).padStart(2, "0")}.md`);
@@ -356,7 +398,11 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
       }
 
       if (reviewRound === 3) {
-        throw new Error(`Task spec review did not converge for task ${taskNumber}.`);
+        return {
+          status: "FAIL",
+          filesWritten: written,
+          summary: `Task spec review did not converge for task ${taskNumber}.`,
+        };
       }
 
       reviewFeedback = review.text;
@@ -364,7 +410,24 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
     }
   }
 
-  return written;
+  return {
+    status: "PASS",
+    filesWritten: written,
+  };
+}
+
+function renderBaselineUnavailable(summary: string): string {
+  return [
+    "### Baseline Status — PARTIAL",
+    "",
+    "### Check Results",
+    "| Check | Status | Command |",
+    "| ----- | ------ | ------- |",
+    "| Task spec review | PARTIAL | N/A |",
+    "",
+    "### Failure Inventory",
+    summary,
+  ].join("\n");
 }
 
 async function ensurePhaseLayout(runtime: StageRuntime, totalPhases: number): Promise<void> {

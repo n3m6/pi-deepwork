@@ -157,15 +157,21 @@ export function renderMetricsSummary(runId: string, state: RunState, events: Tel
   const gateRows = aggregateGateRows(events);
   const evidenceRows = aggregateEvidence(events);
   const route = state.route === "unknown" ? "full" : state.route;
-  const finalStatus = events.some((event) => event.event_type === "run.aborted")
-    ? "aborted"
-    : state.verifyStatus === "FAIL"
-      ? "completed-fail"
-      : state.verifyStatus === "PARTIAL"
-        ? "completed-partial"
-        : "completed-pass";
+  const runTerminalEvent = [...events]
+    .reverse()
+    .find((event) => event.event_type === "run.completed" || event.event_type === "run.aborted");
+  const finalStatus =
+    runTerminalEvent?.event_type === "run.aborted"
+      ? "aborted"
+      : state.nextStage !== "done" || runTerminalEvent?.status === "PARTIAL"
+        ? "stopped-partial"
+        : state.verifyStatus === "FAIL"
+          ? "completed-fail"
+          : state.verifyStatus === "PARTIAL"
+            ? "completed-partial"
+            : "completed-pass";
   const started = events.find((event) => event.event_type === "run.started")?.ts ?? state.startedAt;
-  const ended = [...events].reverse().find((event) => event.event_type === "run.completed" || event.event_type === "run.aborted")?.ts;
+  const ended = runTerminalEvent?.ts;
 
   return [
     `# Metrics Summary — ${runId}`,

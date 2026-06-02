@@ -3,6 +3,8 @@ import path from "node:path";
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 import type { StageRuntime } from "../types.js";
 
+const RESEARCH_AGENT_TIMEOUT_MS = 600_000;
+
 interface ResearchQuestion {
   id: string;
   title: string;
@@ -42,6 +44,7 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
     .join("\n");
   const summary = await dispatchLeaf(runtime, "qrspi-research-synthesizer", researchArtifactList, {
     tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+    timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
   });
   const summaryFailure = dispatchFailureSummary(summary, "Research synthesis failed");
   if (summaryFailure) {
@@ -91,6 +94,7 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       ].join("\n"),
       {
         tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+        timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
       },
     );
     const reviewFailure = dispatchFailureSummary(review, "Research review failed");
@@ -158,6 +162,7 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       ].join("\n"),
       {
         tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+        timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
       },
     );
     const revisionFailure = dispatchFailureSummary(revisedSummary, "Research synthesis revision failed");
@@ -245,6 +250,9 @@ async function writeQuestionResearch(
       runtime,
       "qrspi-web-researcher",
       buildResearcherPrompt(question, reviewFeedback),
+      {
+        timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
+      },
     );
     const webFailure = dispatchFailureSummary(
       web,

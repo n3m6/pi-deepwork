@@ -1,8 +1,11 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
+import { writeFile } from "node:fs/promises";
+import path from "node:path";
 
-import { readArtifact } from "../src/stages/utils.js";
-import { writePlanArtifacts } from "../src/stages/plan.js";
+import { readArtifact, writeArtifact } from "../src/stages/utils.js";
+import { planStage, writePlanArtifacts } from "../src/stages/plan.js";
+import type { DispatchRequest, DispatchResult, Dispatcher, RunArtifacts } from "../src/types.js";
 import { TestHarness } from "./support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -59,3 +62,120 @@ test("writePlanArtifacts recovers loose fenced artifact blocks", async () => {
   assert.match(await readArtifact(harness.artifacts.phaseManifestFile), /^---\ntotal_phases: 1\n---/);
   assert.doesNotMatch(await readArtifact(`${harness.artifacts.outlinesDir}/task-01.outline`), /```/);
 });
+
+test("plan returns unclean-cap when task spec review does not converge", async () => {
+  const harness = await TestHarness.create({ route: "full", totalPhases: 1 });
+  harnesses.push(harness);
+  await writeArtifact(harness.artifacts.requirementsFile, "Build a minimal CLI.");
+  await writeArtifact(harness.artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. CLI exists.");
+  await writeArtifact(harness.artifacts.researchSummaryFile, "# Research Summary\n\nNo blocking findings.");
+  await writeArtifact(harness.artifacts.designFile, "# Design\n\nOne slice.");
+  await writeArtifact(harness.artifacts.structureFile, "# Structure\n\n- `src/index.ts`");
+  await writeArtifact(harness.artifacts.configFile, "---\nroute: full\n---");
+
+  const outcome = await planStage.run({
+    ...harness.runtime(),
+    services: {
+      ...harness.services,
+      dispatcher: new TaskReviewCapDispatcher(harness.artifacts),
+    },
+  });
+
+  assert.equal(outcome.status, "FAIL");
+  assert.equal(outcome.telemetry?.terminal_review_state, "unclean-cap");
+  assert.match(outcome.summary, /Task spec review did not converge for task 01/);
+  assert.match(await readArtifact(harness.artifacts.baselineResultsFile), /Baseline Status — PARTIAL/);
+});
+
+class TaskReviewCapDispatcher implements Dispatcher {
+  constructor(private readonly artifacts: RunArtifacts) {}
+
+  async dispatch(request: DispatchRequest): Promise<DispatchResult> {
+    switch (request.target.name) {
+      case "qrspi-plan-writer":
+        return textResult(renderPlanWriterOutput());
+      case "qrspi-plan-reviewer":
+        return textResult("### Status — PASS\n\n### Summary\nPlan is acceptable.");
+      case "qrspi-task-spec-writer": {
+        const taskNumber = request.prompt.match(/=== TASK NUMBER ===\n(\d+)/)?.[1] ?? "01";
+        await writeFile(path.join(this.artifacts.tasksDir, `task-${taskNumber}.md`), renderTaskSpec(taskNumber), "utf8");
+        return textResult("### Status — PASS\n\n### Summary\nTask spec written.");
+      }
+      case "qrspi-task-spec-reviewer":
+        return textResult("### Status — FAIL\n\n### Fix Guidance\nStill incomplete.");
+      default:
+        return textResult("### Status — PASS\n\n### Summary\nPass.");
+    }
+  }
+
+  async dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    return Promise.all(requests.map((request) => this.dispatch(request)));
+  }
+
+  async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    const results: DispatchResult[] = [];
+    for (const request of requests) {
+      results.push(await this.dispatch(request));
+    }
+    return results;
+  }
+}
+
+function renderPlanWriterOutput(): string {
+  return [
+    "### plan.md",
+    "# Implementation Plan",
+    "",
+    "## Overview",
+    "Create the CLI.",
+    "",
+    "### phase-manifest.md",
+    "---",
+    "total_phases: 1",
+    "---",
+    "",
+    "## Phase 1",
+    "- **Tasks:** 01",
+    "",
+    "### task-01.outline",
+    "Task: 01",
+    "Title: Create CLI entry",
+    "Phase: 1",
+    "Route: full",
+    "Slice: cli",
+    "Dependencies: None",
+    "Scope: Add entry point.",
+    "Acceptance Criteria: AC-1",
+    "NFRs: None",
+    "Gate Criteria: None",
+    "Files:",
+    "  - src/index.ts (CREATE)",
+  ].join("\n");
+}
+
+function renderTaskSpec(taskNumber: string): string {
+  return [
+    `# Task ${taskNumber}: Create CLI entry`,
+    "",
+    "## Metadata",
+    `- **Task:** ${taskNumber}`,
+    "- **Phase:** 1",
+    "- **Route:** full",
+    "- **Slice:** cli",
+    "",
+    "## Dependencies",
+    "- None",
+    "",
+    "## Files",
+    "- `src/index.ts` (CREATE)",
+  ].join("\n");
+}
+
+function textResult(text: string): DispatchResult {
+  return {
+    text,
+    messages: [{ role: "assistant", content: text }],
+    customToolCalls: [],
+    endReason: "agent_end",
+  };
+}
