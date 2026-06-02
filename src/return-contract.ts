@@ -162,6 +162,8 @@ function missingStageReturnSummary(reason: NonNullable<DispatchResult["endReason
       return "Dispatched session was aborted before calling stage_return.";
     case "max_turns":
       return "Dispatched session exhausted its turn budget before calling stage_return.";
+    case "timeout":
+      return "Dispatched session timed out before calling stage_return.";
     case "session_error":
       return "Dispatched session errored before calling stage_return.";
     case "stage_return":

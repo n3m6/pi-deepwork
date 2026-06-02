@@ -251,7 +251,7 @@ export interface DispatchResult {
   text: string;
   messages: unknown[];
   customToolCalls: DispatchCustomToolCall[];
-  endReason?: "agent_end" | "stage_return" | "aborted" | "max_turns" | "session_error";
+  endReason?: "agent_end" | "stage_return" | "aborted" | "max_turns" | "timeout" | "session_error";
   errorMessage?: string;
 }
 

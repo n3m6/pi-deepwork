@@ -247,6 +247,9 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
           reviewFeedback ? "\n=== TASK REVIEW FEEDBACK ===" : "",
           reviewFeedback || "",
         ].join("\n"),
+        {
+          tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+        },
       );
       if (/### Status\s+[—-]\s+FAIL\b/m.test(writer.text)) {
         throw new Error(`Task spec writer failed for task ${taskNumber}: ${writer.text}`);

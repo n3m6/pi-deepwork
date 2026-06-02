@@ -2,8 +2,9 @@ import path from "node:path";
 
 import { createAskHumanTool } from "../gates.js";
 import { parseKeyValueLines } from "../markdown.js";
+import type { DispatchResult } from "../types.js";
 import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../types.js";
-import { dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
+import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
 
 interface InterviewEntry {
   branch: string;
@@ -104,6 +105,10 @@ export const goalsStage: StageModule = {
         },
       );
 
+      const synthesisFailure = goalsDispatchFailureOutcome(synthesized, "Goals synthesis failed", ["requirements.md"], 0);
+      if (synthesisFailure) {
+        return synthesisFailure;
+      }
       const goalsMarkdown = requireMarkdownSection(synthesized.text, "goals.md");
       const configMarkdown = requireMarkdownSection(synthesized.text, "config.md");
       await writeArtifact(runtime.artifacts.goalsFile, goalsMarkdown);
@@ -111,18 +116,19 @@ export const goalsStage: StageModule = {
 
       const review = await runReviewLoop(runtime, interview.entries);
       if (review.status === "FAIL") {
+        const telemetry = {
+          review_rounds: review.reviewRounds,
+          ...(review.dispatchFailure ? {} : { terminal_review_state: "unclean-cap" as const }),
+          gate_status: "none" as const,
+          gate_rounds: 0,
+          gate_wait_time_s: 0,
+          gate_round_details: [],
+        };
         return {
           status: "FAIL",
           filesWritten: ["requirements.md", "goals.md", "config.md", ...review.filesWritten],
-          summary: "Goals review loop reached the unresolved review cap.",
-          telemetry: {
-            review_rounds: review.reviewRounds,
-            terminal_review_state: "unclean-cap",
-            gate_status: "none",
-            gate_rounds: 0,
-            gate_wait_time_s: 0,
-            gate_round_details: [],
-          },
+          summary: review.summary ?? "Goals review loop reached the unresolved review cap.",
+          telemetry,
         };
       }
 
@@ -293,6 +299,8 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
   status: "PASS" | "FAIL";
   reviewRounds: number;
   filesWritten: string[];
+  summary?: string;
+  dispatchFailure?: boolean;
 }> {
   const filesWritten: string[] = [];
   const interviewRecord = renderInterviewRecord(interviewEntries);
@@ -315,6 +323,16 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
         goals,
       ].join("\n"),
     );
+    const reviewFailure = dispatchFailureSummary(review, "Goals review failed");
+    if (reviewFailure) {
+      return {
+        status: "FAIL",
+        reviewRounds: reviewRound,
+        filesWritten,
+        summary: reviewFailure,
+        dispatchFailure: true,
+      };
+    }
 
     const reviewFile = path.join(runtime.artifacts.reviewsDir, `goals-review-round-${String(reviewRound).padStart(2, "0")}.md`);
     await writeArtifact(reviewFile, review.text);
@@ -356,6 +374,16 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
         customTools: [createAskHumanTool(runtime.services.gates)],
       },
     );
+    const rewriteFailure = dispatchFailureSummary(rewritten, "Goals rewrite failed");
+    if (rewriteFailure) {
+      return {
+        status: "FAIL",
+        reviewRounds: reviewRound,
+        filesWritten,
+        summary: rewriteFailure,
+        dispatchFailure: true,
+      };
+    }
     await writeArtifact(runtime.artifacts.goalsFile, requireMarkdownSection(rewritten.text, "goals.md"));
     await writeArtifact(runtime.artifacts.configFile, requireMarkdownSection(rewritten.text, "config.md"));
     reviewRound += 1;
@@ -365,6 +393,31 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
     status: "FAIL",
     reviewRounds: 5,
     filesWritten,
+  };
+}
+
+function goalsDispatchFailureOutcome(
+  result: DispatchResult,
+  label: string,
+  filesWritten: string[],
+  reviewRounds: number,
+): StageOutcome | undefined {
+  const summary = dispatchFailureSummary(result, label);
+  if (!summary) {
+    return undefined;
+  }
+  return {
+    status: "FAIL",
+    filesWritten,
+    summary,
+    telemetry: {
+      review_rounds: reviewRounds,
+      gate_status: "none",
+      gate_rounds: 0,
+      gate_wait_time_s: 0,
+      gate_round_details: [],
+      dispatch_end_reason: result.endReason ?? "unknown",
+    },
   };
 }
 

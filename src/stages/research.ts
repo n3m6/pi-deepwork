@@ -10,10 +10,10 @@ export const researchStage: StageModule = {
       return {
         status: "FAIL",
         filesWritten: questions.filesWritten,
-        summary: "Question generation/review did not converge.",
+        summary: questions.summary ?? "Question generation/review did not converge.",
         telemetry: {
           review_rounds: questions.reviewRounds,
-          terminal_review_state: "unclean-cap",
+          ...(questions.dispatchFailure ? {} : { terminal_review_state: "unclean-cap" as const }),
         },
       };
     }
@@ -23,10 +23,10 @@ export const researchStage: StageModule = {
       return {
         status: "FAIL",
         filesWritten: [...questions.filesWritten, ...researchPass.filesWritten],
-        summary: "Research synthesis/review did not converge.",
+        summary: researchPass.summary ?? "Research synthesis/review did not converge.",
         telemetry: {
           review_rounds: researchPass.reviewRounds,
-          terminal_review_state: "unclean-cap",
+          ...(researchPass.dispatchFailure ? {} : { terminal_review_state: "unclean-cap" as const }),
           child_agent_calls: {
             "qrspi-question-generator": 1,
             "qrspi-codebase-researcher": 1,

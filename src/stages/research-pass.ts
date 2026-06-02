@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 import type { StageRuntime } from "../types.js";
 
 interface ResearchQuestion {
@@ -13,6 +13,8 @@ export interface ResearchPassResult {
   status: "PASS" | "FAIL";
   filesWritten: string[];
   reviewRounds: number;
+  summary?: string;
+  dispatchFailure?: boolean;
 }
 
 export async function runResearchPassSubstage(runtime: StageRuntime, questionsMarkdown: string): Promise<ResearchPassResult> {
@@ -27,6 +29,16 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
         "qrspi-codebase-researcher",
         [`=== QUESTION ===`, `${question.id}: ${question.title}`].join("\n"),
       );
+      const codebaseFailure = dispatchFailureSummary(codebase, `Codebase research failed for ${question.id}`);
+      if (codebaseFailure) {
+        return {
+          status: "FAIL",
+          filesWritten,
+          reviewRounds: 0,
+          summary: codebaseFailure,
+          dispatchFailure: true,
+        };
+      }
       findings.push(codebase.text);
     }
     if (question.tag === "web" || question.tag === "hybrid") {
@@ -35,6 +47,16 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
         "qrspi-web-researcher",
         [`=== QUESTION ===`, `${question.id}: ${question.title}`].join("\n"),
       );
+      const webFailure = dispatchFailureSummary(web, `Web research failed for ${question.id}`);
+      if (webFailure) {
+        return {
+          status: "FAIL",
+          filesWritten,
+          reviewRounds: 0,
+          summary: webFailure,
+          dispatchFailure: true,
+        };
+      }
       findings.push(web.text);
     }
 
@@ -43,14 +65,23 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
     filesWritten.push(path.relative(runtime.artifacts.runDir, questionFile));
   }
 
-  const summary = await dispatchLeaf(
-    runtime,
-    "qrspi-research-synthesizer",
-    questions
-      .map((question) => path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`))
-      .map((filePath) => path.relative(runtime.artifacts.runDir, filePath))
-      .join("\n"),
-  );
+  const researchArtifactList = questions
+    .map((question) => path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`))
+    .map((filePath) => path.relative(runtime.artifacts.runDir, filePath))
+    .join("\n");
+  const summary = await dispatchLeaf(runtime, "qrspi-research-synthesizer", researchArtifactList, {
+    tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+  });
+  const summaryFailure = dispatchFailureSummary(summary, "Research synthesis failed");
+  if (summaryFailure) {
+    return {
+      status: "FAIL",
+      filesWritten,
+      reviewRounds: 0,
+      summary: summaryFailure,
+      dispatchFailure: true,
+    };
+  }
   if (/### Status\s+[—-]\s+FAIL\b/m.test(summary.text)) {
     return {
       status: "FAIL",
@@ -83,7 +114,20 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
         "=== SUMMARY ===",
         await readArtifact(runtime.artifacts.researchSummaryFile),
       ].join("\n"),
+      {
+        tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
+      },
     );
+    const reviewFailure = dispatchFailureSummary(review, "Research review failed");
+    if (reviewFailure) {
+      return {
+        status: "FAIL",
+        filesWritten,
+        reviewRounds,
+        summary: reviewFailure,
+        dispatchFailure: true,
+      };
+    }
 
     const reviewFile = path.join(runtime.artifacts.reviewsDir, `research-review-round-${String(reviewRounds).padStart(2, "0")}.md`);
     await writeArtifact(reviewFile, review.text);
@@ -104,6 +148,36 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
     }
 
     if (reviewRounds === 3) {
+      return {
+        status: "FAIL",
+        filesWritten,
+        reviewRounds,
+      };
+    }
+
+    const revisedSummary = await dispatchLeaf(
+      runtime,
+      "qrspi-research-synthesizer",
+      [
+        researchArtifactList,
+        "",
+        "=== REVIEW FEEDBACK ===",
+        review.text,
+        "",
+        "Revise `research/summary.md` to address every FAIL finding. Preserve only facts supported by the per-question artifacts.",
+      ].join("\n"),
+    );
+    const revisionFailure = dispatchFailureSummary(revisedSummary, "Research synthesis revision failed");
+    if (revisionFailure) {
+      return {
+        status: "FAIL",
+        filesWritten,
+        reviewRounds,
+        summary: revisionFailure,
+        dispatchFailure: true,
+      };
+    }
+    if (/### Status\s+[—-]\s+FAIL\b/m.test(revisedSummary.text)) {
       return {
         status: "FAIL",
         filesWritten,

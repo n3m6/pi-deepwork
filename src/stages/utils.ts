@@ -25,7 +25,7 @@ export async function dispatchLeaf(
     prompt,
     cwd: options?.cwd ?? runtime.artifacts.workspaceRoot,
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-    ...(options?.tools ? { tools: options.tools } : {}),
+    tools: options?.tools ?? readOnlyTools(target.tools),
     ...(options?.customTools ? { customTools: options.customTools } : {}),
   });
 }
@@ -73,6 +73,24 @@ export function requireMarkdownSection(markdown: string, sectionName: string): s
   return section;
 }
 
+export function dispatchFailureSummary(result: DispatchResult, label: string): string | undefined {
+  if (result.errorMessage) {
+    return `${label}: ${result.errorMessage}`;
+  }
+  switch (result.endReason) {
+    case "aborted":
+      return `${label}: dispatched session was aborted.`;
+    case "max_turns":
+      return `${label}: dispatched session exhausted its turn budget.`;
+    case "timeout":
+      return `${label}: dispatched session timed out before producing output.`;
+    case "session_error":
+      return `${label}: dispatched session errored before producing output.`;
+    default:
+      return undefined;
+  }
+}
+
 export function parseReviewStatus(markdown: string): "PASS" | "FAIL" {
   return /^### Status\s+[—-]\s+PASS\b/m.test(markdown) ? "PASS" : "FAIL";
 }
@@ -80,4 +98,8 @@ export function parseReviewStatus(markdown: string): "PASS" | "FAIL" {
 export function extractFixGuidance(markdown: string): string {
   const sections = parseMarkdownSections(markdown);
   return sections["Fix Guidance"] ?? "None.";
+}
+
+function readOnlyTools(tools: string[]): string[] {
+  return tools.filter((tool) => tool !== "write" && tool !== "edit");
 }

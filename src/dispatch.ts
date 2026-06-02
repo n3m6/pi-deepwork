@@ -20,6 +20,8 @@ import type {
 } from "./types.js";
 
 const DEFAULT_GENERIC_MAX_TURNS = 40;
+const DEFAULT_LEAF_TIMEOUT_MS = 180_000;
+const DEFAULT_GENERIC_TIMEOUT_MS = 600_000;
 type DispatchEndReason = NonNullable<DispatchResult["endReason"]>;
 
 export class PiSessionDispatcher implements Dispatcher {
@@ -76,7 +78,13 @@ export class PiSessionDispatcher implements Dispatcher {
     const { session } = await createAgentSession(sessionOptions);
 
     try {
-      const endReason = await waitForPromptCompletion(session, request.prompt, stageReturn, request.signal);
+      const endReason = await waitForPromptCompletion(
+        session,
+        request.prompt,
+        stageReturn,
+        request.signal,
+        isLeaf ? DEFAULT_LEAF_TIMEOUT_MS : DEFAULT_GENERIC_TIMEOUT_MS,
+      );
       const text = extractAssistantText(session.messages);
       return {
         text,
@@ -117,6 +125,7 @@ async function waitForPromptCompletion(
   prompt: string,
   stageReturn: Promise<void>,
   signal?: AbortSignal,
+  timeoutMs?: number,
 ): Promise<DispatchEndReason> {
   let resolveDone!: (reason: DispatchEndReason) => void;
   const done = new Promise<DispatchEndReason>((resolve) => {
@@ -130,20 +139,36 @@ async function waitForPromptCompletion(
   });
 
   const abortListener = () => {
-    void session.abort().finally(() => resolveDone("aborted"));
+    void session.abort().catch(() => undefined);
+    resolveDone("aborted");
   };
   signal?.addEventListener("abort", abortListener, { once: true });
 
+  let timeout: NodeJS.Timeout | undefined;
+  const timeoutPromise = new Promise<DispatchEndReason>((resolve) => {
+    if (!timeoutMs || timeoutMs <= 0) {
+      return;
+    }
+    timeout = setTimeout(() => {
+      void session.abort().catch(() => undefined);
+      resolve("timeout");
+    }, timeoutMs);
+  });
+
   try {
-    await session.prompt(prompt, { source: "extension" });
     return await Promise.race([
+      session.prompt(prompt, { source: "extension" }).then(() => "agent_end" as const),
       done,
       stageReturn.then(async () => {
-        await session.abort();
+        void session.abort().catch(() => undefined);
         return "stage_return" as const;
       }),
+      timeoutPromise,
     ]);
   } finally {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
     signal?.removeEventListener("abort", abortListener);
     unsubscribe();
   }

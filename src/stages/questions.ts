@@ -1,12 +1,14 @@
-import { parseMarkdownSections } from "../markdown.js";
+import { normalizeNewlines } from "../markdown.js";
 import type { StageRuntime } from "../types.js";
-import { dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
 export interface QuestionBatchResult {
   status: "PASS" | "FAIL";
   questionsMarkdown: string;
   filesWritten: string[];
   reviewRounds: number;
+  summary?: string;
+  dispatchFailure?: boolean;
 }
 
 export async function runQuestionsSubstage(runtime: StageRuntime): Promise<QuestionBatchResult> {
@@ -45,6 +47,17 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         .filter(Boolean)
         .join("\n"),
     );
+    const generationFailure = dispatchFailureSummary(generated, "Question generation failed");
+    if (generationFailure) {
+      return {
+        status: "FAIL",
+        questionsMarkdown: generated.text,
+        filesWritten,
+        reviewRounds: reviewRound,
+        summary: generationFailure,
+        dispatchFailure: true,
+      };
+    }
 
     await writeArtifact(runtime.artifacts.researchQuestionsFile, generated.text);
 
@@ -80,6 +93,21 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         questionsMarkdown: generated.text,
         filesWritten,
         reviewRounds: reviewRound,
+        summary: "Question review dispatch did not return both reviewer results.",
+        dispatchFailure: true,
+      };
+    }
+
+    const leakageFailure = dispatchFailureSummary(leakage, "Question leakage review failed");
+    const qualityFailure = dispatchFailureSummary(quality, "Question quality review failed");
+    if (leakageFailure || qualityFailure) {
+      return {
+        status: "FAIL",
+        questionsMarkdown: generated.text,
+        filesWritten,
+        reviewRounds: reviewRound,
+        summary: [leakageFailure, qualityFailure].filter(Boolean).join(" "),
+        dispatchFailure: true,
       };
     }
 
@@ -114,8 +142,8 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
   };
 }
 
-function buildGoalInventory(goalsMarkdown: string): string {
-  const sections = parseMarkdownSections(goalsMarkdown);
+export function buildGoalInventory(goalsMarkdown: string): string {
+  const sections = parseGoalSections(goalsMarkdown);
   return [
     renderInventorySection("FR", sections["Functional Requirements"]),
     renderInventorySection("NFR", sections["Non-Functional Requirements"]),
@@ -124,6 +152,35 @@ function buildGoalInventory(goalsMarkdown: string): string {
   ]
     .filter(Boolean)
     .join("\n\n");
+}
+
+function parseGoalSections(markdown: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  const lines = normalizeNewlines(markdown).split("\n");
+  let current: string | undefined;
+  let buffer: string[] = [];
+
+  const flush = () => {
+    if (current) {
+      sections[current] = buffer.join("\n").trim();
+    }
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      flush();
+      current = heading[1];
+      continue;
+    }
+    if (current) {
+      buffer.push(line);
+    }
+  }
+
+  flush();
+  return sections;
 }
 
 function renderInventorySection(prefix: string, body: string | undefined, numbered = false): string {

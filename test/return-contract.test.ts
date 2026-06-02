@@ -32,3 +32,16 @@ test("normalizeStageReturn synthesizes failure without tool call", () => {
   assert.equal(outcome.status, "FAIL");
   assert.match(outcome.summary, /without calling stage_return/);
 });
+
+test("normalizeStageReturn reports dispatch timeouts", () => {
+  const outcome = normalizeStageReturn({
+    text: "",
+    messages: [],
+    customToolCalls: [],
+    endReason: "timeout",
+  });
+
+  assert.equal(outcome.status, "FAIL");
+  assert.match(outcome.summary, /timed out/);
+  assert.equal(outcome.telemetry?.dispatch_end_reason, "timeout");
+});
