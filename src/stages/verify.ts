@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { detectSimpleExactFileTask } from "../simple-file-task.js";
+import { detectSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
 import type { StageModule, StageOutcome, StageRuntime, VerifyStatus } from "../types.js";
 import { dispatchLeaf, readArtifact, writeArtifact } from "./utils.js";
 

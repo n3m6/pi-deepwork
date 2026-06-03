@@ -1,4 +1,4 @@
-import { normalizeNewlines } from "../markdown.js";
+import { normalizeNewlines } from "../infrastructure/codec/markdown-codec.js";
 import type { LeafAgentDefinition, StageRuntime } from "../types.js";
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 

@@ -1,8 +1,8 @@
 import { mkdir, readdir, symlink } from "node:fs/promises";
 import path from "node:path";
 
-import { parseMarkdownSections } from "../markdown.js";
-import { detectSimpleExactFileTask } from "../simple-file-task.js";
+import { parseMarkdownSections, parseTotalPhases } from "../infrastructure/codec/markdown-codec.js";
+import { detectSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
 import { fileExists } from "../state.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
@@ -536,11 +536,6 @@ async function writeSimplePlan(runtime: StageRuntime, filePath: string, content:
     path.relative(runtime.artifacts.runDir, taskPath),
     "baseline-results.md",
   ];
-}
-
-function parseTotalPhases(manifest: string): number {
-  const match = manifest.match(/total_phases:\s*(\d+)/);
-  return match?.[1] ? Number.parseInt(match[1], 10) : 1;
 }
 
 async function readAllTaskSpecs(runtime: StageRuntime): Promise<string> {

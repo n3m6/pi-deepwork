@@ -8,6 +8,8 @@ import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext, ToolDefini
 
 import { loadAgentDefinitions } from "../../src/agent-defs.js";
 import { createInitialState, createRunId, ensureRunDirectories, getRunArtifacts } from "../../src/state.js";
+import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
+import { NpmBuildTool } from "../../src/infrastructure/npm/build-tool.js";
 import type {
   DispatchRequest,
   DispatchResult,
@@ -88,6 +90,8 @@ export class TestHarness {
     });
     const ctx = createFakeCommandContext(workspaceRoot, pi);
     const progress = new NoopProgressReporter();
+    const versionControl = new GitVersionControl(pi, workspaceRoot, runId);
+    const buildTool = new NpmBuildTool(pi);
     const services: PipelineServices = {
       pi,
       commandContext: ctx,
@@ -96,6 +100,8 @@ export class TestHarness {
       agentDefinitions,
       gates,
       progress,
+      versionControl,
+      buildTool,
     };
 
     await writeFile(artifacts.configFile, `created: 2026-06-01\nroute: ${options.route ?? "full"}\nrun_id: ${runId}\n`, "utf8");

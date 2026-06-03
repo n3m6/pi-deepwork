@@ -1,6 +1,7 @@
 import path from "node:path";
 
-import type { DispatchRequest, StageOutcome, StageRuntime } from "../types.js";
+import { isPipelineArtifact, isTestFile } from "../domain/stage/boundary-policy.js";
+import type { DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../types.js";
 import { dispatchGenericCoding, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
 const ACCEPTANCE_PLAN_REVIEWERS = [
@@ -306,20 +307,19 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+function requireVersionControl(runtime: StageRuntime): VersionControl {
+  if (!runtime.services.versionControl) {
+    throw new Error("VersionControl port is not wired; ensure the composition root initialises it.");
+  }
+  return runtime.services.versionControl;
+}
+
 async function workspaceFiles(runtime: StageRuntime): Promise<Set<string>> {
-  const status = await runtime.services.pi.exec("git", ["status", "--short"], {
-    cwd: runtime.artifacts.workspaceRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
-  return new Set(
-    status.stdout
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => line.slice(3).trim())
-      .filter(Boolean),
+  const files = await requireVersionControl(runtime).changedFiles(
+    runtime.artifacts.workspaceRoot,
+    runtime.services.eventContext.signal,
   );
+  return new Set(files);
 }
 
 async function detectBoundaryViolations(runtime: StageRuntime, before: Set<string>): Promise<string[]> {
@@ -330,10 +330,4 @@ async function detectBoundaryViolations(runtime: StageRuntime, before: Set<strin
     .filter((file) => !isTestFile(file));
 }
 
-export function isPipelineArtifact(file: string): boolean {
-  return file.startsWith(".pipeline/");
-}
-
-export function isTestFile(file: string): boolean {
-  return /(^|\/)(__tests__|tests?|spec)(\/|$)|[._-](test|spec)\.[^/]+$/i.test(file);
-}
+export { isPipelineArtifact, isTestFile };

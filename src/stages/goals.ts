@@ -1,8 +1,9 @@
 import path from "node:path";
 
 import { createAskHumanTool } from "../gates.js";
-import { parseKeyValueLines } from "../markdown.js";
-import { parseSimpleExactFileTask } from "../simple-file-task.js";
+import { QUESTION_SET, inferFromTask } from "../domain/goals/interview-policy.js";
+import { parseKeyValueLines } from "../infrastructure/codec/markdown-codec.js";
+import { parseSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
 import type { DispatchResult } from "../types.js";
 import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
@@ -12,39 +13,6 @@ interface InterviewEntry {
   source: "user-answer" | "repo-finding" | "user-confirmed-finding" | "automation-fallback";
   content: string;
 }
-
-const QUESTION_SET: Array<{ branch: string; title: string; question: string; required: boolean }> = [
-  {
-    branch: "problem-and-motivation",
-    title: "Deepwork: intent",
-    question: "What are you building or changing, and why does it matter?",
-    required: true,
-  },
-  {
-    branch: "constraints",
-    title: "Deepwork: constraints",
-    question: "What constraints or limitations must be respected?",
-    required: true,
-  },
-  {
-    branch: "non-goals",
-    title: "Deepwork: non-goals",
-    question: "What is explicitly out of scope for this run?",
-    required: true,
-  },
-  {
-    branch: "acceptance-criteria",
-    title: "Deepwork: acceptance criteria",
-    question: "How will we know this is done? List observable acceptance criteria.",
-    required: true,
-  },
-  {
-    branch: "testing-expectations",
-    title: "Deepwork: testing expectations",
-    question: "What tests or validation should be added or updated?",
-    required: true,
-  },
-];
 
 export const goalsStage: StageModule = {
   stage: "goals",
@@ -493,27 +461,6 @@ function renderSimpleConfig(runId: string): string {
     "---",
     "",
   ].join("\n");
-}
-
-function inferFromTask(userTask: string, branch: string): string | undefined {
-  const normalized = userTask.trim();
-  if (!normalized) {
-    return undefined;
-  }
-  switch (branch) {
-    case "problem-and-motivation":
-      return normalized;
-    case "constraints":
-      return /\b(without|must|should not|cannot|don't)\b/i.test(normalized) ? normalized : undefined;
-    case "non-goals":
-      return /\bout of scope|non-goal|not include\b/i.test(normalized) ? normalized : undefined;
-    case "acceptance-criteria":
-      return /\bacceptance\b|\bshould\b|\bmust\b/i.test(normalized) ? normalized : undefined;
-    case "testing-expectations":
-      return /\btest|verify|validation|acceptance\b/i.test(normalized) ? normalized : undefined;
-    default:
-      return undefined;
-  }
 }
 
 function secondsBetween(start: string, end: string): number {

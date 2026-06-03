@@ -1,3 +1,14 @@
+/**
+ * MarkdownCodec — anti-corruption layer between raw agent text output and typed domain values.
+ * Owns all markdown parsing utilities. Other modules import from here, not from markdown.ts.
+ */
+
+import type { Route, VerifyStatus } from "../../application/port/index.js";
+
+// ---------------------------------------------------------------------------
+// Low-level string utilities
+// ---------------------------------------------------------------------------
+
 export interface SectionMap {
   [heading: string]: string;
 }
@@ -88,4 +99,57 @@ export function parsePipeTable(markdown: string): string[][] {
   return rows
     .filter((line) => !/^(\|\s*-+\s*)+\|$/.test(line))
     .map((line) => line.slice(1, -1).split("|").map((cell) => cell.trim()));
+}
+
+// ---------------------------------------------------------------------------
+// Higher-level semantic parsers
+// ---------------------------------------------------------------------------
+
+export function parseReviewStatus(markdown: string): "PASS" | "FAIL" {
+  return /^### Status\s+[—-]\s+PASS\b/m.test(markdown) ? "PASS" : "FAIL";
+}
+
+export function parseOverallStatus(markdown: string): "PASS" | "PARTIAL" | "FAIL" {
+  const m = markdown.match(/^###\s+(?:Overall\s+)?Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/im);
+  if (!m) {
+    return "FAIL";
+  }
+  const s = m[1]?.toUpperCase();
+  return s === "PASS" ? "PASS" : s === "PARTIAL" ? "PARTIAL" : "FAIL";
+}
+
+export function parseVerifyStatus(markdown: string): VerifyStatus | undefined {
+  const status = markdown.match(/###\s+Overall\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase()
+    ?? markdown.match(/###\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase();
+  return status === "PASS" || status === "PARTIAL" || status === "FAIL" ? status : undefined;
+}
+
+export function parseTotalPhases(markdown: string): number {
+  const raw = parseKeyValueLines(markdown).total_phases ?? "";
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function parseRoute(markdown: string): Route {
+  const route = parseKeyValueLines(markdown).route;
+  return route === "quick-fix" ? "quick-fix" : route === "full" ? "full" : "unknown";
+}
+
+export function extractPhaseSection(manifest: string, phase: number): string | undefined {
+  const sections = parseMarkdownSections(manifest);
+  return sections[`Phase ${phase}`] ?? sections[`Phase ${String(phase)}`];
+}
+
+export function extractFixGuidance(markdown: string): string {
+  const sections = parseMarkdownSections(markdown);
+  return sections["Fix Guidance"] ?? "None.";
+}
+
+export function requireMarkdownSection(markdown: string, sectionName: string): string {
+  const sections = parseMarkdownSections(markdown);
+  const section = sections[sectionName];
+  if (!section) {
+    throw new Error(`Missing markdown section: ${sectionName}`);
+  }
+  return section;
 }

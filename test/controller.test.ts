@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { applyStageTransition, executeStage, maybeRouteAcceptFix } from "../src/controller.js";
+import { applyStageTransition, executeStage, maybeRouteAcceptFix } from "../src/application/pipeline/run-pipeline.js";
 import { createInitialState, ensureRunDirectories, getRunArtifacts } from "../src/state.js";
 import { TelemetryRecorder } from "../src/telemetry.js";
 import type { GateManager, PipelineServices, StageModule, StageRuntime } from "../src/types.js";

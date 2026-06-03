@@ -1,12 +1,9 @@
 import path from "node:path";
 
-import type { DispatchRequest, StageOutcome, StageRuntime } from "../types.js";
+import { selectReviewers } from "../domain/stage/reviewer-selection-policy.js";
+import type { ReviewerSpec } from "../domain/stage/reviewer-selection-policy.js";
+import type { DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../types.js";
 import { parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
-
-interface ReviewerSpec {
-  agentName: string;
-  advisory: boolean;
-}
 
 export async function runCodeReviewSubstage(
   runtime: StageRuntime,
@@ -19,7 +16,7 @@ export async function runCodeReviewSubstage(
   const taskSpec = await readArtifact(options.taskSpecPath);
   const changedFiles = await listChangedFiles(runtime, options.worktreeRoot);
   const changedLineCount = await countChangedLines(runtime, options.worktreeRoot);
-  const reviewers = selectReviewers(runtime, changedFiles, changedLineCount);
+  const reviewers = selectReviewers(runtime.state.route, changedFiles, changedLineCount);
   const requests: DispatchRequest[] = reviewers.map((reviewer) => {
     const target = runtime.services.agentDefinitions.get(reviewer.agentName);
     if (!target) {
@@ -80,33 +77,6 @@ function hasBlockingSeverity(markdown: string): boolean {
   return /(?:^|\|)\s*(?:CRITICAL|HIGH)\s*(?=\||\b)/im.test(markdown);
 }
 
-function selectReviewers(runtime: StageRuntime, changedFiles: string[], changedLineCount: number): ReviewerSpec[] {
-  const reviewers: ReviewerSpec[] = [
-    { agentName: "qrspi-review-code-quality", advisory: false },
-  ];
-  const hasTaskTests = changedFiles.some((file) => /\b(__tests__|tests?|spec)\b|[._-](test|spec)\./i.test(file));
-  if (hasTaskTests) {
-    reviewers.push({ agentName: "qrspi-review-test-coverage", advisory: false });
-  }
-  if (changedFiles.some((file) => /(auth|security|permission|token|secret|crypto|password|session)/i.test(file))) {
-    reviewers.push({ agentName: "qrspi-review-security", advisory: false });
-  }
-  if (changedFiles.some((file) => /(log|catch|error|fallback|silent|ignore|empty|noop)/i.test(file))) {
-    reviewers.push({ agentName: "qrspi-review-silent-failure", advisory: false });
-  }
-  if (runtime.state.route === "full") {
-    reviewers.push({ agentName: "qrspi-review-goal-traceability", advisory: false });
-  }
-  if (
-    changedFiles.length > 3 ||
-    changedLineCount > 200 ||
-    changedFiles.some((file) => /(simpl|refactor|util|helper|common|shared)/i.test(file))
-  ) {
-    reviewers.push({ agentName: "qrspi-review-code-simplifier", advisory: true });
-  }
-  return reviewers;
-}
-
 function buildReviewPrompt(
   taskId: string,
   worktreeRoot: string,
@@ -131,27 +101,17 @@ function buildReviewPrompt(
   ].join("\n");
 }
 
+function requireVersionControl(runtime: StageRuntime): VersionControl {
+  if (!runtime.services.versionControl) {
+    throw new Error("VersionControl port is not wired; ensure the composition root initialises it.");
+  }
+  return runtime.services.versionControl;
+}
+
 async function listChangedFiles(runtime: StageRuntime, worktreeRoot: string): Promise<string[]> {
-  const result = await runtime.services.pi.exec("git", ["status", "--short"], {
-    cwd: worktreeRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
-  return result.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => line.slice(3).trim())
-    .filter(Boolean);
+  return requireVersionControl(runtime).changedFiles(worktreeRoot, runtime.services.eventContext.signal);
 }
 
 async function countChangedLines(runtime: StageRuntime, worktreeRoot: string): Promise<number> {
-  const result = await runtime.services.pi.exec("git", ["diff", "--shortstat", "HEAD"], {
-    cwd: worktreeRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
-  const insertions = Number.parseInt(result.stdout.match(/(\d+)\s+insertion/)?.[1] ?? "0", 10);
-  const deletions = Number.parseInt(result.stdout.match(/(\d+)\s+deletion/)?.[1] ?? "0", 10);
-  return insertions + deletions;
+  return requireVersionControl(runtime).changedLineCount(worktreeRoot, runtime.services.eventContext.signal);
 }

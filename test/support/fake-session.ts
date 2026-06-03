@@ -110,3 +110,6 @@ export function makeSessionFactory(behavior: FakeSessionBehavior, text = ""): {
   };
   return { factory, sessions };
 }
+
+// Canonical alias: FakeAgentGateway = FakeSession (acts as the agent dispatch boundary double)
+export { FakeSession as FakeAgentGateway };

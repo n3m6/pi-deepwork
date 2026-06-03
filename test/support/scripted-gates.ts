@@ -59,3 +59,6 @@ export class ScriptedGateManager implements GateManager {
     return false;
   }
 }
+
+// Canonical alias: ScriptedHumanGate = ScriptedGateManager
+export { ScriptedGateManager as ScriptedHumanGate };

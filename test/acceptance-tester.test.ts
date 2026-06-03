@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { isTestFile, isPipelineArtifact, runAcceptanceTesterSubstage } from "../src/stages/acceptance-tester.js";
 import { markStageCompleted } from "../src/state.js";
-import type { DispatchRequest, DispatchResult, Dispatcher } from "../src/types.js";
+import type { DispatchRequest, DispatchResult, Dispatcher, VersionControl } from "../src/types.js";
 import { TestHarness } from "./support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -138,24 +138,23 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  let gitCallCount = 0;
+  let changedFilesCallCount = 0;
+  const mockVersionControl: VersionControl = {
+    ...harness.services.versionControl!,
+    async changedFiles(_cwd: string): Promise<string[]> {
+      changedFilesCallCount += 1;
+      // Second call (after acceptance) adds a production file
+      if (changedFilesCallCount >= 2) {
+        return ["src/production-code.ts", "test/example.test.ts"];
+      }
+      return ["test/example.test.ts"];
+    },
+  };
   const runtimeWithBoundaryViolation = {
     ...harness.runtime(),
     services: {
       ...harness.services,
-      pi: {
-        async exec(_command: string, args: string[]) {
-          if (args[0] === "status") {
-            gitCallCount += 1;
-            // Second call (after acceptance) adds a production file
-            if (gitCallCount >= 2) {
-              return { stdout: " M src/production-code.ts\n M test/example.test.ts\n", stderr: "", code: 0, killed: false };
-            }
-            return { stdout: " M test/example.test.ts\n", stderr: "", code: 0, killed: false };
-          }
-          return { stdout: "", stderr: "", code: 0, killed: false };
-        },
-      },
+      versionControl: mockVersionControl,
       dispatcher: {
         async dispatch(request: DispatchRequest): Promise<DispatchResult> {
           if (request.target.name === "qrspi-coverage-planner") {

@@ -1,9 +1,9 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { parseKeyValueLines } from "./markdown.js";
+import { parseKeyValueLines } from "./infrastructure/codec/markdown-codec.js";
 import { fileExists, getRunArtifacts, loadState } from "./state.js";
-import { nextStageFor } from "./transitions.js";
+import { nextStageFor } from "./domain/stage/transition-policy.js";
 import type { FailurePolicy, InteractionMode, PhaseHistoryEntry, Route, RunArtifacts, RunState, StageName, VerifyStatus } from "./types.js";
 
 const STAGE_MARKERS: Array<{ stage: StageName; path: (artifacts: RunArtifacts) => string }> = [

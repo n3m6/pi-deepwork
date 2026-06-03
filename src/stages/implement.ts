@@ -1,10 +1,11 @@
 import { mkdir, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { CheckpointManager, commitIdentityArgs } from "../checkpoint.js";
-import { parseMarkdownSections } from "../markdown.js";
-import { detectSimpleExactFileTask } from "../simple-file-task.js";
-import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
+import { CheckpointManager } from "../checkpoint.js";
+import { parseMarkdownSections } from "../infrastructure/codec/markdown-codec.js";
+import { detectSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
+import { buildWaves } from "../domain/stage/wave-planner.js";
+import type { StageModule, StageOutcome, StageRuntime, VersionControl } from "../types.js";
 import { WorktreeManager, type TaskWorktree } from "../worktrees.js";
 import { runBaselineRegressionSubstage } from "./baseline-regression.js";
 import { runE2ERegressionSubstage } from "./e2e-regression.js";
@@ -334,27 +335,7 @@ export async function loadPhaseTasks(runtime: StageRuntime, phase: number): Prom
   return summaries;
 }
 
-export function buildWaves(tasks: TaskSpecSummary[]): TaskSpecSummary[][] {
-  const remaining = new Map(tasks.map((task) => [task.taskId, task]));
-  const completed = new Set<string>();
-  const waves: TaskSpecSummary[][] = [];
-
-  while (remaining.size > 0) {
-    const wave = [...remaining.values()].filter((task) => task.dependencies.every((dependency) => completed.has(dependency)));
-    if (wave.length === 0) {
-      waves.push([...remaining.values()].sort((left, right) => left.taskId.localeCompare(right.taskId)));
-      break;
-    }
-    wave.sort((left, right) => left.taskId.localeCompare(right.taskId));
-    waves.push(wave);
-    for (const task of wave) {
-      completed.add(task.taskId);
-      remaining.delete(task.taskId);
-    }
-  }
-
-  return waves;
-}
+export { buildWaves };
 
 function renderExecutionManifest(rows: string[]): string {
   return [
@@ -375,6 +356,13 @@ async function directoryHasTasks(taskDir: string): Promise<boolean> {
   }
 }
 
+function requireVersionControl(runtime: StageRuntime): VersionControl {
+  if (!runtime.services.versionControl) {
+    throw new Error("VersionControl port is not wired; ensure the composition root initialises it.");
+  }
+  return runtime.services.versionControl;
+}
+
 async function commitWorktreeChanges(
   runtime: StageRuntime,
   worktreeRoot: string,
@@ -382,25 +370,12 @@ async function commitWorktreeChanges(
   taskId: string,
   title: string,
 ): Promise<void> {
-  const status = await runtime.services.pi.exec("git", ["status", "--short"], {
-    cwd: worktreeRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
-  if (!status.stdout.trim()) {
+  const vc = requireVersionControl(runtime);
+  const changed = await vc.changedFiles(worktreeRoot, runtime.services.eventContext.signal);
+  if (changed.length === 0) {
     return;
   }
-
-  await runtime.services.pi.exec("git", ["add", "-A"], {
-    cwd: worktreeRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
-  await runtime.services.pi.exec("git", [...commitIdentityArgs(), "commit", "-m", `qrspi: phase ${phase} task ${taskId} ${title}`], {
-    cwd: worktreeRoot,
-    timeout: 60_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
+  await vc.commitWorktreeChanges(worktreeRoot, `qrspi: phase ${phase} task ${taskId} ${title}`, runtime.services.eventContext.signal);
 }
 
 async function resolveSquashConflict(

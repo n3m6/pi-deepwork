@@ -1,4 +1,7 @@
-import type { NextStage, Route, StageName, VerifyStatus } from "./types.js";
+// Pure stage transition policy — no side effects.
+// No node:* or pi imports.
+
+import type { NextStage, Route, StageName, VerifyStatus } from "../value/index.js";
 
 export interface NextStageContext {
   route: Route;

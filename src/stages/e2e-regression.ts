@@ -1,7 +1,6 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { StageOutcome, StageRuntime } from "../types.js";
+import type { BuildToolPort, StageOutcome, StageRuntime } from "../types.js";
 import { writeArtifact } from "./utils.js";
 
 export interface RegressionCheckResult {
@@ -10,8 +9,11 @@ export interface RegressionCheckResult {
 }
 
 export async function runE2ERegressionSubstage(runtime: StageRuntime, phase: number): Promise<RegressionCheckResult> {
-  const packageJson = await readPackageJson(runtime.artifacts.workspaceRoot);
-  const scriptName = packageJson?.scripts?.["test:e2e"] ? "test:e2e" : packageJson?.scripts?.e2e ? "e2e" : undefined;
+  const buildTool = requireBuildTool(runtime);
+  const cwd = runtime.artifacts.workspaceRoot;
+  const available = new Set(await buildTool.availableScripts(cwd));
+  const scriptName = available.has("test:e2e") ? "test:e2e" : available.has("e2e") ? "e2e" : undefined;
+
   const phaseDir = path.join(runtime.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   const filePath = path.join(phaseDir, "e2e-regression-results.md");
 
@@ -32,11 +34,7 @@ export async function runE2ERegressionSubstage(runtime: StageRuntime, phase: num
     };
   }
 
-  const result = await runtime.services.pi.exec("npm", ["run", scriptName], {
-    cwd: runtime.artifacts.workspaceRoot,
-    timeout: 120_000,
-    ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-  });
+  const result = await buildTool.runScript(scriptName, cwd);
   const status = result.code === 0 ? "PASS" : "FAIL";
   const markdown = [
     `### Status — ${status}`,
@@ -57,11 +55,9 @@ export async function runE2ERegressionSubstage(runtime: StageRuntime, phase: num
   };
 }
 
-async function readPackageJson(workspaceRoot: string): Promise<{ scripts?: Record<string, string> } | undefined> {
-  try {
-    const raw = await readFile(path.join(workspaceRoot, "package.json"), "utf8");
-    return JSON.parse(raw) as { scripts?: Record<string, string> };
-  } catch {
-    return undefined;
+function requireBuildTool(runtime: StageRuntime): BuildToolPort {
+  if (!runtime.services.buildTool) {
+    throw new Error("BuildToolPort is not wired; ensure the composition root initialises it.");
   }
+  return runtime.services.buildTool;
 }

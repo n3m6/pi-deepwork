@@ -1,7 +1,8 @@
-import { cp, mkdir, readdir, rm, stat } from "node:fs/promises";
+import { cp, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { BackwardLoopClassification, RunArtifacts, StageName } from "./types.js";
+import { backwardLoopTarget } from "./domain/backward-loop/artifact-reset-policy.js";
+import type { BackwardLoopClassification, BackwardLoopRequest, RunArtifacts, StageName } from "./types.js";
 
 export async function resetArtifactsForBackwardLoop(
   artifacts: RunArtifacts,
@@ -36,23 +37,6 @@ export async function resetArtifactsForBackwardLoop(
     targetStage,
     archived: [...archived].sort(),
   };
-}
-
-function backwardLoopTarget(classification: BackwardLoopClassification): StageName {
-  switch (classification) {
-    case "LOOP_GOALS":
-      return "goals";
-    case "LOOP_DESIGN":
-      return "design";
-    case "LOOP_STRUCTURE":
-      return "structure";
-    case "LOOP_PLAN":
-    case "NO_LOOP":
-    default:
-      return "plan";
-    case "DEFER_REPLAN":
-      return "replan";
-  }
 }
 
 function pathsForTargetStage(artifacts: RunArtifacts, targetStage: StageName): string[] {
@@ -138,4 +122,29 @@ async function safeReadDir(targetPath: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+export async function writeDeferredReplanFeedback(
+  artifacts: RunArtifacts,
+  phase: number,
+  backwardLoop: BackwardLoopRequest,
+): Promise<void> {
+  await mkdir(artifacts.feedbackDir, { recursive: true });
+  const filePath = path.join(artifacts.feedbackDir, `deferred-replan-${String(phase).padStart(2, "0")}.md`);
+  await writeFile(
+    filePath,
+    [
+      `# Deferred Replan Feedback — Phase ${phase}`,
+      "",
+      `classification: ${backwardLoop.classification}`,
+      "",
+      "## Summary",
+      backwardLoop.summary,
+      "",
+      "## Guidance",
+      backwardLoop.guidance ?? "None.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 }

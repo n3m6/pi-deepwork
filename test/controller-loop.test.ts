@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { runPipeline } from "../src/controller.js";
+import { runPipeline } from "../src/application/pipeline/run-pipeline.js";
 import { CheckpointManager } from "../src/checkpoint.js";
 import { TelemetryRecorder } from "../src/telemetry.js";
 import { markStageCompleted } from "../src/state.js";

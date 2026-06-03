@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { markStageCompleted } from "../src/state.js";
-import { parseSimpleExactFileTask } from "../src/simple-file-task.js";
+import { parseSimpleExactFileTask } from "../src/application/workflow/simple-exact-file-workflow.js";
 import { acceptStage } from "../src/stages/accept.js";
 import { goalsStage } from "../src/stages/goals.js";
 import { implementStage } from "../src/stages/implement.js";

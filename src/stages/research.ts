@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { detectSimpleExactFileTask } from "../simple-file-task.js";
+import { detectSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { runQuestionsSubstage } from "./questions.js";
 import { runResearchPassSubstage } from "./research-pass.js";

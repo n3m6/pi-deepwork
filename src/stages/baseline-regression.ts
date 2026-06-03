@@ -1,33 +1,26 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { StageOutcome, StageRuntime } from "../types.js";
+import type { BuildToolPort, StageOutcome, StageRuntime } from "../types.js";
 import { writeArtifact } from "./utils.js";
 
+const BASELINE_SCRIPTS = [
+  { label: "Build", script: "build" },
+  { label: "Lint", script: "lint" },
+  { label: "Typecheck", script: "typecheck" },
+  { label: "Tests", script: "test" },
+] as const;
+
 export async function runBaselineRegressionSubstage(runtime: StageRuntime, phase: number): Promise<StageOutcome> {
-  const packageJson = await readPackageJson(runtime.artifacts.workspaceRoot);
-  const commands: Array<{ label: string; script: string }> = [];
-  if (packageJson?.scripts?.build) {
-    commands.push({ label: "Build", script: "build" });
-  }
-  if (packageJson?.scripts?.lint) {
-    commands.push({ label: "Lint", script: "lint" });
-  }
-  if (packageJson?.scripts?.typecheck) {
-    commands.push({ label: "Typecheck", script: "typecheck" });
-  }
-  if (packageJson?.scripts?.test) {
-    commands.push({ label: "Tests", script: "test" });
-  }
+  const buildTool = requireBuildTool(runtime);
+  const cwd = runtime.artifacts.workspaceRoot;
+  const available = new Set(await buildTool.availableScripts(cwd));
+  const commands = BASELINE_SCRIPTS.filter((cmd) => available.has(cmd.script));
 
   const rows: string[] = [];
   let overall: StageOutcome["status"] = "PASS";
+
   for (const command of commands) {
-    const result = await runtime.services.pi.exec("npm", ["run", command.script], {
-      cwd: runtime.artifacts.workspaceRoot,
-      timeout: 120_000,
-      ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-    });
+    const result = await buildTool.runScript(command.script, cwd);
     const status = result.code === 0 ? "PASS" : "FAIL";
     if (status === "FAIL") {
       overall = "FAIL";
@@ -57,11 +50,9 @@ export async function runBaselineRegressionSubstage(runtime: StageRuntime, phase
   };
 }
 
-async function readPackageJson(workspaceRoot: string): Promise<{ scripts?: Record<string, string> } | undefined> {
-  try {
-    const raw = await readFile(path.join(workspaceRoot, "package.json"), "utf8");
-    return JSON.parse(raw) as { scripts?: Record<string, string> };
-  } catch {
-    return undefined;
+function requireBuildTool(runtime: StageRuntime): BuildToolPort {
+  if (!runtime.services.buildTool) {
+    throw new Error("BuildToolPort is not wired; ensure the composition root initialises it.");
   }
+  return runtime.services.buildTool;
 }

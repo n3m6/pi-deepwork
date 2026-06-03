@@ -1,32 +1,9 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
-import type { StageRuntime } from "./types.js";
+// Simple exact-file spec — pure parsing, no I/O.
+// No node:* or pi imports.
 
 export interface SimpleExactFileTask {
   filePath: string;
   content: string;
-}
-
-export async function detectSimpleExactFileTask(runtime: StageRuntime): Promise<SimpleExactFileTask | undefined> {
-  if (runtime.state.route !== "quick-fix" && runtime.state.route !== "unknown") {
-    return undefined;
-  }
-
-  const candidates = [
-    runtime.state.userTask ?? "",
-    await readOptional(runtime.artifacts.goalsFile),
-    await readOptional(runtime.artifacts.requirementsFile),
-  ];
-
-  for (const candidate of candidates) {
-    const task = parseSimpleExactFileTask(candidate);
-    if (task) {
-      return task;
-    }
-  }
-
-  return undefined;
 }
 
 export function parseSimpleExactFileTask(text: string): SimpleExactFileTask | undefined {
@@ -39,7 +16,7 @@ export function parseSimpleExactFileTask(text: string): SimpleExactFileTask | un
 }
 
 export function isSafeRelativePath(filePath: string): boolean {
-  if (!filePath || path.isAbsolute(filePath) || filePath.includes("\\")) {
+  if (!filePath || isAbsolutePath(filePath) || filePath.includes("\\")) {
     return false;
   }
   const segments = filePath.split("/");
@@ -52,6 +29,10 @@ export function isSafeRelativePath(filePath: string): boolean {
   return /^[A-Za-z0-9._/-]+$/.test(filePath);
 }
 
+function isAbsolutePath(filePath: string): boolean {
+  return filePath.startsWith("/");
+}
+
 function extractFilePath(text: string): string | undefined {
   const patterns = [
     /\b(?:create|write|add)\s+(?:an?\s+)?([A-Za-z0-9][A-Za-z0-9._/-]*\.[A-Za-z0-9]+)\s+file\b/i,
@@ -61,9 +42,9 @@ function extractFilePath(text: string): string | undefined {
 
   for (const pattern of patterns) {
     const match = text.match(pattern);
-    const filePath = match?.[1]?.trim();
-    if (filePath) {
-      return filePath;
+    const fp = match?.[1]?.trim();
+    if (fp) {
+      return fp;
     }
   }
 
@@ -87,12 +68,4 @@ function extractExactContent(text: string): string | undefined {
   }
 
   return undefined;
-}
-
-async function readOptional(filePath: string): Promise<string> {
-  try {
-    return await readFile(filePath, "utf8");
-  } catch {
-    return "";
-  }
 }

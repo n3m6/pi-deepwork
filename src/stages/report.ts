@@ -1,8 +1,8 @@
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { parseKeyValueLines } from "../markdown.js";
-import { detectSimpleExactFileTask } from "../simple-file-task.js";
+import { parseKeyValueLines } from "../infrastructure/codec/markdown-codec.js";
+import { detectSimpleExactFileTask } from "../application/workflow/simple-exact-file-workflow.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, readArtifact, writeArtifact } from "./utils.js";
 

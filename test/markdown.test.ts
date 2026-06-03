@@ -11,7 +11,7 @@ import {
   extractSummary,
   extractCodeBlock,
   parsePipeTable,
-} from "../src/markdown.js";
+} from "../src/infrastructure/codec/markdown-codec.js";
 
 // ---------------------------------------------------------------------------
 // normalizeNewlines

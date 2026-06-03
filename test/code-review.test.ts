@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { createInitialState, ensureRunDirectories, getRunArtifacts } from "../src/state.js";
 import { runCodeReviewSubstage } from "../src/stages/code-review.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, LeafAgentDefinition, PipelineServices, StageRuntime } from "../src/types.js";
+import type { DispatchRequest, DispatchResult, Dispatcher, LeafAgentDefinition, PipelineServices, StageRuntime, VersionControl } from "../src/types.js";
 
 test("code-review fanout blocks on failing non-advisory reviewer", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
@@ -96,6 +96,23 @@ class RecordingDispatcher implements Dispatcher {
   }
 }
 
+function makeVersionControl(changedFiles: string[], changedLines = 250): VersionControl {
+  return {
+    createRunBranch: async () => {},
+    checkpoint: async () => {},
+    resolveRepoRoot: async () => "/",
+    prepareWorktree: async () => ({ branch: "test", worktreeRoot: "/", taskId: "01", phase: 1 }),
+    squashMerge: async () => ({ ok: true }),
+    rebaseWorktree: async () => ({ ok: true }),
+    continueRebase: async () => ({ ok: true }),
+    commitWorktreeChanges: async () => {},
+    changedFiles: async (_cwd: string) => changedFiles,
+    changedLineCount: async (_cwd: string) => changedLines,
+    listWorkspaceFiles: async (_cwd: string) => changedFiles,
+    cleanupWorktree: async () => {},
+  };
+}
+
 function makeRuntime(
   workspace: string,
   artifacts: ReturnType<typeof getRunArtifacts>,
@@ -130,20 +147,14 @@ function makeRuntime(
     }),
     artifacts,
     services: ({
-      pi: {
-        async exec(_command: string, args: string[]) {
-          if (args.includes("status")) {
-            return { stdout: changedFiles.map((file) => ` M ${file}`).join("\n"), stderr: "", code: 0, killed: false };
-          }
-          return { stdout: " 4 files changed, 250 insertions(+), 0 deletions(-)", stderr: "", code: 0, killed: false };
-        },
-      },
+      pi: { async exec() { return { stdout: "", stderr: "", code: 0, killed: false }; } },
       commandContext: {} as never,
       eventContext: {},
       dispatcher,
       agentDefinitions,
       gates: {} as never,
       progress: {} as never,
+      versionControl: makeVersionControl(changedFiles),
     } as unknown) as PipelineServices,
   };
 }

@@ -1,7 +1,7 @@
 import { mkdir, readdir } from "node:fs/promises";
 import path from "node:path";
 
-import { parseMarkdownSections } from "../markdown.js";
+import { parseMarkdownSections } from "../infrastructure/codec/markdown-codec.js";
 import type { BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../types.js";
 import { dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 

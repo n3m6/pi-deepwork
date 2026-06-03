@@ -1,7 +1,12 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { parseMarkdownSections } from "../markdown.js";
+import {
+  extractFixGuidance,
+  parseMarkdownSections,
+  parseReviewStatus,
+  requireMarkdownSection,
+} from "../infrastructure/codec/markdown-codec.js";
 import { createStageReturnTool, normalizeStageReturn } from "../return-contract.js";
 import type { DispatchRequest, DispatchResult, StageOutcome, StageRuntime } from "../types.js";
 import type { StageReturnPayload } from "../return-contract.js";
@@ -66,14 +71,7 @@ export async function readArtifact(filePath: string): Promise<string> {
   return readFile(filePath, "utf8");
 }
 
-export function requireMarkdownSection(markdown: string, sectionName: string): string {
-  const sections = parseMarkdownSections(markdown);
-  const section = sections[sectionName];
-  if (!section) {
-    throw new Error(`Missing markdown section: ${sectionName}`);
-  }
-  return section;
-}
+export { requireMarkdownSection };
 
 export function dispatchFailureSummary(result: DispatchResult, label: string): string | undefined {
   if (result.errorMessage) {
@@ -93,14 +91,7 @@ export function dispatchFailureSummary(result: DispatchResult, label: string): s
   }
 }
 
-export function parseReviewStatus(markdown: string): "PASS" | "FAIL" {
-  return /^### Status\s+[—-]\s+PASS\b/m.test(markdown) ? "PASS" : "FAIL";
-}
-
-export function extractFixGuidance(markdown: string): string {
-  const sections = parseMarkdownSections(markdown);
-  return sections["Fix Guidance"] ?? "None.";
-}
+export { parseReviewStatus, extractFixGuidance };
 
 function readOnlyTools(tools: string[]): string[] {
   return tools.filter((tool) => tool !== "write" && tool !== "edit");
