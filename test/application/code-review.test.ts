@@ -1,0 +1,163 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+
+import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
+import { getRunArtifacts, ensureRunDirectories } from "../../src/infrastructure/fs/artifact-repository.js";
+import { createInitialState } from "../../src/domain/run/index.js";
+import { runCodeReviewSubstage } from "../../src/application/stage/code-review.js";
+import type { DispatchRequest, DispatchResult, Dispatcher, LeafAgentDefinition, PipelineServices, StageRuntime, VersionControl } from "../../src/application/port/index.js";
+
+test("code-review fanout blocks on failing non-advisory reviewer", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-030000");
+  await ensureRunDirectories(artifacts);
+  await mkdir(artifacts.tasksDir, { recursive: true });
+  await writeFile(path.join(artifacts.tasksDir, "task-01.md"), "# Task 01\n", "utf8");
+  const dispatcher = new RecordingDispatcher("qrspi-review-code-quality");
+  const runtime = makeRuntime(workspace, artifacts, dispatcher);
+
+  const outcome = await runCodeReviewSubstage(runtime, {
+    taskId: "01",
+    worktreeRoot: workspace,
+    taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+  });
+
+  assert.equal(outcome.status, "FAIL");
+  assert.ok(dispatcher.agentNames.includes("qrspi-review-code-quality"));
+  assert.ok(dispatcher.agentNames.includes("qrspi-review-test-coverage"));
+  assert.ok(dispatcher.agentNames.includes("qrspi-review-goal-traceability"));
+});
+
+test("code-review fanout treats simplifier as advisory", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-040000");
+  await ensureRunDirectories(artifacts);
+  await mkdir(artifacts.tasksDir, { recursive: true });
+  await writeFile(path.join(artifacts.tasksDir, "task-01.md"), "# Task 01\n", "utf8");
+  const dispatcher = new RecordingDispatcher("qrspi-review-code-simplifier");
+  const runtime = makeRuntime(workspace, artifacts, dispatcher, ["src/shared-helper.ts", "src/a.ts", "src/b.ts", "test/example.test.ts"]);
+
+  const outcome = await runCodeReviewSubstage(runtime, {
+    taskId: "01",
+    worktreeRoot: workspace,
+    taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+  });
+
+  assert.equal(outcome.status, "PASS");
+  assert.ok(dispatcher.agentNames.includes("qrspi-review-code-simplifier"));
+});
+
+test("code-review fanout treats medium-only failures as non-blocking", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-050000");
+  await ensureRunDirectories(artifacts);
+  await mkdir(artifacts.tasksDir, { recursive: true });
+  await writeFile(path.join(artifacts.tasksDir, "task-01.md"), "# Task 01\n", "utf8");
+  const dispatcher = new RecordingDispatcher("qrspi-review-code-quality", "MEDIUM");
+  const runtime = makeRuntime(workspace, artifacts, dispatcher);
+
+  const outcome = await runCodeReviewSubstage(runtime, {
+    taskId: "01",
+    worktreeRoot: workspace,
+    taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+  });
+
+  assert.equal(outcome.status, "PASS");
+  assert.match(outcome.telemetry?.review_status_summary as string, /non-blocking severity/);
+});
+
+class RecordingDispatcher implements Dispatcher {
+  readonly agentNames: string[] = [];
+
+  constructor(
+    private readonly failingAgent: string,
+    private readonly failureSeverity = "HIGH",
+  ) {}
+
+  async dispatch(request: DispatchRequest): Promise<DispatchResult> {
+    const name = request.target.name;
+    this.agentNames.push(name);
+    const status = name === this.failingAgent ? "FAIL" : "PASS";
+    return {
+      text: `### Status — ${status}\n\n### Findings\n${status === "FAIL" ? `| 1 | ${this.failureSeverity} | file | 1 | bug | issue | fix |` : "None."}`,
+      messages: [],
+      customToolCalls: [],
+      endReason: "agent_end",
+    };
+  }
+
+  async dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    return Promise.all(requests.map((request) => this.dispatch(request)));
+  }
+
+  async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    return this.dispatchParallel(requests);
+  }
+}
+
+function makeVersionControl(changedFiles: string[], changedLines = 250): VersionControl {
+  return {
+    createRunBranch: async () => {},
+    checkpoint: async () => {},
+    resolveRepoRoot: async () => "/",
+    prepareWorktree: async () => ({ branch: "test", worktreeRoot: "/", taskId: "01", phase: 1 }),
+    squashMerge: async () => ({ ok: true }),
+    rebaseWorktree: async () => ({ ok: true }),
+    continueRebase: async () => ({ ok: true }),
+    commitWorktreeChanges: async () => {},
+    changedFiles: async (_cwd: string) => changedFiles,
+    changedLineCount: async (_cwd: string) => changedLines,
+    listWorkspaceFiles: async (_cwd: string) => changedFiles,
+    cleanupWorktree: async () => {},
+  };
+}
+
+function makeRuntime(
+  workspace: string,
+  artifacts: ReturnType<typeof getRunArtifacts>,
+  dispatcher: Dispatcher,
+  changedFiles = ["src/example.ts", "test/example.test.ts"],
+): StageRuntime {
+  const agentDefinitions = new Map<string, LeafAgentDefinition>();
+  for (const name of [
+    "qrspi-review-code-quality",
+    "qrspi-review-test-coverage",
+    "qrspi-review-goal-traceability",
+    "qrspi-review-code-simplifier",
+  ]) {
+    agentDefinitions.set(name, {
+      kind: "leaf",
+      name,
+      description: name,
+      tools: ["read"],
+      maxTurns: 5,
+      systemPromptMode: "replace",
+      extensions: [],
+      filePath: `${name}.md`,
+      body: "",
+    });
+  }
+  return {
+    state: createInitialState({
+      runId: "qrspi-20260601-030000",
+      interactionMode: "automated",
+      failurePolicy: "best-effort",
+      route: "full",
+    }),
+    artifacts,
+    services: ({
+      pi: { async exec() { return { stdout: "", stderr: "", code: 0, killed: false }; } },
+      commandContext: {} as never,
+      eventContext: {},
+      dispatcher,
+      agentDefinitions,
+      gates: {} as never,
+      progress: {} as never,
+      versionControl: makeVersionControl(changedFiles),
+      artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+    } as unknown) as PipelineServices,
+  };
+}

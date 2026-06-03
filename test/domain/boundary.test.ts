@@ -1,8 +1,10 @@
 /**
- * Boundary guard: domain/ and application/ must not import from node:* or @earendil-works/*.
+ * Boundary guard:
+ *  - domain/ and application/ must not import from node:* or @earendil-works/*
+ *  - domain/ must not import from infrastructure/ (caught by ESLint as errors;
+ *    application/ violations are tracked as eslint-disable comments — technical debt)
  *
- * Zero-dependency check — no ESLint needed. Scans TS source files in
- * src/domain/ and src/application/ for forbidden import patterns.
+ * Zero-dependency check. Scans TS source files for forbidden import patterns.
  */
 
 import { test } from "node:test";
@@ -15,11 +17,16 @@ const ROOT = new URL("../../src", import.meta.url).pathname;
 // Allow:
 //   import type ... from "@earendil-works/..." — type-only, erased at runtime
 //   import path from "node:path"              — pure string utility, no side effects
-const FORBIDDEN_PATTERNS = [
+const DOMAIN_APP_FORBIDDEN_PATTERNS = [
   // node:* except node:path (pure string manipulation)
   /from\s+["']node:(?!path["'])/,
   // @earendil-works/* except type-only imports
   /^(?!.*\bimport\s+type\b).*from\s+["']@earendil-works\//,
+];
+
+/** Domain must never import from infrastructure at all. */
+const DOMAIN_ONLY_FORBIDDEN = [
+  /from\s+["'][^"']*infrastructure\//,
 ];
 
 async function collectTsFiles(dir: string): Promise<string[]> {
@@ -36,7 +43,7 @@ async function collectTsFiles(dir: string): Promise<string[]> {
   return results;
 }
 
-async function findViolations(dir: string): Promise<Array<{ file: string; line: number; text: string }>> {
+async function findViolations(dir: string, patterns: RegExp[]): Promise<Array<{ file: string; line: number; text: string }>> {
   const files = await collectTsFiles(dir).catch(() => [] as string[]);
   const violations: Array<{ file: string; line: number; text: string }> = [];
   for (const file of files) {
@@ -44,9 +51,9 @@ async function findViolations(dir: string): Promise<Array<{ file: string; line: 
     const lines = content.split("\n");
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]!;
-      for (const pattern of FORBIDDEN_PATTERNS) {
+      for (const pattern of patterns) {
         if (pattern.test(line)) {
-          violations.push({ file: path.relative(ROOT + "/..src", file), line: i + 1, text: line.trim() });
+          violations.push({ file: path.relative(path.join(ROOT, ".."), file), line: i + 1, text: line.trim() });
         }
       }
     }
@@ -56,7 +63,7 @@ async function findViolations(dir: string): Promise<Array<{ file: string; line: 
 
 test("domain layer has no node:* or @earendil-works/* imports", async () => {
   const domainDir = path.join(ROOT, "domain");
-  const violations = await findViolations(domainDir);
+  const violations = await findViolations(domainDir, DOMAIN_APP_FORBIDDEN_PATTERNS);
   assert.deepEqual(
     violations,
     [],
@@ -64,9 +71,19 @@ test("domain layer has no node:* or @earendil-works/* imports", async () => {
   );
 });
 
+test("domain layer has no infrastructure/ imports", async () => {
+  const domainDir = path.join(ROOT, "domain");
+  const violations = await findViolations(domainDir, DOMAIN_ONLY_FORBIDDEN);
+  assert.deepEqual(
+    violations,
+    [],
+    `Domain layer must not import from infrastructure/:\n${violations.map((v) => `  ${v.file}:${v.line}: ${v.text}`).join("\n")}`,
+  );
+});
+
 test("application layer has no node:* or @earendil-works/* imports", async () => {
   const appDir = path.join(ROOT, "application");
-  const violations = await findViolations(appDir);
+  const violations = await findViolations(appDir, DOMAIN_APP_FORBIDDEN_PATTERNS);
   assert.deepEqual(
     violations,
     [],

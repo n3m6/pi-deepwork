@@ -35,6 +35,7 @@ export type {
 
 import type {
   BackwardLoopClassification,
+  BackwardLoopRequest,
   StageName,
   Route,
   InteractionMode,
@@ -69,9 +70,13 @@ export type ArtifactId =
   | { kind: SingletonArtifact }
   | { kind: "taskSpec"; phase: number; taskId: string }
   | { kind: "taskOutline"; taskId: string }
+  | { kind: "baseTaskSpec"; taskId: string }
   | { kind: "phaseFile"; phase: number; name: string }
   | { kind: "reviewFile"; name: string }
-  | { kind: "feedbackFile"; name: string };
+  | { kind: "feedbackFile"; name: string }
+  | { kind: "researchFile"; name: string }
+  | { kind: "taskOutlineFile"; name: string }
+  | { kind: "runFile"; name: string };
 
 // ---------------------------------------------------------------------------
 // RunArtifacts — kept for migration compatibility until Phase 5/8
@@ -286,11 +291,12 @@ export interface PipelineServices {
   agentDefinitions: Map<string, LeafAgentDefinition>;
   gates: GateManager;
   progress: ProgressReporter;
-  /** Port-based infrastructure — populated by the composition root; used by stages post-Phase 5 migration. */
+  /** Port-based infrastructure — populated by the composition root. */
   versionControl?: VersionControl;
   buildTool?: BuildToolPort;
   artifactRepo?: ArtifactRepository;
   telemetrySink?: TelemetrySink;
+  stateRepo?: RunStateRepository;
 }
 
 export interface StageRuntime {
@@ -330,10 +336,20 @@ export interface ArtifactRepository {
   write(id: ArtifactId, content: string): Promise<void>;
   exists(id: ArtifactId): Promise<boolean>;
   resolvePath(id: ArtifactId): string;
+  /** Relative path from runDir to the artifact — used for filesWritten telemetry. */
+  relPath(id: ArtifactId): string;
   listTaskSpecs(phase?: number): Promise<ArtifactId[]>;
+  listBaseTaskSpecs(): Promise<ArtifactId[]>;
   listTaskOutlines(): Promise<ArtifactId[]>;
+  listOutlineFiles(): Promise<string[]>;
+  listPhases(): Promise<number[]>;
+  hasPhaseTaskSpecs(phase: number): Promise<boolean>;
   ensureDirectories(): Promise<void>;
+  ensurePhaseLayout(currentPhase: number, totalPhases: number): Promise<void>;
   archiveForBackwardLoop(classification: BackwardLoopClassification): Promise<{ targetStage: StageName; archived: string[] }>;
+  writeDeferredFeedback(phase: number, request: BackwardLoopRequest): Promise<void>;
+  readWorkspaceFile(relativePath: string): Promise<string | undefined>;
+  writeWorkspaceFile(relativePath: string, content: string): Promise<void>;
   /** Legacy path bag, kept for migration compatibility until Phase 5 */
   readonly paths: RunArtifacts;
 }
@@ -394,6 +410,9 @@ export interface BuildToolPort {
 
 export interface TelemetrySink {
   record(event: DomainEvent): Promise<void>;
+  regenerateRunLog(state: RunState): Promise<void>;
+  regenerateMetrics(state: RunState): Promise<void>;
+  readEvents(): Promise<TelemetryEvent[]>;
 }
 
 // ---------------------------------------------------------------------------

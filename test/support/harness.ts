@@ -6,10 +6,15 @@ import { promisify } from "node:util";
 
 import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 
-import { loadAgentDefinitions } from "../../src/agent-defs.js";
-import { createInitialState, createRunId, ensureRunDirectories, getRunArtifacts } from "../../src/state.js";
+import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { createRunId } from "../../src/infrastructure/system/id-generator.js";
+import { createInitialState } from "../../src/domain/run/index.js";
+import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
+import { FileSystemRunStateRepository } from "../../src/infrastructure/fs/state-repository.js";
 import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
 import { NpmBuildTool } from "../../src/infrastructure/npm/build-tool.js";
+import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 import type {
   DispatchRequest,
   DispatchResult,
@@ -23,7 +28,8 @@ import type {
   RunArtifacts,
   RunState,
   StageRuntime,
-} from "../../src/types.js";
+  TelemetrySink,
+} from "../../src/application/port/index.js";
 
 const execFileAsync = promisify(execFile);
 let harnessRunCounter = 0;
@@ -62,6 +68,10 @@ export class TestHarness {
     this.services = services;
   }
 
+  get telemetrySink(): TelemetrySink {
+    return this.services.telemetrySink!;
+  }
+
   static async create(options: HarnessOptions = {}): Promise<TestHarness> {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-test-"));
     const runId = createRunId(new Date(2026, 5, 1, 0, 0, harnessRunCounter++));
@@ -92,6 +102,11 @@ export class TestHarness {
     const progress = new NoopProgressReporter();
     const versionControl = new GitVersionControl(pi, workspaceRoot, runId);
     const buildTool = new NpmBuildTool(pi);
+    const artifactRepo = FileSystemArtifactRepository.fromPaths(artifacts);
+    const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
+    const telemetrySink = JsonlTelemetrySink.create(artifacts, runId);
+    await telemetrySink.initialize();
+
     const services: PipelineServices = {
       pi,
       commandContext: ctx,
@@ -102,6 +117,9 @@ export class TestHarness {
       progress,
       versionControl,
       buildTool,
+      artifactRepo,
+      stateRepo,
+      telemetrySink,
     };
 
     await writeFile(artifacts.configFile, `created: 2026-06-01\nroute: ${options.route ?? "full"}\nrun_id: ${runId}\n`, "utf8");

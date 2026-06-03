@@ -2,21 +2,21 @@
  * ReviewGateCoordinator — resolves stage failures when a review loop hits its cap.
  */
 
-import { TelemetryRecorder } from "../../telemetry.js";
+import type { TelemetrySink } from "../../application/port/index.js";
 import type {
   RunState,
   StageModule,
   StageOutcome,
   StageRuntime,
   StageTelemetryContext,
-} from "../../types.js";
+} from "../port/index.js";
 
 export async function resolveStageFailure(
   stage: StageModule,
   outcome: StageOutcome,
   runtime: StageRuntime,
   state: RunState,
-  telemetry: TelemetryRecorder,
+  telemetrySink: TelemetrySink,
   stageInstance: number,
 ): Promise<StageOutcome | "retry"> {
   if (outcome.status !== "FAIL" || outcome.telemetry?.terminal_review_state !== "unclean-cap") {
@@ -37,13 +37,12 @@ export async function resolveStageFailure(
 
   if (runtime.services.gates.interactionMode !== "interactive") {
     if (runtime.services.gates.failurePolicy !== "best-effort") {
-      await telemetry.append({
-        event_type: "gate.rejected",
-        status: "FAIL",
-        route: state.route,
+      await telemetrySink.record({
+        type: "gate.rejected",
         stage: stage.stage,
         phase: state.currentPhase,
-        stage_instance: stageInstance,
+        stageInstance,
+        route: state.route,
         summary: `${stage.stage} stopped at the review cap in automated fail-closed mode.`,
       });
       return {
@@ -55,13 +54,12 @@ export async function resolveStageFailure(
       };
     }
 
-    await telemetry.append({
-      event_type: "gate.approved",
-      status: "PASS",
-      route: state.route,
+    await telemetrySink.record({
+      type: "gate.approved",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `${stage.stage} auto-approved after hitting the review cap in best-effort mode.`,
     });
     return {
@@ -75,13 +73,12 @@ export async function resolveStageFailure(
     };
   }
 
-  await telemetry.append({
-    event_type: "gate.presented",
-    status: "RUNNING",
-    route: state.route,
+  await telemetrySink.record({
+    type: "gate.presented",
     stage: stage.stage,
     phase: state.currentPhase,
-    stage_instance: stageInstance,
+    stageInstance,
+    route: state.route,
     summary: gateTitle,
   });
   const choice = await runtime.services.gates.choose(
@@ -95,26 +92,24 @@ export async function resolveStageFailure(
   );
 
   if (choice?.value === "retry") {
-    await telemetry.append({
-      event_type: "gate.approved",
-      status: "PASS",
-      route: state.route,
+    await telemetrySink.record({
+      type: "gate.approved",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `Retry approved for ${stage.stage}.`,
     });
     return "retry";
   }
 
   if (choice?.value === "approve") {
-    await telemetry.append({
-      event_type: "gate.approved",
-      status: "PASS",
-      route: state.route,
+    await telemetrySink.record({
+      type: "gate.approved",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `${stage.stage} approved after review-cap escalation.`,
     });
     return {
@@ -128,13 +123,12 @@ export async function resolveStageFailure(
     };
   }
 
-  await telemetry.append({
-    event_type: "gate.rejected",
-    status: "FAIL",
-    route: state.route,
+  await telemetrySink.record({
+    type: "gate.rejected",
     stage: stage.stage,
     phase: state.currentPhase,
-    stage_instance: stageInstance,
+    stageInstance,
+    route: state.route,
     summary: `${stage.stage} stopped after review-cap escalation.`,
   });
   return {

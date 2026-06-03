@@ -2,22 +2,22 @@
  * OutcomeInterpreter — applies stage transitions and routes failures.
  *
  * Handles: applyStageTransition, maybeRouteAcceptFix, maybeRouteVerifyFix,
- * emitQuickFixSkips. writeDeferredReplanFeedback lives in backward-loop.ts
- * (infrastructure layer with fs access).
+ * emitQuickFixSkips. writeDeferredFeedback lives in the artifact-repository
+ * adapter (infrastructure layer with fs access).
  */
 
 import { parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
 import { Run, MAX_ACCEPT_FIX_ATTEMPTS, MAX_VERIFY_FIX_ATTEMPTS } from "../../domain/run/index.js";
 import { isImplementationRepairableAcceptFailure } from "../../domain/stage/fix-routing-policy.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
-import { TelemetryRecorder } from "../../telemetry.js";
+import type { TelemetrySink } from "../../application/port/index.js";
 import type {
   ArtifactRepository,
   RunArtifacts,
   RunState,
   StageModule,
   StageOutcome,
-} from "../../types.js";
+} from "../port/index.js";
 
 export async function applyStageTransition(
   state: RunState,
@@ -91,18 +91,17 @@ export async function applyStageTransition(
 export async function maybeRouteAcceptFix(
   state: RunState,
   outcome: StageOutcome,
-  telemetry: TelemetryRecorder,
+  telemetrySink: TelemetrySink,
   stage: StageModule,
   stageInstance: number,
 ): Promise<RunState | undefined> {
   if (!isImplementationRepairableAcceptFailure(outcome)) {
-    await telemetry.append({
-      event_type: "stage.failed",
-      status: "FAIL",
-      route: state.route,
+    await telemetrySink.record({
+      type: "stage.failed",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: "Acceptance failed outside the implementation repair path; stopping the run.",
       context: {
         accept_summary: outcome.summary,
@@ -113,13 +112,12 @@ export async function maybeRouteAcceptFix(
 
   const run = Run.rehydrate(state);
   if (run.isAcceptFixCapHit()) {
-    await telemetry.append({
-      event_type: "stage.failed",
-      status: "FAIL",
-      route: state.route,
+    await telemetrySink.record({
+      type: "stage.failed",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `Acceptance fix cap (${MAX_ACCEPT_FIX_ATTEMPTS}) reached; stopping the run.`,
       context: {
         accept_fix_attempts: state.acceptFixAttempts,
@@ -128,13 +126,12 @@ export async function maybeRouteAcceptFix(
     return undefined;
   }
 
-  await telemetry.append({
-    event_type: "stage.retried",
-    status: "RETRY",
-    route: state.route,
+  await telemetrySink.record({
+    type: "stage.retried",
     stage: stage.stage,
     phase: state.currentPhase,
-    stage_instance: stageInstance,
+    stageInstance,
+    route: state.route,
     summary: "Routing failed acceptance back to implement.",
     context: {
       accept_summary: outcome.summary,
@@ -149,7 +146,7 @@ export async function maybeRouteAcceptFix(
 export async function maybeRouteVerifyFix(
   state: RunState,
   outcome: StageOutcome,
-  telemetry: TelemetryRecorder,
+  telemetrySink: TelemetrySink,
   stage: StageModule,
   stageInstance: number,
 ): Promise<RunState | undefined> {
@@ -157,13 +154,12 @@ export async function maybeRouteVerifyFix(
   const run = Run.rehydrate(state);
 
   if (run.isVerifyFixCapHit()) {
-    await telemetry.append({
-      event_type: "stage.failed",
-      status: "FAIL",
-      route: state.route,
+    await telemetrySink.record({
+      type: "stage.failed",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `Verification fix cap (${MAX_VERIFY_FIX_ATTEMPTS}) reached; stopping the run.`,
       context: {
         verify_status: verifyStatus,
@@ -173,13 +169,12 @@ export async function maybeRouteVerifyFix(
     return undefined;
   }
 
-  await telemetry.append({
-    event_type: "stage.retried",
-    status: "RETRY",
-    route: state.route,
+  await telemetrySink.record({
+    type: "stage.retried",
     stage: stage.stage,
     phase: state.currentPhase,
-    stage_instance: stageInstance,
+    stageInstance,
+    route: state.route,
     summary: `Routing non-PASS verification (${verifyStatus}) back to implement.`,
     context: {
       verify_status: verifyStatus,
@@ -195,19 +190,17 @@ export async function maybeRouteVerifyFix(
 
 export async function emitQuickFixSkips(
   state: RunState,
-  telemetry: TelemetryRecorder,
+  telemetrySink: TelemetrySink,
   stageInstance: number,
 ): Promise<void> {
   for (const skippedStage of ["design", "structure"] as const) {
-    await telemetry.append({
-      event_type: "stage.skipped",
-      status: "SKIP",
-      route: state.route,
+    await telemetrySink.record({
+      type: "stage.skipped",
       stage: skippedStage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
+      stageInstance,
+      route: state.route,
       summary: `${skippedStage} skipped for quick-fix route.`,
     });
   }
 }
-

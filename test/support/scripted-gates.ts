@@ -1,4 +1,4 @@
-import type { FailurePolicy, GateChoice, GateManager, GateOption, InteractionMode } from "../../src/types.js";
+import type { FailurePolicy, GateChoice, GateManager, GateOption, InteractionMode } from "../../src/application/port/index.js";
 
 export type ScriptedGateAnswer =
   | { method: "choose"; value: GateChoice | undefined }

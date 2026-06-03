@@ -2,21 +2,17 @@
  * PipelineLoop — the main runPipeline loop.
  */
 
-import { resetArtifactsForBackwardLoop, writeDeferredReplanFeedback } from "../../backward-loop.js";
-import { CheckpointManager } from "../../checkpoint.js";
 import { Run, MAX_BACKWARD_LOOPS } from "../../domain/run/index.js";
-import { saveState } from "../../state.js";
-import { acceptStage } from "../../stages/accept.js";
-import { designStage } from "../../stages/design.js";
-import { goalsStage } from "../../stages/goals.js";
-import { implementStage } from "../../stages/implement.js";
-import { planStage } from "../../stages/plan.js";
-import { replanStage } from "../../stages/replan.js";
-import { reportStage } from "../../stages/report.js";
-import { researchStage } from "../../stages/research.js";
-import { structureStage } from "../../stages/structure.js";
-import { verifyStage } from "../../stages/verify.js";
-import { TelemetryRecorder, createRunEventSummary } from "../../telemetry.js";
+import { acceptStage } from "../stage/accept.js";
+import { designStage } from "../stage/design.js";
+import { goalsStage } from "../stage/goals.js";
+import { implementStage } from "../stage/implement.js";
+import { planStage } from "../stage/plan.js";
+import { replanStage } from "../stage/replan.js";
+import { reportStage } from "../stage/report.js";
+import { researchStage } from "../stage/research.js";
+import { structureStage } from "../stage/structure.js";
+import { verifyStage } from "../stage/verify.js";
 import type {
   PipelineServices,
   RunArtifacts,
@@ -24,7 +20,8 @@ import type {
   StageModule,
   StageName,
   StageRuntime,
-} from "../../types.js";
+  TelemetrySink,
+} from "../port/index.js";
 import { executeStage } from "./stage-runner.js";
 import {
   applyStageTransition,
@@ -50,33 +47,22 @@ export async function runPipeline(options: {
   services: PipelineServices;
   state: RunState;
   artifacts: RunArtifacts;
-  telemetry: TelemetryRecorder;
-  checkpoint: CheckpointManager;
   isResumed: boolean;
 }): Promise<RunState> {
-  const { services, artifacts, telemetry, checkpoint, isResumed } = options;
+  const { services, artifacts, isResumed } = options;
+  const sink: TelemetrySink = services.telemetrySink!;
   const signal = services.commandContext.signal;
   let run = Run.rehydrate(options.state);
   const stageInstances = new Map<string, number>();
 
   if (!isResumed) {
-    await checkpoint.createRunBranch(run.state.runId, signal);
-    await telemetry.append({
-      event_type: "run.started",
-      status: "PASS",
-      route: run.state.route,
-      summary: createRunEventSummary(undefined, run.state.route, "started"),
-    });
+    await services.versionControl!.createRunBranch(run.state.runId, signal);
+    await sink.record({ type: "run.started", runId: run.state.runId, route: run.state.route });
   } else {
-    await telemetry.append({
-      event_type: "run.resumed",
-      status: "PASS",
-      route: run.state.route,
-      summary: createRunEventSummary(undefined, run.state.route, "resumed"),
-    });
+    await sink.record({ type: "run.resumed", runId: run.state.runId, route: run.state.route });
   }
 
-  await saveState(artifacts.stateFile, run.toSnapshot());
+  await services.stateRepo!.save(run);
 
   try {
     while (run.nextStage !== "done") {
@@ -91,178 +77,153 @@ export async function runPipeline(options: {
         services,
       };
 
-      const { outcome, stageInstance, startedAt } = await executeStage(stage, runtime, stateSnapshot, telemetry, stageInstances);
+      const { outcome, stageInstance, startedAt } = await executeStage(stage, runtime, stateSnapshot, sink, stageInstances);
 
       if (outcome.backwardLoop) {
-        await telemetry.append({
-          event_type: "backward_loop.requested",
-          status: "FAIL",
-          route: run.state.route,
+        await sink.record({
+          type: "backward_loop.requested",
           stage: stage.stage,
           phase: run.state.currentPhase,
-          stage_instance: stageInstance,
-          summary: outcome.backwardLoop.summary,
-          context: {
-            classification: outcome.backwardLoop.classification,
-            guidance: outcome.backwardLoop.guidance,
-          },
+          stageInstance,
+          route: run.state.route,
+          request: outcome.backwardLoop,
         });
 
         if (outcome.backwardLoop.classification === "DEFER_REPLAN") {
-          await writeDeferredReplanFeedback(artifacts, run.state.currentPhase, outcome.backwardLoop);
+          await services.artifactRepo!.writeDeferredFeedback(run.state.currentPhase, outcome.backwardLoop);
           run.setNextStage("replan");
-          await telemetry.append({
-            event_type: "backward_loop.deferred",
-            status: "PASS",
-            route: run.state.route,
+          await sink.record({
+            type: "backward_loop.deferred",
             stage: stage.stage,
             phase: run.state.currentPhase,
-            stage_instance: stageInstance,
-            summary: `Deferred remediation to replan for phase ${run.state.currentPhase}.`,
-            context: {
-              classification: outcome.backwardLoop.classification,
-              guidance: outcome.backwardLoop.guidance,
-            },
+            stageInstance,
+            route: run.state.route,
+            request: outcome.backwardLoop,
           });
-          await saveState(artifacts.stateFile, run.toSnapshot());
+          await services.stateRepo!.save(run);
           continue;
         }
 
         if (run.isBackwardLoopCapHit()) {
-          await telemetry.append({
-            event_type: "backward_loop.failed",
-            status: "FAIL",
-            route: run.state.route,
+          await sink.record({
+            type: "backward_loop.failed",
             stage: stage.stage,
             phase: run.state.currentPhase,
-            stage_instance: stageInstance,
-            summary: `Backward-loop cap (${MAX_BACKWARD_LOOPS}) reached; stopping the run.`,
-            context: {
-              classification: outcome.backwardLoop.classification,
-            },
+            stageInstance,
+            route: run.state.route,
+            classification: outcome.backwardLoop.classification,
+            maxLoops: MAX_BACKWARD_LOOPS,
           });
-          await saveState(artifacts.stateFile, run.toSnapshot());
+          await services.stateRepo!.save(run);
           break;
         }
 
-        const reset = await resetArtifactsForBackwardLoop(artifacts, outcome.backwardLoop.classification);
+        const reset = await services.artifactRepo!.archiveForBackwardLoop(outcome.backwardLoop.classification);
         run.incrementBackwardLoops();
         run.resetCurrentPhase();
         run.setNextStage(reset.targetStage);
-        await telemetry.append({
-          event_type: "backward_loop.decided",
-          status: "PASS",
-          route: run.state.route,
+        await sink.record({
+          type: "backward_loop.decided",
           stage: stage.stage,
           phase: run.state.currentPhase,
-          stage_instance: stageInstance,
-          summary: `Looping back to ${reset.targetStage}.`,
-          context: {
-            classification: outcome.backwardLoop.classification,
-            target_stage: reset.targetStage,
-          },
-        });
-        await telemetry.append({
-          event_type: "backward_loop.reset",
-          status: "PASS",
+          stageInstance,
           route: run.state.route,
+          targetStage: reset.targetStage,
+          request: outcome.backwardLoop,
+        });
+        await sink.record({
+          type: "backward_loop.reset",
           stage: stage.stage,
           phase: run.state.currentPhase,
-          stage_instance: stageInstance,
-          summary: `Archived and deleted stale artifacts for ${reset.targetStage}.`,
-          artifacts: reset.archived,
+          stageInstance,
+          route: run.state.route,
+          targetStage: reset.targetStage,
+          archived: reset.archived,
         });
-        await saveState(artifacts.stateFile, run.toSnapshot());
+        await services.stateRepo!.save(run);
         continue;
       }
 
-      await telemetry.append({
-        event_type: outcome.status === "SKIP" ? "stage.skipped" : outcome.status === "FAIL" ? "stage.failed" : "stage.completed",
-        status: outcome.status,
-        route: outcome.route ?? run.state.route,
+      await sink.record({
+        type: "stage.completed",
         stage: stage.stage,
         phase: outcome.phase ?? run.state.currentPhase,
-        stage_instance: stageInstance,
-        summary: outcome.summary,
-        artifacts: outcome.filesWritten,
-        timing: {
-          started_at: startedAt,
-          ended_at: new Date().toISOString(),
-        },
-        ...(outcome.telemetry ? { context: outcome.telemetry } : {}),
+        stageInstance,
+        route: outcome.route ?? run.state.route,
+        outcome,
+        startedAt,
+        endedAt: new Date().toISOString(),
       });
 
       if (stage.stage === "verify" && outcome.status === "FAIL") {
-        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, telemetry, stage, stageInstance);
+        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
         if (!verifyReroute) {
-          await saveState(artifacts.stateFile, run.toSnapshot());
+          await services.stateRepo!.save(run);
           break;
         }
         run = Run.rehydrate(verifyReroute);
-        await saveState(artifacts.stateFile, run.toSnapshot());
+        await services.stateRepo!.save(run);
         continue;
       }
 
       if (stage.stage === "accept" && outcome.status === "FAIL") {
-        const acceptReroute = await maybeRouteAcceptFix(run.toSnapshot(), outcome, telemetry, stage, stageInstance);
+        const acceptReroute = await maybeRouteAcceptFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
         if (!acceptReroute) {
-          await saveState(artifacts.stateFile, run.toSnapshot());
+          await services.stateRepo!.save(run);
           break;
         }
         run = Run.rehydrate(acceptReroute);
-        await saveState(artifacts.stateFile, run.toSnapshot());
+        await services.stateRepo!.save(run);
         continue;
       }
 
       if (outcome.status === "FAIL") {
-        await saveState(artifacts.stateFile, run.toSnapshot());
+        await services.stateRepo!.save(run);
         break;
       }
 
       if (stage.stage === "verify" && outcome.status === "PARTIAL") {
-        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, telemetry, stage, stageInstance);
+        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
         if (!verifyReroute) {
-          await saveState(artifacts.stateFile, run.toSnapshot());
+          await services.stateRepo!.save(run);
           break;
         }
         run = Run.rehydrate(verifyReroute);
-        await saveState(artifacts.stateFile, run.toSnapshot());
+        await services.stateRepo!.save(run);
         continue;
       }
 
       if (stage.stage === "research" && run.state.route === "quick-fix") {
-        await emitQuickFixSkips(run.toSnapshot(), telemetry, stageInstance);
+        await emitQuickFixSkips(run.toSnapshot(), sink, stageInstance);
       }
 
       const newState = await applyStageTransition(run.toSnapshot(), stage.stage, outcome, artifacts, services.artifactRepo);
       run = Run.rehydrate(newState);
-      await saveState(artifacts.stateFile, run.toSnapshot());
-      await checkpoint.stageBoundaryCheckpoint(stage.stage, "complete", signal);
-      await telemetry.regenerateRunLog(run.toSnapshot());
-      await telemetry.regenerateMetrics(run.toSnapshot());
+      await services.stateRepo!.save(run);
+      await services.versionControl!.checkpoint(stage.stage, "complete", signal);
+      await sink.regenerateRunLog(run.toSnapshot());
+      await sink.regenerateMetrics(run.toSnapshot());
     }
 
-    await telemetry.append({
-      event_type: "run.completed",
-      status: run.nextStage === "done" ? "PASS" : "PARTIAL",
+    await sink.record({
+      type: "run.completed",
+      runId: run.state.runId,
       route: run.state.route,
-      summary: createRunEventSummary(undefined, run.state.route, run.nextStage === "done" ? "completed" : "stopped"),
+      status: run.nextStage === "done" ? "PASS" : "PARTIAL",
     });
-    await telemetry.regenerateRunLog(run.toSnapshot());
-    await telemetry.regenerateMetrics(run.toSnapshot());
+    await sink.regenerateRunLog(run.toSnapshot());
+    await sink.regenerateMetrics(run.toSnapshot());
     return run.toSnapshot();
   } catch (error) {
-    await telemetry.append({
-      event_type: "run.aborted",
-      status: "FAIL",
+    const msg = error instanceof Error ? error.message : String(error);
+    await sink.record({
+      type: "run.aborted",
+      runId: run.state.runId,
       route: run.state.route,
-      summary: error instanceof Error ? error.message : String(error),
-      error: {
-        message: error instanceof Error ? error.message : String(error),
-      },
+      error: msg,
     });
-    await telemetry.regenerateRunLog(run.toSnapshot());
-    await telemetry.regenerateMetrics(run.toSnapshot());
+    await sink.regenerateRunLog(run.toSnapshot());
+    await sink.regenerateMetrics(run.toSnapshot());
     throw error;
   } finally {
     services.progress.clear();

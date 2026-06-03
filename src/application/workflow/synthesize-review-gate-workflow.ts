@@ -5,11 +5,10 @@
  * synthesize → review (up to N rounds) → human gate → feedback → repeat.
  */
 
-import path from "node:path";
-
-import { createAskHumanTool } from "../../gates.js";
-import { dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "../../stages/utils.js";
-import type { GateRoundDetail, StageOutcome, StageRuntime } from "../../types.js";
+// eslint-disable-next-line no-restricted-imports -- known tech debt: createAskHumanTool should be behind a GateManager port method
+import { createAskHumanTool } from "../../infrastructure/pi/human-gate.js";
+import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "../stage/utils.js";
+import type { ArtifactId, GateRoundDetail, StageOutcome, StageRuntime } from "../port/index.js";
 
 export interface SynthesizeReviewGateConfig {
   /** Stage name used in gate labels and filenames (e.g. "design" | "structure") */
@@ -18,11 +17,9 @@ export interface SynthesizeReviewGateConfig {
   synthesizerAgent: string;
   /** Agent that reviews the artifact */
   reviewerAgent: string;
-  /** File where the artifact is written */
-  artifactFile: (runtime: StageRuntime) => string;
-  /** Directory where review files are written */
-  reviewsDir: (runtime: StageRuntime) => string;
-  /** Short display name used in relative path display (e.g. "design.md") */
+  /** ArtifactId where the synthesized artifact is stored */
+  artifactId: ArtifactId;
+  /** Short display name used in filesWritten (e.g. "design.md") */
   artifactDisplayName: string;
   /** Build the synthesizer prompt from context + optional feedback history */
   buildSynthesizerPrompt: (ctx: SynthesisContext, feedbackHistory: string[]) => string;
@@ -53,8 +50,7 @@ export async function runSynthesizeReviewGate(
   let gateRounds = 0;
   let gateWaitTimeSeconds = 0;
   const gateRoundDetails: GateRoundDetail[] = [];
-  const artifactFile = cfg.artifactFile(runtime);
-  const reviewsDir = cfg.reviewsDir(runtime);
+  const artifactId = cfg.artifactId;
   const artifactDisplayName = cfg.artifactDisplayName;
 
   while (true) {
@@ -72,9 +68,9 @@ export async function runSynthesizeReviewGate(
       cfg.buildSynthesizerPrompt({ ...ctx, runtime, ...(designDiscussion ? { designDiscussion } : {}) }, feedbackHistory),
       { customTools: [createAskHumanTool(runtime.services.gates)] },
     );
-    await writeArtifact(artifactFile, synthesis.text);
+    await writeArtifact(runtime, artifactId, synthesis.text);
 
-    const review = await runReviewLoop(runtime, cfg, ctx, reviewsDir, maxReviewRounds);
+    const review = await runReviewLoop(runtime, cfg, ctx, maxReviewRounds);
     if (review.status === "FAIL") {
       return {
         status: "FAIL",
@@ -115,7 +111,7 @@ export async function runSynthesizeReviewGate(
         { value: "approve", label: cfg.approveLabel },
         { value: "feedback", label: cfg.feedbackLabel },
       ],
-      `Review the ${cfg.stageName} artifact at ${path.relative(runtime.artifacts.runDir, artifactFile)} and choose how to proceed.`,
+      `Review the ${cfg.stageName} artifact at ${artifactRelPath(runtime, artifactId)} and choose how to proceed.`,
     );
     const respondedAt = new Date().toISOString();
     gateRounds += 1;
@@ -141,7 +137,7 @@ export async function runSynthesizeReviewGate(
 
     gateRoundDetails.push({ round: gateRounds, decision: "rejected", presented_at: presentedAt, responded_at: respondedAt });
     const feedback = await runtime.services.gates.askText(`${capitalise(cfg.stageName)} feedback`, cfg.feedbackQuestion);
-    const latestArtifact = await readArtifact(artifactFile);
+    const latestArtifact = await readArtifact(runtime, artifactId);
     feedbackHistory.push([
       `## Round ${gateRounds} Feedback`,
       "",
@@ -175,14 +171,12 @@ async function runReviewLoop(
   runtime: StageRuntime,
   cfg: SynthesizeReviewGateConfig,
   ctx: SynthesisContext,
-  reviewsDir: string,
   maxRounds: number,
 ): Promise<{ status: "PASS" | "FAIL"; reviewRounds: number; filesWritten: string[] }> {
-  const artifactFile = cfg.artifactFile(runtime);
   const filesWritten: string[] = [];
 
   for (let round = 1; round <= maxRounds; round++) {
-    const artifactText = await readArtifact(artifactFile);
+    const artifactText = await readArtifact(runtime, cfg.artifactId);
     const review = await dispatchLeaf(
       runtime,
       cfg.reviewerAgent,
@@ -190,9 +184,9 @@ async function runReviewLoop(
       { customTools: [createAskHumanTool(runtime.services.gates)] },
     );
 
-    const reviewFile = path.join(reviewsDir, `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md`);
-    await writeArtifact(reviewFile, review.text);
-    filesWritten.push(path.relative(runtime.artifacts.runDir, reviewFile));
+    const reviewId: ArtifactId = { kind: "reviewFile", name: `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md` };
+    await writeArtifact(runtime, reviewId, review.text);
+    filesWritten.push(artifactRelPath(runtime, reviewId));
 
     if (parseReviewStatus(review.text) === "PASS") {
       return { status: "PASS", reviewRounds: round, filesWritten };
@@ -207,7 +201,7 @@ async function runReviewLoop(
       cfg.synthesizerAgent,
       cfg.buildSynthesizerPrompt({ ...ctx, runtime }, [`Review feedback:\n${review.text}`]),
     );
-    await writeArtifact(artifactFile, rewritten.text);
+    await writeArtifact(runtime, cfg.artifactId, rewritten.text);
   }
 
   return { status: "FAIL", reviewRounds: maxRounds, filesWritten };

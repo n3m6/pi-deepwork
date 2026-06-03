@@ -5,7 +5,7 @@
  * Reads artifact files through the ArtifactRepository port (no direct fs access).
  */
 
-import type { StageOutcome, StageRuntime } from "../../types.js";
+import type { StageOutcome, StageRuntime } from "../port/index.js";
 import type { SimpleExactFileTask } from "../../domain/task/simple-exact-file-spec.js";
 import { parseSimpleExactFileTask } from "../../domain/task/simple-exact-file-spec.js";
 

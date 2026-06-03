@@ -3,7 +3,8 @@
  * leaf and generic-coding dispatch from stages/utils.ts.
  */
 
-import { createStageReturnTool, normalizeStageReturn } from "../../return-contract.js";
+// eslint-disable-next-line no-restricted-imports -- known tech debt: stage-return-tool should be behind a port
+import { createStageReturnTool, normalizeStageReturn } from "../../infrastructure/pi/stage-return-tool.js";
 import type {
   DispatchRequest,
   DispatchResult,
@@ -11,8 +12,9 @@ import type {
   LeafAgentDefinition,
   StageOutcome,
   StageRuntime,
-} from "../../types.js";
-import type { StageReturnPayload } from "../../return-contract.js";
+} from "../port/index.js";
+// eslint-disable-next-line no-restricted-imports -- known tech debt: stage-return-tool should be behind a port
+import type { StageReturnPayload } from "../../infrastructure/pi/stage-return-tool.js";
 
 export class AgentDispatchService {
   constructor(

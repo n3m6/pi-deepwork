@@ -164,6 +164,7 @@ export interface BackwardLoopReset {
   phase: number;
   stageInstance: number;
   route: Route;
+  targetStage: StageName;
   archived: string[];
 }
 

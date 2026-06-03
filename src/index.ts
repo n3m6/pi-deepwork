@@ -1,20 +1,19 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { loadAgentDefinitions } from "./agent-defs.js";
-import { PiSessionDispatcher } from "./dispatch.js";
-import { DefaultGateManager, determineInteractionMode } from "./gates.js";
-import { CheckpointManager } from "./checkpoint.js";
-import { FileSystemArtifactRepository } from "./infrastructure/fs/artifact-repository.js";
+import { FileSystemArtifactRepository, ensureRunDirectories } from "./infrastructure/fs/artifact-repository.js";
+import { FileSystemRunStateRepository } from "./infrastructure/fs/state-repository.js";
+import { resumeOrInferState } from "./infrastructure/fs/state-reconstruction.js";
 import { GitVersionControl } from "./infrastructure/git/version-control.js";
 import { NpmBuildTool } from "./infrastructure/npm/build-tool.js";
+import { MarkdownAgentCatalog } from "./infrastructure/pi/agent-catalog.js";
+import { DefaultGateManager, determineInteractionMode } from "./infrastructure/pi/human-gate.js";
+import { UiProgressReporter } from "./infrastructure/pi/progress-reporter.js";
+import { PiSessionDispatcher } from "./infrastructure/pi/session-dispatcher.js";
 import { JsonlTelemetrySink } from "./infrastructure/telemetry/jsonl-telemetry-sink.js";
+import { createRunId } from "./infrastructure/system/id-generator.js";
 import { Run } from "./domain/run/index.js";
-import { UiProgressReporter } from "./progress.js";
-import { resumeOrInferState } from "./resume.js";
-import { createRunId, ensureRunDirectories } from "./state.js";
 import { runPipeline } from "./application/pipeline/run-pipeline.js";
-import { TelemetryRecorder } from "./telemetry.js";
-import type { PipelineServices } from "./types.js";
+import type { PipelineServices } from "./application/port/index.js";
 
 export default function (pi: ExtensionAPI): void {
   pi.registerCommand("deepwork", {
@@ -25,7 +24,8 @@ export default function (pi: ExtensionAPI): void {
       const runId = interaction.explicit.resumeRunId ?? createRunId();
       const userTask = interaction.explicit.resumeRunId ? undefined : stripCommandFlags(args).trim();
 
-      const agentDefinitions = await loadAgentDefinitions();
+      const agentCatalog = await MarkdownAgentCatalog.load();
+      const agentDefinitions = agentCatalog.all();
       const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model);
       const gates = new DefaultGateManager(ctx, {
         interactionMode: interaction.interactionMode,
@@ -55,6 +55,7 @@ export default function (pi: ExtensionAPI): void {
       const versionControl = new GitVersionControl(pi, ctx.cwd, runId);
       const buildTool = new NpmBuildTool(pi);
       const telemetrySink = JsonlTelemetrySink.create(artifacts, runId);
+      const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
 
       const services: PipelineServices = {
         pi,
@@ -68,18 +69,15 @@ export default function (pi: ExtensionAPI): void {
         versionControl,
         buildTool,
         telemetrySink,
+        stateRepo,
       };
 
-      const checkpoint = new CheckpointManager(pi, ctx.cwd);
-      const telemetry = new TelemetryRecorder(artifacts, runId);
-      await telemetry.initialize();
+      await telemetrySink.initialize();
 
       const finalState = await runPipeline({
         services,
         state: initialRun.toSnapshot(),
         artifacts,
-        telemetry,
-        checkpoint,
         isResumed: !!resumed.state,
       });
       ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");

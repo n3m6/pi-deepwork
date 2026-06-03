@@ -2,16 +2,15 @@
  * StageRunner — executes a single stage with retry logic.
  */
 
-import { createRunEventSummary } from "../../telemetry.js";
-import type { TelemetryRecorder } from "../../telemetry.js";
-import type { RunState, StageModule, StageOutcome, StageRuntime } from "../../types.js";
+import type { TelemetrySink } from "../../application/port/index.js";
+import type { RunState, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import { resolveStageFailure } from "./review-gate-coordinator.js";
 
 export async function executeStage(
   stage: StageModule,
   runtime: StageRuntime,
   state: RunState,
-  telemetry: TelemetryRecorder,
+  telemetrySink: TelemetrySink,
   stageInstances: Map<string, number>,
 ): Promise<{ outcome: StageOutcome; stageInstance: number; startedAt: string }> {
   const stageKey = `${stage.stage}:${state.currentPhase}`;
@@ -21,44 +20,39 @@ export async function executeStage(
     const stageInstance = (stageInstances.get(stageKey) ?? 0) + 1;
     stageInstances.set(stageKey, stageInstance);
     const startedAt = new Date().toISOString();
-    await telemetry.append({
-      event_type: "stage.started",
-      status: "RUNNING",
-      route: state.route,
+    await telemetrySink.record({
+      type: "stage.started",
       stage: stage.stage,
       phase: state.currentPhase,
-      stage_instance: stageInstance,
-      summary: createRunEventSummary(stage.stage, state.route, "started"),
+      stageInstance,
+      route: state.route,
     });
 
     try {
       const initialOutcome = await stage.run(runtime);
-      const resolution = await resolveStageFailure(stage, initialOutcome, runtime, state, telemetry, stageInstance);
+      const resolution = await resolveStageFailure(stage, initialOutcome, runtime, state, telemetrySink, stageInstance);
       if (resolution === "retry") {
-        await telemetry.append({
-          event_type: "stage.retried",
-          status: "RETRY",
-          route: state.route,
+        await telemetrySink.record({
+          type: "stage.retried",
           stage: stage.stage,
           phase: state.currentPhase,
-          stage_instance: stageInstance,
+          stageInstance,
+          route: state.route,
           summary: `Retrying ${stage.stage} after operator escalation.`,
         });
         continue;
       }
       return { outcome: resolution, stageInstance, startedAt };
     } catch (error) {
-      await telemetry.append({
-        event_type: "stage.failed",
-        status: "FAIL",
-        route: state.route,
+      const msg = error instanceof Error ? error.message : String(error);
+      await telemetrySink.record({
+        type: "stage.failed",
         stage: stage.stage,
         phase: state.currentPhase,
-        stage_instance: stageInstance,
-        summary: error instanceof Error ? error.message : String(error),
-        error: {
-          message: error instanceof Error ? error.message : String(error),
-        },
+        stageInstance,
+        route: state.route,
+        summary: msg,
+        error: msg,
       });
       if (runtime.services.commandContext.signal?.aborted) {
         throw error;
@@ -70,13 +64,12 @@ export async function executeStage(
         throw error;
       }
       automaticRetries += 1;
-      await telemetry.append({
-        event_type: "stage.retried",
-        status: "RETRY",
-        route: state.route,
+      await telemetrySink.record({
+        type: "stage.retried",
         stage: stage.stage,
         phase: state.currentPhase,
-        stage_instance: stageInstance,
+        stageInstance,
+        route: state.route,
         summary: `Retrying ${stage.stage} after an unexpected error.`,
       });
     }

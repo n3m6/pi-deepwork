@@ -4,8 +4,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { Run } from "../../domain/run/index.js";
-import type { RunState } from "../../application/port/index.js";
-import type { RunStateRepository } from "../../application/port/index.js";
+import type { RunState, RunStateRepository } from "../../application/port/index.js";
 
 export class FileSystemRunStateRepository implements RunStateRepository {
   constructor(
@@ -13,7 +12,7 @@ export class FileSystemRunStateRepository implements RunStateRepository {
   ) {}
 
   async load(_runId: string): Promise<Run | undefined> {
-    const state = await readStateFile(this.stateFilePath);
+    const state = await loadState(this.stateFilePath);
     if (!state) {
       return undefined;
     }
@@ -21,11 +20,11 @@ export class FileSystemRunStateRepository implements RunStateRepository {
   }
 
   async save(run: Run): Promise<void> {
-    await writeStateFile(this.stateFilePath, run.toSnapshot());
+    await saveState(this.stateFilePath, run.toSnapshot());
   }
 }
 
-async function readStateFile(stateFile: string): Promise<RunState | undefined> {
+export async function loadState(stateFile: string): Promise<RunState | undefined> {
   try {
     const raw = await readFile(stateFile, "utf8");
     const parsed = JSON.parse(raw) as RunState;
@@ -39,7 +38,7 @@ async function readStateFile(stateFile: string): Promise<RunState | undefined> {
   }
 }
 
-async function writeStateFile(stateFile: string, state: RunState): Promise<void> {
+export async function saveState(stateFile: string, state: RunState): Promise<void> {
   const nextState: RunState = {
     ...state,
     updatedAt: new Date().toISOString(),

@@ -4,10 +4,11 @@
  * Satisfies the ArtifactRepository port without touching the file system.
  */
 
-import type { ArtifactId, ArtifactRepository, RunArtifacts, StageName } from "../../src/types.js";
+import type { ArtifactId, ArtifactRepository, BackwardLoopRequest, RunArtifacts, StageName } from "../../src/application/port/index.js";
 
 export class InMemoryArtifactRepository implements ArtifactRepository {
   private readonly store = new Map<string, string>();
+  private readonly workspaceFiles = new Map<string, string>();
 
   /** Expose a fake paths bag for tests that inspect artifacts.paths */
   readonly paths: RunArtifacts = {} as RunArtifacts;
@@ -18,12 +19,20 @@ export class InMemoryArtifactRepository implements ArtifactRepository {
         return `taskSpec:${id.phase}:${id.taskId}`;
       case "taskOutline":
         return `taskOutline:${id.taskId}`;
+      case "baseTaskSpec":
+        return `baseTaskSpec:${id.taskId}`;
       case "phaseFile":
         return `phaseFile:${id.phase}:${id.name}`;
       case "reviewFile":
         return `reviewFile:${id.name}`;
       case "feedbackFile":
         return `feedbackFile:${id.name}`;
+      case "researchFile":
+        return `researchFile:${id.name}`;
+      case "taskOutlineFile":
+        return `taskOutlineFile:${id.name}`;
+      case "runFile":
+        return `runFile:${id.name}`;
       default:
         return id.kind;
     }
@@ -50,6 +59,10 @@ export class InMemoryArtifactRepository implements ArtifactRepository {
     return `/memory/${this.key(id)}`;
   }
 
+  relPath(id: ArtifactId): string {
+    return this.key(id);
+  }
+
   async listTaskSpecs(phase?: number): Promise<ArtifactId[]> {
     const results: ArtifactId[] = [];
     for (const key of this.store.keys()) {
@@ -59,6 +72,17 @@ export class InMemoryArtifactRepository implements ArtifactRepository {
         if (phase === undefined || p === phase) {
           results.push({ kind: "taskSpec", phase: p, taskId: match[2]! });
         }
+      }
+    }
+    return results;
+  }
+
+  async listBaseTaskSpecs(): Promise<ArtifactId[]> {
+    const results: ArtifactId[] = [];
+    for (const key of this.store.keys()) {
+      const match = /^baseTaskSpec:(.+)$/.exec(key);
+      if (match) {
+        results.push({ kind: "baseTaskSpec", taskId: match[1]! });
       }
     }
     return results;
@@ -75,11 +99,63 @@ export class InMemoryArtifactRepository implements ArtifactRepository {
     return results;
   }
 
+  async listOutlineFiles(): Promise<string[]> {
+    const results: string[] = [];
+    for (const key of this.store.keys()) {
+      const match = /^taskOutlineFile:(.+)$/.exec(key);
+      if (match) {
+        results.push(match[1]!);
+      }
+    }
+    return results;
+  }
+
+  async listPhases(): Promise<number[]> {
+    const phases = new Set<number>();
+    for (const key of this.store.keys()) {
+      const match = /^phaseFile:(\d+):/.exec(key);
+      if (match) {
+        phases.add(Number(match[1]));
+      }
+    }
+    return [...phases].sort((a, b) => a - b);
+  }
+
+  async hasPhaseTaskSpecs(phase: number): Promise<boolean> {
+    for (const key of this.store.keys()) {
+      if (/^taskSpec:\d+:/.exec(key) && key.startsWith(`taskSpec:${phase}:`)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   async ensureDirectories(): Promise<void> {
+    // no-op for in-memory store
+  }
+
+  async ensurePhaseLayout(_currentPhase: number, _totalPhases: number): Promise<void> {
     // no-op for in-memory store
   }
 
   async archiveForBackwardLoop(_classification: string): Promise<{ targetStage: StageName; archived: string[] }> {
     return { targetStage: "goals", archived: [] };
+  }
+
+  async writeDeferredFeedback(_phase: number, _request: BackwardLoopRequest): Promise<void> {
+    // no-op for in-memory store
+  }
+
+  async readWorkspaceFile(relativePath: string): Promise<string | undefined> {
+    return this.workspaceFiles.get(relativePath);
+  }
+
+  async writeWorkspaceFile(relativePath: string, content: string): Promise<void> {
+    this.workspaceFiles.set(relativePath, content);
+  }
+
+  seedWorkspaceFile(relativePath: string, content: string): this {
+    this.workspaceFiles.set(relativePath, content);
+    return this;
   }
 }
