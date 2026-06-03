@@ -76,6 +76,46 @@ test("squashMerge aborts and reports conflicts without cleanup", async () => {
   ]);
 });
 
+test("squashMerge skips commit when only unstaged scratch files are dirty", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-worktree-"));
+  const calls: string[][] = [];
+  const manager = new WorktreeManager(
+    {
+      async exec(_command, args) {
+        calls.push(args);
+        if (args[0] === "diff" && args.includes("--cached")) {
+          return { stdout: "", stderr: "", code: 0, killed: false };
+        }
+        if (args[0] === "status") {
+          return { stdout: " M .pipeline/run/state.json", stderr: "", code: 0, killed: false };
+        }
+        return { stdout: "", stderr: "", code: 0, killed: false };
+      },
+    },
+    workspace,
+    workspace,
+    "qrspi-20260601-055000",
+  );
+  const worktree: TaskWorktree = {
+    branch: "task-branch",
+    worktreeRoot: path.join(workspace, "task"),
+    taskId: "01",
+    phase: 1,
+  };
+
+  const result = await manager.squashMerge(worktree, "merge task");
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls.slice(0, 4), [
+    ["merge", "--squash", "task-branch"],
+    ["diff", "--cached", "--quiet"],
+    ["worktree", "remove", "--force", worktree.worktreeRoot],
+    ["branch", "-D", worktree.branch],
+  ]);
+  assert.equal(calls.some((args) => args.includes("commit")), false);
+  assert.equal(calls.some((args) => args[0] === "status"), false);
+});
+
 test("worktree rebase helpers report continue failures for abandon path", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-worktree-"));
   const manager = new WorktreeManager(

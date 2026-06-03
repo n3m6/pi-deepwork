@@ -45,6 +45,8 @@ For `full` route, also read:
 8. **Do not run mutating shell commands.** Bash may be used only for read-only verification of file names and existing paths.
 9. **Use repository-relative paths only.** Never write absolute host paths in `## Description`, `## Files`, or `## Test Expectations`. Convert any outline path rooted at the workspace into its repository-relative path (for example, `/path/to/repo/SMOKE.md` becomes `SMOKE.md`). The implementer runs inside an isolated task worktree, so absolute workspace paths are wrong.
 10. **Do not introduce test infrastructure unless it is in scope.** If no test file is listed in the outline and no existing test harness exists, express verification as read-back/manual command expectations, not as new `package.json`, `tests/`, CI, or tooling files.
+11. **Keep test expectations feasible within this task's file scope.** Do not require a command to pass when it depends on files that this task does not create or modify. For example, TypeScript commands may fail with `TS18003` when `include` globs match no `.ts` files; a scaffold-only task must not claim `tsc --showConfig`, `tsc`, `npm test`, or similar commands pass with no in-scope source/test files unless the task also creates the required files. Defer those command-pass expectations to the task that creates the needed source or test inputs.
+12. **Keep TypeScript config internally consistent.** If `tsconfig.json` includes test files outside `src/` (for example `include: ["src/**/*", "test/**/*"]`), do not set `rootDir` to `"src"` because TypeScript will reject files outside `rootDir`. Either omit `rootDir`, set it to `"."`, or limit `include` to files under `rootDir`, based on upstream scope.
 
 ### Workflow
 
@@ -108,6 +110,8 @@ Before writing, verify:
 - No `## Files` path begins with `/`, contains `://`, or escapes the repository with `..`.
 - No placeholder language: TBD, TODO, "details omitted", "same as above".
 - Every `## Test Expectations` entry states a trigger and an observable outcome from the caller's perspective — not internal function calls, mock call arguments, or implementation steps ("calls X", "uses helper Y", "has method Z").
+- Every `## Test Expectations` entry is executable from only the files declared in this task plus existing repository files. Do not make future tasks' files implicit prerequisites.
+- TypeScript config expectations are mutually compatible; especially ensure `rootDir` does not exclude files listed in `include`.
 - Every dependency entry explains what this task needs from the earlier task.
 - The description is detailed enough that the implementer does not need to re-read design or structure artifacts.
 - No contradiction of AGENTS Guidance.

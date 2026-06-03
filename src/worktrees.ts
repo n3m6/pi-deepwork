@@ -49,8 +49,9 @@ export class WorktreeManager {
       };
     }
 
-    const status = await this.exec(["status", "--short"], signal);
-    if (!status.stdout.trim()) {
+    const staged = await this.exec(["diff", "--cached", "--quiet"], signal, true);
+    if (staged.code === 0) {
+      await this.cleanup(worktree, signal);
       return { ok: true };
     }
 

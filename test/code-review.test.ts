@@ -48,17 +48,39 @@ test("code-review fanout treats simplifier as advisory", async () => {
   assert.ok(dispatcher.agentNames.includes("qrspi-review-code-simplifier"));
 });
 
+test("code-review fanout treats medium-only failures as non-blocking", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-050000");
+  await ensureRunDirectories(artifacts);
+  const taskSpec = path.join(workspace, "task-01.md");
+  await writeFile(taskSpec, "# Task 01\n", "utf8");
+  const dispatcher = new RecordingDispatcher("qrspi-review-code-quality", "MEDIUM");
+  const runtime = makeRuntime(workspace, artifacts, dispatcher);
+
+  const outcome = await runCodeReviewSubstage(runtime, {
+    taskId: "01",
+    worktreeRoot: workspace,
+    taskSpecPath: taskSpec,
+  });
+
+  assert.equal(outcome.status, "PASS");
+  assert.match(outcome.telemetry?.review_status_summary as string, /non-blocking severity/);
+});
+
 class RecordingDispatcher implements Dispatcher {
   readonly agentNames: string[] = [];
 
-  constructor(private readonly failingAgent: string) {}
+  constructor(
+    private readonly failingAgent: string,
+    private readonly failureSeverity = "HIGH",
+  ) {}
 
   async dispatch(request: DispatchRequest): Promise<DispatchResult> {
     const name = request.target.name;
     this.agentNames.push(name);
     const status = name === this.failingAgent ? "FAIL" : "PASS";
     return {
-      text: `### Status — ${status}\n\n### Findings\n${status === "FAIL" ? "| 1 | HIGH | file | 1 | bug | issue | fix |" : "None."}`,
+      text: `### Status — ${status}\n\n### Findings\n${status === "FAIL" ? `| 1 | ${this.failureSeverity} | file | 1 | bug | issue | fix |` : "None."}`,
       messages: [],
       customToolCalls: [],
       endReason: "agent_end",

@@ -29,6 +29,9 @@ Goals, Requirements, Execution Manifest, Phase Manifest, Current Phase, Integrat
 8. On rounds 2 and 3, revise the plan using Prior Round Findings, Prior Round Failures, Prior Round Test Artifacts, and Prior Round Criterion Mapping. Prefer keeping the same planned test file across rounds unless there is a clear reason to move or replace it.
 9. Keep coverage focused on user-visible acceptance behavior. Do not drift into unit-test or implementation-detail coverage.
 10. If Design Context or Structure Context is `N/A`, do not invent it.
+11. Triggers must include every user-visible step needed to prove the criterion. If a criterion includes a failure or boundary path (for example duplicate creation, missing argument, already-completed state, or unknown item), the trigger must explicitly name the setup action and the follow-up action that exercises that path.
+12. Expected outcomes must enumerate each required observable field/value from the criterion. If a criterion names `package.json` fields, dependency declarations, scripts, CLI output, exit code, file contents, or README sections, list those exact assertions rather than a broad "contains expected values" statement.
+13. Acceptance plans that exercise CLI or filesystem behavior must be deterministic and isolated. Use a dedicated temporary directory or an explicit clean setup step, and state which persisted files should exist or not exist before the trigger runs.
 
 ### Output
 
@@ -41,8 +44,8 @@ Return exactly:
   - Action: [reuse | revise | new | blocked]
   - Action Rationale: [why this action fits]
   - Test Type: [acceptance | integration | e2e | boundary]
-  - Trigger: [what the test does]
-  - Expected Outcome: [publicly observable result]
+- Trigger: [complete setup and action sequence the test performs]
+- Expected Outcome: [specific publicly observable assertions, including every required field/value]
   - Relevant Files/Components: [paths or components from the Execution Manifest]
   - Planned Test File: [existing path, proposed path, or `None.` if blocked]
   - Notes: [supplemental requirement or prior-round note, or `None.`]

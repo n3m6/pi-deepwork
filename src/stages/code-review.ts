@@ -51,8 +51,12 @@ export async function runCodeReviewSubstage(
     await writeArtifact(reviewFile, result.text);
     filesWritten.push(path.relative(runtime.artifacts.runDir, reviewFile));
     const status = parseReviewStatus(result.text);
-    summaries.push(`${reviewer.agentName}: ${status}${reviewer.advisory ? " (advisory)" : ""}`);
-    if (status === "FAIL" && !reviewer.advisory) {
+    const blockingSeverity = hasBlockingSeverity(result.text);
+    const nonBlockingFailure = status === "FAIL" && !reviewer.advisory && !blockingSeverity;
+    summaries.push(
+      `${reviewer.agentName}: ${status}${reviewer.advisory ? " (advisory)" : ""}${nonBlockingFailure ? " (non-blocking severity)" : ""}`,
+    );
+    if (status === "FAIL" && !reviewer.advisory && blockingSeverity) {
       blockingFailures.push(reviewer.agentName);
     }
   }
@@ -70,6 +74,10 @@ export async function runCodeReviewSubstage(
       review_status_summary: summaries.join("; "),
     },
   };
+}
+
+function hasBlockingSeverity(markdown: string): boolean {
+  return /(?:^|\|)\s*(?:CRITICAL|HIGH)\s*(?=\||\b)/im.test(markdown);
 }
 
 function selectReviewers(runtime: StageRuntime, changedFiles: string[], changedLineCount: number): ReviewerSpec[] {

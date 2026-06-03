@@ -47,6 +47,8 @@ Apply all checks. Mark each PASS or FAIL.
 - `## Description` is self-contained: no "see Task N", "see design.md", or shortcut references. Enough detail for an implementer to proceed without guessing.
 - Each test expectation states a concrete trigger and an observable outcome. No expectation names internal functions, helpers, or intermediate states; none is phrased as an implementation step.
 - Test expectations do not introduce new test infrastructure unless the task outline explicitly lists test files or upstream artifacts show an existing harness.
+- Test expectations are feasible using only the current task's declared files plus existing repository files. Fail expectations that require future task files, undeclared source/test placeholders, or command success that is impossible for the current scope. For example, a scaffold-only task with `tsconfig.json` include globs but no `.ts` files must not require `tsc --showConfig`, `tsc`, or `npm test` to pass, because TypeScript can report `TS18003` until source/test inputs exist.
+- TypeScript configuration is internally consistent when the current task creates or modifies `tsconfig.json`. Fail `rootDir: "src"` combined with `include` entries outside `src/` such as `test/**/*`, because TypeScript rejects files outside `rootDir`.
 - No TBD, TODO, "details omitted", or similar placeholder language remains in any section.
 
 **Dependencies**
@@ -105,4 +107,4 @@ Apply all checks. Mark each PASS or FAIL.
 [One-line summary with overall PASS or FAIL and the primary finding.]
 ```
 
-Return `### Status — PASS` only if every review area passes with no mutations needed. Return `### Status — FAIL` if any area requires changes to pass. Do not ask questions. Do not invent requirements, criteria, or files not present in the outline or upstream artifacts.
+Return `### Status — PASS` only if every review area passes, no mutations are needed, and `### Unresolved Cross-Task Conflicts` is `None.` Return `### Status — FAIL` if any area requires changes, any mutation is needed, or any unresolved cross-task conflict exists. Do not ask questions. Do not invent requirements, criteria, or files not present in the outline or upstream artifacts.
