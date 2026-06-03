@@ -57,6 +57,7 @@ export interface RunState {
   stagesCompleted: StageName[];
   phaseHistory: PhaseHistoryEntry[];
   backwardLoops: number;
+  acceptFixAttempts: number;
   verifyFixAttempts: number;
   resumeSource: ResumeSource;
   interactionMode: InteractionMode;

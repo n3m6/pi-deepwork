@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { applyStageTransition, executeStage } from "../src/controller.js";
+import { applyStageTransition, executeStage, maybeRouteAcceptFix } from "../src/controller.js";
 import { createInitialState, ensureRunDirectories, getRunArtifacts } from "../src/state.js";
 import { TelemetryRecorder } from "../src/telemetry.js";
 import type { GateManager, PipelineServices, StageModule, StageRuntime } from "../src/types.js";
@@ -46,6 +46,136 @@ test("verify pass resets verify-fix attempts", async () => {
 
   assert.equal(next.nextStage, "report");
   assert.equal(next.verifyFixAttempts, 0);
+});
+
+test("accept failures route back to implement with the same phase", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000002");
+  await ensureRunDirectories(artifacts);
+  const state = {
+    ...createInitialState({
+      runId: "qrspi-20260601-000002",
+      interactionMode: "automated",
+      failurePolicy: "best-effort",
+      route: "full",
+    }),
+    currentPhase: 2,
+    totalPhases: 3,
+  };
+  const telemetry = new TelemetryRecorder(artifacts, state.runId);
+  await telemetry.initialize();
+
+  const next = await maybeRouteAcceptFix(
+    state,
+    {
+      status: "FAIL",
+      filesWritten: ["phases/phase-02/acceptance-results.md"],
+      summary: "Acceptance tests failed.",
+    },
+    telemetry,
+    {
+      stage: "accept",
+      async run() {
+        throw new Error("not used");
+      },
+    },
+    1,
+  );
+
+  assert.ok(next);
+  assert.equal(next.nextStage, "implement");
+  assert.equal(next.currentPhase, 2);
+  assert.equal(next.acceptFixAttempts, 1);
+  assert.equal(next.lastCompletedStage, "accept");
+});
+
+test("accept failures stop after the implementation repair cap", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000003");
+  await ensureRunDirectories(artifacts);
+  const state = {
+    ...createInitialState({
+      runId: "qrspi-20260601-000003",
+      interactionMode: "automated",
+      failurePolicy: "best-effort",
+      route: "full",
+    }),
+    acceptFixAttempts: 2,
+  };
+  const telemetry = new TelemetryRecorder(artifacts, state.runId);
+  await telemetry.initialize();
+
+  const next = await maybeRouteAcceptFix(
+    state,
+    {
+      status: "FAIL",
+      filesWritten: ["phases/phase-01/acceptance-results.md"],
+      summary: "Acceptance still failed.",
+    },
+    telemetry,
+    {
+      stage: "accept",
+      async run() {
+        throw new Error("not used");
+      },
+    },
+    2,
+  );
+
+  assert.equal(next, undefined);
+});
+
+test("accept review-cap failures are not auto-approved in best-effort mode", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000004");
+  await ensureRunDirectories(artifacts);
+  const state = createInitialState({
+    runId: "qrspi-20260601-000004",
+    interactionMode: "automated",
+    failurePolicy: "best-effort",
+    route: "full",
+  });
+  const gates: GateManager = {
+    interactionMode: "automated",
+    failurePolicy: "best-effort",
+    async askText() {
+      return undefined;
+    },
+    async choose() {
+      return undefined;
+    },
+    async confirm() {
+      return false;
+    },
+  };
+  const runtime: StageRuntime = {
+    state,
+    artifacts,
+    services: {
+      commandContext: { signal: new AbortController().signal },
+      gates,
+    } as Pick<PipelineServices, "commandContext" | "gates"> as PipelineServices,
+  };
+  const telemetry = new TelemetryRecorder(artifacts, state.runId);
+  await telemetry.initialize();
+
+  const stage: StageModule = {
+    stage: "accept",
+    async run() {
+      return {
+        status: "FAIL",
+        filesWritten: ["reviews/acceptance-plan.md"],
+        summary: "Acceptance coverage plan reviewers did not converge.",
+        telemetry: {
+          terminal_review_state: "unclean-cap",
+        },
+      };
+    },
+  };
+
+  const result = await executeStage(stage, runtime, state, telemetry, new Map());
+  assert.equal(result.outcome.status, "FAIL");
+  assert.equal(result.outcome.telemetry?.gate_status, undefined);
 });
 
 test("executeStage auto-approves unclean-cap failures in automated best-effort mode", async () => {

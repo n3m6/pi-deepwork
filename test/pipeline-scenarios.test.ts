@@ -99,7 +99,7 @@ test("full multi-phase path can replan and finish phase two", async () => {
   assert.equal(report.status, "PASS");
 });
 
-test("accept can request backward loop when acceptance fails", async () => {
+test("accept failure does not request an upstream backward loop", async () => {
   const harness = await TestHarness.create({
     route: "full",
     totalPhases: 1,
@@ -132,5 +132,5 @@ test("accept can request backward loop when acceptance fails", async () => {
   });
 
   assert.equal(accept.status, "FAIL");
-  assert.equal(accept.backwardLoop?.classification, "LOOP_PLAN");
+  assert.equal(accept.backwardLoop, undefined);
 });

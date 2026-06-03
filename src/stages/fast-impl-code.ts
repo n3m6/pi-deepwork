@@ -1,5 +1,6 @@
 import type { StageOutcome, StageRuntime } from "../types.js";
 import { dispatchGenericCoding, readArtifact } from "./utils.js";
+import { renderAcceptanceRepairContext } from "./acceptance-feedback.js";
 
 export async function runFastImplCodeSubstage(
   runtime: StageRuntime,
@@ -11,6 +12,7 @@ export async function runFastImplCodeSubstage(
   },
 ): Promise<StageOutcome> {
   const taskSpec = await readArtifact(options.taskSpecPath);
+  const acceptanceRepairContext = await renderAcceptanceRepairContext(runtime);
   return dispatchGenericCoding(
     runtime,
     [
@@ -21,6 +23,7 @@ export async function runFastImplCodeSubstage(
       `Task: ${options.taskId}`,
       `Attempt: ${options.attempt}`,
       `Worktree root: ${options.worktreeRoot}`,
+      acceptanceRepairContext,
       "",
       taskSpec,
       "",

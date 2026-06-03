@@ -15,9 +15,11 @@ import {
   createRunId,
   ensureRunDirectories,
   getRunArtifacts,
+  incrementAcceptFixAttempts,
   incrementVerifyFixAttempts,
   incrementBackwardLoops,
   markStageCompleted,
+  resetAcceptFixAttempts,
   resetCurrentPhase,
   resetVerifyFixAttempts,
   saveState,
@@ -39,6 +41,7 @@ import { DefaultGateManager } from "./gates.js";
 import { nextStageFor } from "./transitions.js";
 
 const MAX_BACKWARD_LOOPS = 3;
+const MAX_ACCEPT_FIX_ATTEMPTS = 2;
 const MAX_VERIFY_FIX_ATTEMPTS = 3;
 
 const STAGES: Record<StageName, StageModule> = {
@@ -248,6 +251,17 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
         continue;
       }
 
+      if (stage.stage === "accept" && outcome.status === "FAIL") {
+        const acceptReroute = await maybeRouteAcceptFix(currentState, outcome, telemetry, stage, stageInstance);
+        if (!acceptReroute) {
+          await saveState(artifacts.stateFile, currentState);
+          break;
+        }
+        currentState = acceptReroute;
+        await saveState(artifacts.stateFile, currentState);
+        continue;
+      }
+
       if (outcome.status === "FAIL") {
         await saveState(artifacts.stateFile, currentState);
         break;
@@ -327,7 +341,7 @@ export async function applyStageTransition(
     case "implement":
       return markStageCompleted(state, "implement", nextStageFor("implement", state));
     case "accept":
-      return markStageCompleted(state, "accept", nextStageFor("accept", state));
+      return resetAcceptFixAttempts(markStageCompleted(state, "accept", nextStageFor("accept", state)));
     case "replan":
       return advancePhase(markStageCompleted(state, "replan", nextStageFor("replan", state)), Math.max(state.totalPhases, state.currentPhase + 1));
     case "verify": {
@@ -340,6 +354,68 @@ export async function applyStageTransition(
     case "report":
       return markStageCompleted(state, "report", nextStageFor("report", state));
   }
+}
+
+export async function maybeRouteAcceptFix(
+  state: ReturnType<typeof createInitialState>,
+  outcome: StageOutcome,
+  telemetry: TelemetryRecorder,
+  stage: StageModule,
+  stageInstance: number,
+): Promise<ReturnType<typeof createInitialState> | undefined> {
+  if (!isImplementationRepairableAcceptFailure(outcome)) {
+    await telemetry.append({
+      event_type: "stage.failed",
+      status: "FAIL",
+      route: state.route,
+      stage: stage.stage,
+      phase: state.currentPhase,
+      stage_instance: stageInstance,
+      summary: "Acceptance failed outside the implementation repair path; stopping the run.",
+      context: {
+        accept_summary: outcome.summary,
+      },
+    });
+    return undefined;
+  }
+
+  if (state.acceptFixAttempts >= MAX_ACCEPT_FIX_ATTEMPTS) {
+    await telemetry.append({
+      event_type: "stage.failed",
+      status: "FAIL",
+      route: state.route,
+      stage: stage.stage,
+      phase: state.currentPhase,
+      stage_instance: stageInstance,
+      summary: `Acceptance fix cap (${MAX_ACCEPT_FIX_ATTEMPTS}) reached; stopping the run.`,
+      context: {
+        accept_fix_attempts: state.acceptFixAttempts,
+      },
+    });
+    return undefined;
+  }
+
+  await telemetry.append({
+    event_type: "stage.retried",
+    status: "RETRY",
+    route: state.route,
+    stage: stage.stage,
+    phase: state.currentPhase,
+    stage_instance: stageInstance,
+    summary: "Routing failed acceptance back to implement.",
+    context: {
+      accept_summary: outcome.summary,
+      accept_fix_attempts: state.acceptFixAttempts + 1,
+    },
+  });
+  return {
+    ...incrementAcceptFixAttempts(markStageCompleted(state, "accept", "implement")),
+    nextStage: "implement",
+  };
+}
+
+function isImplementationRepairableAcceptFailure(outcome: StageOutcome): boolean {
+  return outcome.telemetry?.terminal_review_state !== "unclean-cap" && outcome.telemetry?.boundary_violation !== true;
 }
 
 async function maybeRouteVerifyFix(
@@ -535,6 +611,10 @@ export async function resolveStageFailure(
   stageInstance: number,
 ): Promise<StageOutcome | "retry"> {
   if (outcome.status !== "FAIL" || outcome.telemetry?.terminal_review_state !== "unclean-cap") {
+    return outcome;
+  }
+
+  if (stage.stage === "accept") {
     return outcome;
   }
 

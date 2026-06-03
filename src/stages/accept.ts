@@ -1,12 +1,10 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 
-import { parseMarkdownSections } from "../markdown.js";
 import { detectSimpleExactFileTask } from "../simple-file-task.js";
-import type { BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../types.js";
-import { readArtifact, writeArtifact } from "./utils.js";
+import type { StageModule, StageOutcome, StageRuntime } from "../types.js";
+import { writeArtifact } from "./utils.js";
 import { runAcceptanceTesterSubstage } from "./acceptance-tester.js";
-import { dispatchLeaf } from "./utils.js";
 
 export const acceptStage: StageModule = {
   stage: "accept",
@@ -39,8 +37,6 @@ export const acceptStage: StageModule = {
     }
 
     const acceptance = await runAcceptanceTesterSubstage(runtime);
-    const acceptanceResults = await safeRead(path.join(phaseDir, "acceptance-results.md"));
-    const coveragePlan = await safeRead(path.join(phaseDir, "coverage-plan.md"));
 
     if (acceptance.status === "PASS") {
       return {
@@ -57,63 +53,12 @@ export const acceptStage: StageModule = {
       };
     }
 
-    const detector = await dispatchLeaf(
-      runtime,
-      "qrspi-backward-loop-detector",
-      [
-        "=== GOALS ===",
-        await readArtifact(runtime.artifacts.goalsFile),
-        "",
-        "=== EXECUTION MANIFEST ===",
-        await safeRead(path.join(phaseDir, "execution-manifest.md")),
-        "",
-        "=== INTEGRATION RESULTS ===",
-        await safeRead(path.join(phaseDir, "integration-results.md")),
-        "",
-        "=== DESIGN CONTEXT ===",
-        runtime.state.route === "full" ? await safeRead(runtime.artifacts.designFile) : "N/A",
-        "",
-        "=== STRUCTURE CONTEXT ===",
-        runtime.state.route === "full" ? await safeRead(runtime.artifacts.structureFile) : "N/A",
-        "",
-        "=== COVERAGE PLAN ===",
-        coveragePlan,
-        "",
-        "=== ACCEPTANCE RESULTS ===",
-        acceptanceResults,
-        "",
-        "=== PERSISTENT FAILURES ===",
-        acceptance.summary,
-        "",
-        "=== CURRENT PHASE ===",
-        String(phase),
-        "",
-        "=== PHASE MANIFEST ===",
-        await readArtifact(runtime.artifacts.phaseManifestFile),
-        "",
-        "=== COMPLETED PHASE SUMMARIES ===",
-        "None.",
-      ].join("\n"),
-    );
-
-    const sections = parseMarkdownSections(detector.text);
-    const recommendation = sections["Overall Recommendation"]?.trim() as BackwardLoopClassification | "NO_LOOP" | "DEFER_REPLAN" | undefined;
-    const backwardLoop =
-      recommendation && recommendation !== "NO_LOOP"
-        ? {
-            classification: recommendation as BackwardLoopClassification,
-            summary: sections.Rationale ?? acceptance.summary,
-            guidance: sections["Backward Loop Request"] ?? detector.text,
-          }
-        : undefined;
-
     return {
       status: "FAIL",
       phase,
       filesWritten: acceptance.filesWritten,
       summary: acceptance.summary,
       ...(acceptance.telemetry ? { telemetry: acceptance.telemetry } : {}),
-      ...(backwardLoop ? { backwardLoop } : {}),
     };
   },
 };
@@ -149,12 +94,4 @@ async function writeSimpleAcceptanceArtifacts(
     path.relative(runtime.artifacts.runDir, acceptancePath),
     path.relative(runtime.artifacts.runDir, summaryPath),
   ];
-}
-
-async function safeRead(filePath: string): Promise<string> {
-  try {
-    return await readArtifact(filePath);
-  } catch {
-    return "None.";
-  }
 }

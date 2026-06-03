@@ -91,6 +91,7 @@ export function createInitialState(options: {
     stagesCompleted: [],
     phaseHistory: [],
     backwardLoops: 0,
+    acceptFixAttempts: 0,
     verifyFixAttempts: 0,
     resumeSource: "fresh",
     interactionMode: options.interactionMode,
@@ -107,6 +108,7 @@ export async function loadState(stateFile: string): Promise<RunState | undefined
     const parsed = JSON.parse(raw) as RunState;
     return {
       ...parsed,
+      acceptFixAttempts: parsed.acceptFixAttempts ?? 0,
       verifyFixAttempts: parsed.verifyFixAttempts ?? 0,
     };
   } catch {
@@ -189,10 +191,24 @@ export function incrementVerifyFixAttempts(state: RunState): RunState {
   };
 }
 
+export function incrementAcceptFixAttempts(state: RunState): RunState {
+  return {
+    ...state,
+    acceptFixAttempts: state.acceptFixAttempts + 1,
+  };
+}
+
 export function resetVerifyFixAttempts(state: RunState): RunState {
   return {
     ...state,
     verifyFixAttempts: 0,
+  };
+}
+
+export function resetAcceptFixAttempts(state: RunState): RunState {
+  return {
+    ...state,
+    acceptFixAttempts: 0,
   };
 }
 

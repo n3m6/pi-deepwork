@@ -111,6 +111,7 @@ export async function inferStateFromArtifacts(
     stagesCompleted: completed,
     phaseHistory,
     backwardLoops: 0,
+    acceptFixAttempts: 0,
     verifyFixAttempts: 0,
     resumeSource: "artifacts",
     interactionMode,
