@@ -112,6 +112,10 @@ export class TestHarness {
   }
 
   async dispose(): Promise<void> {
+    // Remove any worktrees created under /tmp/.qrspi-worktrees/{runId}/ to prevent
+    // stale directories from breaking subsequent tests that reuse the same runId.
+    const worktreesRoot = path.join(os.tmpdir(), ".qrspi-worktrees", this.state.runId);
+    await rm(worktreesRoot, { recursive: true, force: true });
     await rm(this.workspaceRoot, { recursive: true, force: true });
   }
 }

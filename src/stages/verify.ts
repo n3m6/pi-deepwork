@@ -97,7 +97,7 @@ async function readPhaseArtifacts(runtime: StageRuntime, fileName: string): Prom
   return contents.join("\n\n");
 }
 
-function parseOverallStatus(markdown: string): StageOutcome["status"] {
+export function parseOverallStatus(markdown: string): StageOutcome["status"] {
   const overall = markdown.match(/### Overall Status\s+[—-]\s+(PASS|PARTIAL|FAIL)/i)?.[1]?.toUpperCase();
   if (overall === "PASS" || overall === "PARTIAL" || overall === "FAIL") {
     return overall;

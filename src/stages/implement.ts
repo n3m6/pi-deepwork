@@ -11,7 +11,7 @@ import { runE2ERegressionSubstage } from "./e2e-regression.js";
 import { runFastImplLoopSubstage } from "./fast-impl-loop.js";
 import { dispatchGenericCoding, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
-interface TaskSpecSummary {
+export interface TaskSpecSummary {
   taskId: string;
   phase: string;
   dependencies: string[];
@@ -304,7 +304,7 @@ async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number
   ];
 }
 
-async function loadPhaseTasks(runtime: StageRuntime, phase: number): Promise<TaskSpecSummary[]> {
+export async function loadPhaseTasks(runtime: StageRuntime, phase: number): Promise<TaskSpecSummary[]> {
   const phaseTaskDir = path.join(runtime.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`, "tasks");
   const baseTaskDir = runtime.artifacts.tasksDir;
   const taskDir = (await directoryHasTasks(phaseTaskDir)) ? phaseTaskDir : baseTaskDir;
@@ -334,7 +334,7 @@ async function loadPhaseTasks(runtime: StageRuntime, phase: number): Promise<Tas
   return summaries;
 }
 
-function buildWaves(tasks: TaskSpecSummary[]): TaskSpecSummary[][] {
+export function buildWaves(tasks: TaskSpecSummary[]): TaskSpecSummary[][] {
   const remaining = new Map(tasks.map((task) => [task.taskId, task]));
   const completed = new Set<string>();
   const waves: TaskSpecSummary[][] = [];
@@ -499,7 +499,7 @@ async function runIntegrationChecker(
   );
 }
 
-function classifyIntegrationLoop(markdown: string): "LOOP_PLAN" | "LOOP_STRUCTURE" | "LOOP_DESIGN" {
+export function classifyIntegrationLoop(markdown: string): "LOOP_PLAN" | "LOOP_STRUCTURE" | "LOOP_DESIGN" {
   const affected = markdown.match(/Affected Artifact\*\*:\s*(design|structure|plan)/i)?.[1]?.toLowerCase();
   if (affected === "design") {
     return "LOOP_DESIGN";

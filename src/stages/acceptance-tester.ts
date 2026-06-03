@@ -330,10 +330,10 @@ async function detectBoundaryViolations(runtime: StageRuntime, before: Set<strin
     .filter((file) => !isTestFile(file));
 }
 
-function isPipelineArtifact(file: string): boolean {
+export function isPipelineArtifact(file: string): boolean {
   return file.startsWith(".pipeline/");
 }
 
-function isTestFile(file: string): boolean {
+export function isTestFile(file: string): boolean {
   return /(^|\/)(__tests__|tests?|spec)(\/|$)|[._-](test|spec)\.[^/]+$/i.test(file);
 }

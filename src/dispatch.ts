@@ -24,11 +24,70 @@ const DEFAULT_LEAF_TIMEOUT_MS = 180_000;
 const DEFAULT_GENERIC_TIMEOUT_MS = 600_000;
 type DispatchEndReason = NonNullable<DispatchResult["endReason"]>;
 
+export interface AgentSession {
+  subscribe(handler: (event: { type: string }) => void): () => void;
+  abort(): Promise<void>;
+  prompt(text: string, options: { source: string }): Promise<void>;
+  dispose(): void;
+  messages: unknown[];
+}
+
+export type SessionFactory = (
+  request: DispatchRequest,
+  customTools: ToolDefinition[],
+  toolAllowlist: string[],
+  model: Model<any> | undefined,
+) => Promise<AgentSession>;
+
 export class PiSessionDispatcher implements Dispatcher {
+  private readonly sessionFactory: SessionFactory;
+
   constructor(
     private readonly modelRegistry: ModelRegistry,
     private readonly currentModel?: Model<any>,
-  ) {}
+    sessionFactory?: SessionFactory,
+  ) {
+    this.sessionFactory = sessionFactory ?? this.buildDefaultSessionFactory();
+  }
+
+  private buildDefaultSessionFactory(): SessionFactory {
+    return async (request, customTools, toolAllowlist, model) => {
+      const target = request.target;
+      const isLeaf = target.kind === "leaf";
+      const loader = new DefaultResourceLoader({
+        cwd: request.cwd,
+        agentDir: getAgentDir(),
+        noExtensions: true,
+        noSkills: true,
+        noPromptTemplates: true,
+        noThemes: true,
+        noContextFiles: true,
+        additionalExtensionPaths: isLeaf ? await existingPaths(target.extensions) : [],
+        ...(isLeaf && target.systemPromptMode === "replace"
+          ? { systemPromptOverride: (base: string | undefined) => target.body || base }
+          : {}),
+        ...(isLeaf && target.systemPromptMode === "append"
+          ? { appendSystemPromptOverride: (base: string[]) => [...base, target.body] }
+          : {}),
+      });
+      await loader.reload();
+
+      const sessionOptions = {
+        cwd: request.cwd,
+        agentDir: getAgentDir(),
+        modelRegistry: this.modelRegistry,
+        thinkingLevel: (request.target.thinkingLevel ?? "high") as never,
+        maxTurns: isLeaf ? (target as LeafAgentDefinition).maxTurns : DEFAULT_GENERIC_MAX_TURNS,
+        tools: toolAllowlist,
+        customTools,
+        resourceLoader: loader,
+        sessionManager: SessionManager.inMemory(request.cwd),
+        ...(model ? { model } : {}),
+      };
+      const { session } = await createAgentSession(sessionOptions);
+      return session as AgentSession;
+    };
+  }
 
   async dispatch(request: DispatchRequest): Promise<DispatchResult> {
     const customToolCalls: DispatchCustomToolCall[] = [];
@@ -43,39 +102,9 @@ export class PiSessionDispatcher implements Dispatcher {
     });
     const target = request.target;
     const isLeaf = target.kind === "leaf";
-    const loader = new DefaultResourceLoader({
-      cwd: request.cwd,
-      agentDir: getAgentDir(),
-      noExtensions: true,
-      noSkills: true,
-      noPromptTemplates: true,
-      noThemes: true,
-      noContextFiles: true,
-      additionalExtensionPaths: isLeaf ? await existingPaths(target.extensions) : [],
-      ...(isLeaf && target.systemPromptMode === "replace"
-        ? { systemPromptOverride: (base: string | undefined) => target.body || base }
-        : {}),
-      ...(isLeaf && target.systemPromptMode === "append"
-        ? { appendSystemPromptOverride: (base: string[]) => [...base, target.body] }
-        : {}),
-    });
-    await loader.reload();
-
     const toolAllowlist = mergeToolAllowlist(target.tools, request.tools, customTools);
-    const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? target.modelName : undefined);
-    const sessionOptions = {
-      cwd: request.cwd,
-      agentDir: getAgentDir(),
-      modelRegistry: this.modelRegistry,
-      thinkingLevel: (request.target.thinkingLevel ?? "high") as never,
-      maxTurns: isLeaf ? target.maxTurns : DEFAULT_GENERIC_MAX_TURNS,
-      tools: toolAllowlist,
-      customTools,
-      resourceLoader: loader,
-      sessionManager: SessionManager.inMemory(request.cwd),
-      ...(model ? { model } : {}),
-    };
-    const { session } = await createAgentSession(sessionOptions);
+    const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? (target as LeafAgentDefinition).modelName : undefined);
+    const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
 
     try {
       const endReason = await waitForPromptCompletion(
@@ -120,13 +149,18 @@ export class PiSessionDispatcher implements Dispatcher {
   }
 }
 
-async function waitForPromptCompletion(
-  session: Awaited<ReturnType<typeof createAgentSession>>["session"],
+export async function waitForPromptCompletion(
+  session: AgentSession,
   prompt: string,
   stageReturn: Promise<void>,
   signal?: AbortSignal,
   timeoutMs?: number,
 ): Promise<DispatchEndReason> {
+  if (signal?.aborted) {
+    void session.abort().catch(() => undefined);
+    return "aborted";
+  }
+
   let resolveDone!: (reason: DispatchEndReason) => void;
   const done = new Promise<DispatchEndReason>((resolve) => {
     resolveDone = resolve;
@@ -174,7 +208,7 @@ async function waitForPromptCompletion(
   }
 }
 
-function resolveModel(
+export function resolveModel(
   modelRegistry: ModelRegistry,
   currentModel: Model<any> | undefined,
   desiredModelName: string | undefined,
@@ -189,7 +223,7 @@ function resolveModel(
   return currentModel ?? modelRegistry.getAvailable()[0] ?? all[0];
 }
 
-function mergeToolAllowlist(
+export function mergeToolAllowlist(
   targetTools: string[],
   overrideTools: string[] | undefined,
   customTools: ToolDefinition[],
@@ -199,7 +233,7 @@ function mergeToolAllowlist(
   return [...new Set([...base, ...customNames])];
 }
 
-function instrumentCustomTools<T extends ToolDefinition[]>(
+export function instrumentCustomTools<T extends ToolDefinition[]>(
   tools: T,
   sink: DispatchCustomToolCall[],
   onToolCall: (toolName: string) => void,
@@ -215,7 +249,7 @@ function instrumentCustomTools<T extends ToolDefinition[]>(
   })) as T;
 }
 
-async function existingPaths(paths: string[]): Promise<string[]> {
+export async function existingPaths(paths: string[]): Promise<string[]> {
   const existing: string[] = [];
   for (const filePath of paths) {
     try {
@@ -228,7 +262,7 @@ async function existingPaths(paths: string[]): Promise<string[]> {
   return existing;
 }
 
-function extractAssistantText(messages: unknown[]): string {
+export function extractAssistantText(messages: unknown[]): string {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index] as { role?: string; content?: unknown };
     if (message?.role !== "assistant") {
@@ -239,7 +273,7 @@ function extractAssistantText(messages: unknown[]): string {
   return "";
 }
 
-function contentToText(content: unknown): string {
+export function contentToText(content: unknown): string {
   if (typeof content === "string") {
     return content;
   }

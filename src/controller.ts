@@ -35,7 +35,7 @@ import { researchStage } from "./stages/research.js";
 import { structureStage } from "./stages/structure.js";
 import { verifyStage } from "./stages/verify.js";
 import { TelemetryRecorder, createRunEventSummary } from "./telemetry.js";
-import type { BackwardLoopRequest, StageModule, StageName, StageOutcome, StageRuntime, StageTelemetryContext } from "./types.js";
+import type { BackwardLoopRequest, PipelineServices, RunArtifacts, RunState, StageModule, StageName, StageOutcome, StageRuntime, StageTelemetryContext } from "./types.js";
 import { PiSessionDispatcher } from "./dispatch.js";
 import { DefaultGateManager } from "./gates.js";
 import { nextStageFor } from "./transitions.js";
@@ -89,7 +89,7 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
       ...(userTask ? { userTask } : {}),
     });
 
-  const runtimeServices = {
+  const services: PipelineServices = {
     pi,
     commandContext: ctx,
     eventContext: ctx,
@@ -102,36 +102,58 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
   const telemetry = new TelemetryRecorder(artifacts, runId);
   await telemetry.initialize();
 
-  if (!resumed.state) {
-    await checkpoint.createRunBranch(runId, ctx.signal);
+  const finalState = await runPipeline({
+    services,
+    state,
+    artifacts,
+    telemetry,
+    checkpoint,
+    isResumed: !!resumed.state,
+  });
+  ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");
+}
+
+export async function runPipeline(options: {
+  services: PipelineServices;
+  state: RunState;
+  artifacts: RunArtifacts;
+  telemetry: TelemetryRecorder;
+  checkpoint: CheckpointManager;
+  isResumed: boolean;
+}): Promise<RunState> {
+  const { services, artifacts, telemetry, checkpoint, isResumed } = options;
+  const signal = services.commandContext.signal;
+
+  if (!isResumed) {
+    await checkpoint.createRunBranch(options.state.runId, signal);
     await telemetry.append({
       event_type: "run.started",
       status: "PASS",
-      route: state.route,
-      summary: createRunEventSummary(undefined, state.route, "started"),
+      route: options.state.route,
+      summary: createRunEventSummary(undefined, options.state.route, "started"),
     });
   } else {
     await telemetry.append({
       event_type: "run.resumed",
       status: "PASS",
-      route: state.route,
-      summary: createRunEventSummary(undefined, state.route, "resumed"),
+      route: options.state.route,
+      summary: createRunEventSummary(undefined, options.state.route, "resumed"),
     });
   }
 
-  let currentState = state;
+  let currentState = options.state;
   const stageInstances = new Map<string, number>();
   await saveState(artifacts.stateFile, currentState);
 
   try {
     while (currentState.nextStage !== "done") {
       const stage = STAGES[currentState.nextStage];
-      progress.setStage(`deepwork/${currentState.nextStage}`, `phase ${currentState.currentPhase}`);
+      services.progress.setStage(`deepwork/${currentState.nextStage}`, `phase ${currentState.currentPhase}`);
 
       const runtime: StageRuntime = {
         state: currentState,
         artifacts,
-        services: runtimeServices,
+        services,
       };
 
       const { outcome, stageInstance, startedAt } = await executeStage(stage, runtime, currentState, telemetry, stageInstances);
@@ -284,7 +306,7 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
 
       currentState = await applyStageTransition(currentState, stage.stage, outcome, artifacts);
       await saveState(artifacts.stateFile, currentState);
-      await checkpoint.stageBoundaryCheckpoint(stage.stage, "complete", ctx.signal);
+      await checkpoint.stageBoundaryCheckpoint(stage.stage, "complete", signal);
       await telemetry.regenerateRunLog(currentState);
       await telemetry.regenerateMetrics(currentState);
     }
@@ -297,8 +319,7 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
     });
     await telemetry.regenerateRunLog(currentState);
     await telemetry.regenerateMetrics(currentState);
-    progress.clear();
-    ctx.ui.notify(`Deepwork run ${runId} finished at stage ${currentState.lastCompletedStage}.`, "info");
+    return currentState;
   } catch (error) {
     await telemetry.append({
       event_type: "run.aborted",
@@ -311,8 +332,9 @@ export async function runDeepworkCommand(pi: ExtensionAPI, args: string, ctx: Ex
     });
     await telemetry.regenerateRunLog(currentState);
     await telemetry.regenerateMetrics(currentState);
-    progress.clear();
     throw error;
+  } finally {
+    services.progress.clear();
   }
 }
 

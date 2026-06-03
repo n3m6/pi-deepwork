@@ -32,7 +32,7 @@
     ]
   },
   "scripts": {
-    "test": "node --import tsx --test test/*.test.ts",
+    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify": "npm run typecheck && npm test"
   },
