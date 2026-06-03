@@ -4,10 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
 
-import { loadAgentDefinitions } from "../../src/agent-defs.js";
-import { createInitialState, createRunId, ensureRunDirectories, getRunArtifacts } from "../../src/state.js";
+import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
+import { ensureRunDirectories, getRunArtifacts, type RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { createRunId } from "../../src/infrastructure/system/id-generator.js";
+import { createInitialState } from "../../src/domain/run/index.js";
+import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
+import { FileSystemRunStateRepository } from "../../src/infrastructure/fs/state-repository.js";
+import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
+import { NpmBuildTool } from "../../src/infrastructure/npm/build-tool.js";
+import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 import type {
   DispatchRequest,
   DispatchResult,
@@ -18,10 +27,11 @@ import type {
   InteractionMode,
   PipelineServices,
   ProgressReporter,
-  RunArtifacts,
   RunState,
+  StageOutcome,
   StageRuntime,
-} from "../../src/types.js";
+  TelemetrySink,
+} from "../../src/application/port/index.js";
 
 const execFileAsync = promisify(execFile);
 let harnessRunCounter = 0;
@@ -60,6 +70,10 @@ export class TestHarness {
     this.services = services;
   }
 
+  get telemetrySink(): TelemetrySink {
+    return this.services.telemetrySink;
+  }
+
   static async create(options: HarnessOptions = {}): Promise<TestHarness> {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-test-"));
     const runId = createRunId(new Date(2026, 5, 1, 0, 0, harnessRunCounter++));
@@ -88,6 +102,13 @@ export class TestHarness {
     });
     const ctx = createFakeCommandContext(workspaceRoot, pi);
     const progress = new NoopProgressReporter();
+    const versionControl = new GitVersionControl(pi, workspaceRoot, runId);
+    const buildTool = new NpmBuildTool(pi);
+    const artifactRepo = FileSystemArtifactRepository.fromPaths(artifacts);
+    const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
+    const telemetrySink = JsonlTelemetrySink.create(artifacts, runId);
+    await telemetrySink.initialize();
+
     const services: PipelineServices = {
       pi,
       commandContext: ctx,
@@ -96,6 +117,11 @@ export class TestHarness {
       agentDefinitions,
       gates,
       progress,
+      versionControl,
+      buildTool,
+      artifactRepo,
+      stateRepo,
+      telemetrySink,
     };
 
     await writeFile(artifacts.configFile, `created: 2026-06-01\nroute: ${options.route ?? "full"}\nrun_id: ${runId}\n`, "utf8");
@@ -106,7 +132,7 @@ export class TestHarness {
   runtime(overrides?: Partial<RunState>): StageRuntime {
     return {
       state: { ...this.state, ...overrides },
-      artifacts: this.artifacts,
+      workspaceRoot: this.workspaceRoot,
       services: this.services,
     };
   }
@@ -143,6 +169,26 @@ class MockDispatcher implements Dispatcher {
       results.push(await this.dispatch(request));
     }
     return results;
+  }
+
+  async dispatchGenericCoding(
+    prompt: string,
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+  ): Promise<StageOutcome> {
+    const stageReturns: StageReturnPayload[] = [];
+    const result = await this.dispatch({
+      target: {
+        kind: "generic",
+        name: "generic-coding",
+        tools: options?.tools ?? ["read", "bash", "edit", "write", "grep", "find", "ls"],
+        thinkingLevel: "high",
+      },
+      prompt,
+      cwd: options?.cwd ?? this.artifacts.workspaceRoot,
+      ...(options?.signal ? { signal: options.signal } : {}),
+      customTools: [createStageReturnTool(stageReturns)],
+    });
+    return normalizeStageReturn(result);
   }
 
   private async handleLeaf(request: DispatchRequest): Promise<DispatchResult> {
@@ -320,6 +366,10 @@ class StaticGateManager implements GateManager {
   async confirm(): Promise<boolean> {
     return this.interactionMode === "interactive";
   }
+
+  createAskHumanTool() {
+    return createAskHumanTool(this);
+  }
 }
 
 class NoopProgressReporter implements ProgressReporter {
@@ -358,7 +408,7 @@ function createExecOnlyPi(workspaceRoot: string): Pick<ExtensionAPI, "exec"> {
   };
 }
 
-function createFakeCommandContext(workspaceRoot: string, pi: Pick<ExtensionAPI, "exec">): ExtensionCommandContext {
+function createFakeCommandContext(workspaceRoot: string, _pi: Pick<ExtensionAPI, "exec">): ExtensionCommandContext {
   return {
     cwd: workspaceRoot,
     hasUI: false,

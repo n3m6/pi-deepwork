@@ -32,9 +32,10 @@
     ]
   },
   "scripts": {
-    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "test": "node --import tsx --test --test-concurrency=1 \"test/*.test.ts\" \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "verify": "npm run typecheck && npm test"
+    "lint": "eslint --max-warnings=0 src/domain src/application src/infrastructure test",
+    "verify": "npm run typecheck && npm run lint && npm test"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
@@ -59,8 +60,10 @@
     "@earendil-works/pi-ai": "0.78.0",
     "@earendil-works/pi-coding-agent": "0.78.0",
     "@types/node": "25.9.1",
+    "eslint": "10.4.1",
     "tsx": "4.22.4",
     "typebox": "1.1.39",
-    "typescript": "6.0.3"
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.60.1"
   }
 }
