@@ -6,13 +6,12 @@ import path from "node:path";
 
 import { applyStageTransition, executeStage, maybeRouteAcceptFix } from "../../src/application/pipeline/run-pipeline.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
-import type { GateManager, PipelineServices, StageModule, StageRuntime, TelemetrySink } from "../../src/application/port/index.js";
+import type { GateManager, PipelineServices, StageModule, StageRuntime } from "../../src/application/port/index.js";
 
 test("verify failures route back to implement", async () => {
-  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
-  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   const state = createInitialState({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
@@ -21,16 +20,17 @@ test("verify failures route back to implement", async () => {
   });
 
   const next = await applyStageTransition(state, "verify", {
+    status: "FAIL",
+    filesWritten: [],
+    summary: "",
     telemetry: { verify_status: "FAIL" },
-  }, artifacts);
+  });
 
   assert.equal(next.nextStage, "implement");
   assert.equal(next.verifyStatus, "FAIL");
 });
 
 test("verify pass resets verify-fix attempts", async () => {
-  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
-  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000001");
   const state = {
     ...createInitialState({
       runId: "qrspi-20260601-000001",
@@ -42,8 +42,11 @@ test("verify pass resets verify-fix attempts", async () => {
   };
 
   const next = await applyStageTransition(state, "verify", {
+    status: "PASS",
+    filesWritten: [],
+    summary: "",
     telemetry: { verify_status: "PASS" },
-  }, artifacts);
+  });
 
   assert.equal(next.nextStage, "report");
   assert.equal(next.verifyFixAttempts, 0);
@@ -148,10 +151,11 @@ test("accept review-cap failures are not auto-approved in best-effort mode", asy
     async confirm() {
       return false;
     },
+    createAskHumanTool() { return createAskHumanTool(this); },
   };
   const runtime: StageRuntime = {
     state,
-    artifacts,
+    workspaceRoot: workspace,
     services: {
       commandContext: { signal: new AbortController().signal },
       gates,
@@ -202,6 +206,7 @@ test("executeStage auto-approves unclean-cap failures in automated best-effort m
     async confirm() {
       return false;
     },
+    createAskHumanTool() { return createAskHumanTool(this); },
   };
   const services = {
     commandContext: { signal: new AbortController().signal },
@@ -209,7 +214,7 @@ test("executeStage auto-approves unclean-cap failures in automated best-effort m
   } as Pick<PipelineServices, "commandContext" | "gates">;
   const runtime: StageRuntime = {
     state,
-    artifacts,
+    workspaceRoot: workspace,
     services: services as PipelineServices,
   };
   const telemetry = JsonlTelemetrySink.create(artifacts, state.runId);
@@ -257,6 +262,7 @@ test("executeStage does not auto-approve infrastructure failures in best-effort 
     async confirm() {
       return false;
     },
+    createAskHumanTool() { return createAskHumanTool(this); },
   };
   const services = {
     commandContext: { signal: new AbortController().signal },
@@ -264,7 +270,7 @@ test("executeStage does not auto-approve infrastructure failures in best-effort 
   } as Pick<PipelineServices, "commandContext" | "gates">;
   const runtime: StageRuntime = {
     state,
-    artifacts,
+    workspaceRoot: workspace,
     services: services as PipelineServices,
   };
   const telemetry = JsonlTelemetrySink.create(artifacts, state.runId);
@@ -313,6 +319,7 @@ test("executeStage retries once after an unexpected error in best-effort mode", 
     async confirm() {
       return false;
     },
+    createAskHumanTool() { return createAskHumanTool(this); },
   };
   const services = {
     commandContext: { signal: new AbortController().signal },
@@ -320,7 +327,7 @@ test("executeStage retries once after an unexpected error in best-effort mode", 
   } as Pick<PipelineServices, "commandContext" | "gates">;
   const runtime: StageRuntime = {
     state,
-    artifacts,
+    workspaceRoot: workspace,
     services: services as PipelineServices,
   };
   const telemetry = JsonlTelemetrySink.create(artifacts, state.runId);

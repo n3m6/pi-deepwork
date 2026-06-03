@@ -4,8 +4,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { isTestFile, isPipelineArtifact, runAcceptanceTesterSubstage } from "../../src/application/stage/acceptance-tester.js";
-import { markStageCompleted } from "../../src/domain/run/index.js";
 import type { DispatchRequest, DispatchResult, Dispatcher, VersionControl } from "../../src/application/port/index.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -121,6 +121,11 @@ test("runAcceptanceTesterSubstage returns unclean-cap when plan reviewers fail f
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
+    },
   };
 
   const result = await runAcceptanceTesterSubstage({
@@ -181,6 +186,11 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
           for (const r of requests) results.push(await this.dispatch(r));
           return results;
         },
+        async dispatchGenericCoding(prompt: string, options?: { cwd?: string; tools?: string[] }) {
+          const sink: StageReturnPayload[] = [];
+          const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+          return normalizeStageReturn(result);
+        },
       } as Dispatcher,
     },
   };
@@ -231,6 +241,11 @@ test("runAcceptanceTesterSubstage retries acceptance dispatch up to 3 rounds on 
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
+    },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
     },
   };
 

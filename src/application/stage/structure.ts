@@ -1,6 +1,6 @@
 import { runSynthesizeReviewGate } from "../workflow/synthesize-review-gate-workflow.js";
 import { readArtifact } from "./utils.js";
-import type { StageModule, StageOutcome, StageRuntime } from "../port/index.js";
+import type { StageModule, StageOutcome } from "../port/index.js";
 
 export const structureStage: StageModule = {
   stage: "structure",

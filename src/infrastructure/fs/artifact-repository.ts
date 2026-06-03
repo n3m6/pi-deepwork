@@ -2,7 +2,41 @@ import { cp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node
 import path from "node:path";
 
 import { backwardLoopTarget } from "../../domain/backward-loop/artifact-reset-policy.js";
-import type { ArtifactId, ArtifactRepository, BackwardLoopClassification, BackwardLoopRequest, RunArtifacts, StageName } from "../../application/port/index.js";
+import type { ArtifactId, ArtifactRepository, BackwardLoopClassification, BackwardLoopRequest, StageName } from "../../application/port/index.js";
+
+// ---------------------------------------------------------------------------
+// RunArtifacts — infrastructure-internal path bag (not part of the application port).
+// ---------------------------------------------------------------------------
+
+export interface RunArtifacts {
+  workspaceRoot: string;
+  runDir: string;
+  telemetryDir: string;
+  reviewsDir: string;
+  feedbackDir: string;
+  tasksDir: string;
+  outlinesDir: string;
+  phasesDir: string;
+  archiveDir: string;
+  stateFile: string;
+  requirementsFile: string;
+  goalsFile: string;
+  configFile: string;
+  researchDir: string;
+  researchSummaryFile: string;
+  researchQuestionsFile: string;
+  researchOpenQuestionsFile: string;
+  designFile: string;
+  structureFile: string;
+  planFile: string;
+  phaseManifestFile: string;
+  baselineResultsFile: string;
+  stage9SummaryFile: string;
+  stage10SummaryFile: string;
+  eventsFile: string;
+  runLogFile: string;
+  metricsFile: string;
+}
 
 // ---------------------------------------------------------------------------
 // Path layout — builds the RunArtifacts bag for a given run.
@@ -152,10 +186,6 @@ export class FileSystemArtifactRepository implements ArtifactRepository {
 
   static fromPaths(paths: RunArtifacts): FileSystemArtifactRepository {
     return new FileSystemArtifactRepository(paths);
-  }
-
-  get paths(): RunArtifacts {
-    return this._paths;
   }
 
   resolvePath(id: ArtifactId): string {

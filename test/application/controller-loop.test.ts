@@ -41,7 +41,7 @@ test("runPipeline emits run.started and run.completed telemetry on a trivial run
   const finalState = await runPipeline({
     services: harness.services,
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: false,
   });
 
@@ -79,7 +79,7 @@ test("runPipeline emits run.resumed (not run.started) when isResumed is true", a
   await runPipeline({
     services: harness.services,
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: true,
   });
 
@@ -144,12 +144,13 @@ test("runPipeline emits backward_loop events when implement returns integration-
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(prompt, options) { return harness.dispatcher.dispatchGenericCoding(prompt, options); },
   };
 
   const finalState = await runPipeline({
     services: { ...harness.services, dispatcher: integrationCheckerDispatcher },
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: false,
   });
 
@@ -207,12 +208,13 @@ test("runPipeline emits backward_loop.failed when implement backward loop hits c
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(prompt, options) { return harness.dispatcher.dispatchGenericCoding(prompt, options); },
   };
 
   const finalState = await runPipeline({
     services: { ...harness.services, dispatcher: capDispatcher },
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: false,
   });
 
@@ -250,7 +252,7 @@ test("runPipeline emits stage.skipped for design and structure in quick-fix rout
   const finalState = await runPipeline({
     services: harness.services,
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: false,
   });
 
@@ -300,7 +302,7 @@ test("runPipeline reroutes to implement when verify returns PARTIAL", async () =
   const finalState = await runPipeline({
     services: harness.services,
     state: harness.state,
-    artifacts: harness.artifacts,
+    workspaceRoot: harness.workspaceRoot,
     isResumed: false,
   });
 

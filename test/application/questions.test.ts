@@ -124,6 +124,10 @@ class RecordingQuestionDispatcher implements Dispatcher {
     }
     return results;
   }
+
+  async dispatchGenericCoding(_prompt: string) {
+    return { status: "PASS" as const, filesWritten: [], summary: "" };
+  }
 }
 
 function textResult(text: string): DispatchResult {

@@ -8,7 +8,7 @@ export interface RegressionCheckResult {
 
 export async function runE2ERegressionSubstage(runtime: StageRuntime, phase: number): Promise<RegressionCheckResult> {
   const buildTool = requireBuildTool(runtime);
-  const cwd = runtime.artifacts.workspaceRoot;
+  const cwd = runtime.workspaceRoot;
   const available = new Set(await buildTool.availableScripts(cwd));
   const scriptName = available.has("test:e2e") ? "test:e2e" : available.has("e2e") ? "e2e" : undefined;
 

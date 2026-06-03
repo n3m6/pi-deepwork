@@ -68,7 +68,7 @@ export const reportStage: StageModule = {
 };
 
 async function readPerPhaseResults(runtime: StageRuntime): Promise<string> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const phases = await repo.listPhases();
   const blocks: string[] = [];
   for (const phase of phases) {

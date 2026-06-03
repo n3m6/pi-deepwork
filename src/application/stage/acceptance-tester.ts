@@ -10,7 +10,7 @@ const ACCEPTANCE_PLAN_REVIEWERS = [
 
 export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promise<StageOutcome> {
   const phase = runtime.state.currentPhase;
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const phaseManifest = await readArtifact(runtime, { kind: "phaseManifest" });
   const executionManifest = (await repo.read({ kind: "phaseFile", phase, name: "execution-manifest.md" })) ?? "None.";
   const goals = await readArtifact(runtime, { kind: "goals" });
@@ -116,7 +116,7 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
       "",
       "Return telemetry.evidence_quality with counts for deterministic, flaky, harnessNoisy, ambiguous, redundant, noTestTasks, and noTestAuditOverrides.",
     ].join("\n"),
-    { cwd: runtime.artifacts.workspaceRoot },
+    { cwd: runtime.workspaceRoot },
     );
     if (implementation.status === "PASS" || round === 3) {
       break;
@@ -206,7 +206,7 @@ async function dispatchCoveragePlanner(
     reviewFeedback?: string;
   },
 ) {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   return dispatchLeaf(
     runtime,
     "qrspi-coverage-planner",
@@ -264,7 +264,7 @@ async function dispatchAcceptancePlanReviewers(
     }
     return {
       target,
-      cwd: runtime.artifacts.workspaceRoot,
+      cwd: runtime.workspaceRoot,
       ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
       prompt: [
         "Review the Stage 7 acceptance coverage plan before tests are authored.",
@@ -306,7 +306,7 @@ function requireVersionControl(runtime: StageRuntime): VersionControl {
 
 async function workspaceFiles(runtime: StageRuntime): Promise<Set<string>> {
   const files = await requireVersionControl(runtime).changedFiles(
-    runtime.artifacts.workspaceRoot,
+    runtime.workspaceRoot,
     runtime.services.eventContext.signal,
   );
   return new Set(files);

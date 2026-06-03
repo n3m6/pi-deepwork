@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { runFastImplLoopSubstage } from "../../src/application/stage/fast-impl-loop.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -113,6 +114,11 @@ function makeLoopDispatcher(options: {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
+    },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
     },
   };
 }

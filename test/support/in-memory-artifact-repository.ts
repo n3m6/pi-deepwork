@@ -4,14 +4,11 @@
  * Satisfies the ArtifactRepository port without touching the file system.
  */
 
-import type { ArtifactId, ArtifactRepository, BackwardLoopRequest, RunArtifacts, StageName } from "../../src/application/port/index.js";
+import type { ArtifactId, ArtifactRepository, BackwardLoopRequest, StageName } from "../../src/application/port/index.js";
 
 export class InMemoryArtifactRepository implements ArtifactRepository {
   private readonly store = new Map<string, string>();
   private readonly workspaceFiles = new Map<string, string>();
-
-  /** Expose a fake paths bag for tests that inspect artifacts.paths */
-  readonly paths: RunArtifacts = {} as RunArtifacts;
 
   private key(id: ArtifactId): string {
     switch (id.kind) {

@@ -7,7 +7,7 @@ export const replanStage: StageModule = {
   async run(runtime: StageRuntime): Promise<StageOutcome> {
     const phase = runtime.state.currentPhase;
     const nextPhase = phase + 1;
-    const repo = runtime.services.artifactRepo!;
+    const repo = runtime.services.artifactRepo;
 
     let reviewRound = 1;
     while (reviewRound <= 3) {
@@ -165,7 +165,7 @@ export const replanStage: StageModule = {
 };
 
 async function writeReplanArtifacts(runtime: StageRuntime, phase: number, nextPhase: number, sections: Record<string, string>) {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   await writeArtifact(runtime, { kind: "plan" }, sections["plan.md"] ?? await readArtifact(runtime, { kind: "plan" }));
   await writeArtifact(
     runtime,
@@ -190,7 +190,7 @@ async function writeReplanArtifacts(runtime: StageRuntime, phase: number, nextPh
 
 async function readPhaseTaskSpecs(runtime: StageRuntime, phase: number): Promise<string> {
   try {
-    const repo = runtime.services.artifactRepo!;
+    const repo = runtime.services.artifactRepo;
     const ids = await repo.listTaskSpecs(phase);
     const contents = await Promise.all(ids.map((id) => repo.read(id)));
     return contents.filter(Boolean).join("\n\n") || "None.";
@@ -201,7 +201,7 @@ async function readPhaseTaskSpecs(runtime: StageRuntime, phase: number): Promise
 
 async function readRemainingTaskSpecs(runtime: StageRuntime, nextPhase: number): Promise<string> {
   try {
-    const repo = runtime.services.artifactRepo!;
+    const repo = runtime.services.artifactRepo;
     const ids = await repo.listTaskSpecs(nextPhase);
     const contents = await Promise.all(ids.map((id) => repo.read(id)));
     return contents.filter(Boolean).join("\n\n") || "None.";

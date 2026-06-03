@@ -6,11 +6,9 @@ import {
   parseReviewStatus,
   requireMarkdownSection,
 } from "../../infrastructure/codec/markdown-codec.js";
-// eslint-disable-next-line no-restricted-imports -- known tech debt: stage-return-tool should be behind a port
-import { createStageReturnTool, normalizeStageReturn } from "../../infrastructure/pi/stage-return-tool.js";
 import type { ArtifactId, DispatchRequest, DispatchResult, StageOutcome, StageRuntime } from "../port/index.js";
-// eslint-disable-next-line no-restricted-imports -- known tech debt: stage-return-tool should be behind a port
-import type { StageReturnPayload } from "../../infrastructure/pi/stage-return-tool.js";
+
+export const GENERIC_CODING_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"] as const;
 
 export async function dispatchLeaf(
   runtime: StageRuntime,
@@ -30,7 +28,7 @@ export async function dispatchLeaf(
   return runtime.services.dispatcher.dispatch({
     target,
     prompt,
-    cwd: options?.cwd ?? runtime.artifacts.workspaceRoot,
+    cwd: options?.cwd ?? runtime.workspaceRoot,
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
     tools: options?.tools ?? readOnlyTools(target.tools),
     ...(options?.customTools ? { customTools: options.customTools } : {}),
@@ -46,31 +44,21 @@ export async function dispatchGenericCoding(
     tools?: string[];
   },
 ): Promise<StageOutcome> {
-  const stageReturns: StageReturnPayload[] = [];
-  const result = await runtime.services.dispatcher.dispatch({
-    target: {
-      kind: "generic",
-      name: "generic-coding",
-      tools: options?.tools ?? ["read", "bash", "edit", "write", "grep", "find", "ls"],
-      thinkingLevel: "high",
-    },
-    prompt,
-    cwd: options?.cwd ?? runtime.artifacts.workspaceRoot,
+  return runtime.services.dispatcher.dispatchGenericCoding(prompt, {
+    cwd: options?.cwd ?? runtime.workspaceRoot,
+    ...(options?.tools ? { tools: options.tools } : {}),
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
-    customTools: [createStageReturnTool(stageReturns)],
   });
-
-  return normalizeStageReturn(result);
 }
 
 /** Write a pipeline artifact via the artifact repository. */
 export async function writeArtifact(runtime: StageRuntime, id: ArtifactId, content: string): Promise<void> {
-  await runtime.services.artifactRepo!.write(id, content);
+  await runtime.services.artifactRepo.write(id, content);
 }
 
 /** Read a pipeline artifact; throws if the artifact does not exist. */
 export async function readArtifact(runtime: StageRuntime, id: ArtifactId): Promise<string> {
-  const content = await runtime.services.artifactRepo!.read(id);
+  const content = await runtime.services.artifactRepo.read(id);
   if (content === undefined) {
     throw new Error(`Artifact not found: ${JSON.stringify(id)}`);
   }
@@ -82,7 +70,7 @@ export async function readArtifact(runtime: StageRuntime, id: ArtifactId): Promi
  * Use for optional context artifacts where absence is expected.
  */
 export async function safeReadArtifact(runtime: StageRuntime, id: ArtifactId, fallback = ""): Promise<string> {
-  return (await runtime.services.artifactRepo!.read(id)) ?? fallback;
+  return (await runtime.services.artifactRepo.read(id)) ?? fallback;
 }
 
 /**
@@ -90,7 +78,7 @@ export async function safeReadArtifact(runtime: StageRuntime, id: ArtifactId, fa
  * Used to populate `filesWritten` in `StageOutcome`.
  */
 export function artifactRelPath(runtime: StageRuntime, id: ArtifactId): string {
-  return runtime.services.artifactRepo!.relPath(id);
+  return runtime.services.artifactRepo.relPath(id);
 }
 
 export { requireMarkdownSection };
@@ -115,7 +103,7 @@ export function dispatchFailureSummary(result: DispatchResult, label: string): s
 
 export { parseReviewStatus, extractFixGuidance, parseMarkdownSections };
 
-function readOnlyTools(tools: string[]): string[] {
+export function readOnlyTools(tools: string[]): string[] {
   return tools.filter((tool) => tool !== "write" && tool !== "edit");
 }
 

@@ -15,10 +15,10 @@ import { structureStage } from "../stage/structure.js";
 import { verifyStage } from "../stage/verify.js";
 import type {
   PipelineServices,
-  RunArtifacts,
   RunState,
   StageModule,
   StageName,
+  StageOutcome,
   StageRuntime,
   TelemetrySink,
 } from "../port/index.js";
@@ -46,23 +46,23 @@ const STAGES: Record<StageName, StageModule> = {
 export async function runPipeline(options: {
   services: PipelineServices;
   state: RunState;
-  artifacts: RunArtifacts;
+  workspaceRoot: string;
   isResumed: boolean;
 }): Promise<RunState> {
-  const { services, artifacts, isResumed } = options;
-  const sink: TelemetrySink = services.telemetrySink!;
+  const { services, workspaceRoot, isResumed } = options;
+  const sink: TelemetrySink = services.telemetrySink;
   const signal = services.commandContext.signal;
   let run = Run.rehydrate(options.state);
   const stageInstances = new Map<string, number>();
 
   if (!isResumed) {
-    await services.versionControl!.createRunBranch(run.state.runId, signal);
+    await services.versionControl.createRunBranch(run.state.runId, signal);
     await sink.record({ type: "run.started", runId: run.state.runId, route: run.state.route });
   } else {
     await sink.record({ type: "run.resumed", runId: run.state.runId, route: run.state.route });
   }
 
-  await services.stateRepo!.save(run);
+  await services.stateRepo.save(run);
 
   try {
     while (run.nextStage !== "done") {
@@ -73,7 +73,7 @@ export async function runPipeline(options: {
       const stateSnapshot = run.toSnapshot();
       const runtime: StageRuntime = {
         state: stateSnapshot,
-        artifacts,
+        workspaceRoot,
         services,
       };
 
@@ -90,7 +90,7 @@ export async function runPipeline(options: {
         });
 
         if (outcome.backwardLoop.classification === "DEFER_REPLAN") {
-          await services.artifactRepo!.writeDeferredFeedback(run.state.currentPhase, outcome.backwardLoop);
+          await services.artifactRepo.writeDeferredFeedback(run.state.currentPhase, outcome.backwardLoop);
           run.setNextStage("replan");
           await sink.record({
             type: "backward_loop.deferred",
@@ -100,7 +100,7 @@ export async function runPipeline(options: {
             route: run.state.route,
             request: outcome.backwardLoop,
           });
-          await services.stateRepo!.save(run);
+          await services.stateRepo.save(run);
           continue;
         }
 
@@ -114,11 +114,11 @@ export async function runPipeline(options: {
             classification: outcome.backwardLoop.classification,
             maxLoops: MAX_BACKWARD_LOOPS,
           });
-          await services.stateRepo!.save(run);
+          await services.stateRepo.save(run);
           break;
         }
 
-        const reset = await services.artifactRepo!.archiveForBackwardLoop(outcome.backwardLoop.classification);
+        const reset = await services.artifactRepo.archiveForBackwardLoop(outcome.backwardLoop.classification);
         run.incrementBackwardLoops();
         run.resetCurrentPhase();
         run.setNextStage(reset.targetStage);
@@ -140,7 +140,7 @@ export async function runPipeline(options: {
           targetStage: reset.targetStage,
           archived: reset.archived,
         });
-        await services.stateRepo!.save(run);
+        await services.stateRepo.save(run);
         continue;
       }
 
@@ -155,41 +155,10 @@ export async function runPipeline(options: {
         endedAt: new Date().toISOString(),
       });
 
-      if (stage.stage === "verify" && outcome.status === "FAIL") {
-        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
-        if (!verifyReroute) {
-          await services.stateRepo!.save(run);
-          break;
-        }
-        run = Run.rehydrate(verifyReroute);
-        await services.stateRepo!.save(run);
-        continue;
-      }
-
-      if (stage.stage === "accept" && outcome.status === "FAIL") {
-        const acceptReroute = await maybeRouteAcceptFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
-        if (!acceptReroute) {
-          await services.stateRepo!.save(run);
-          break;
-        }
-        run = Run.rehydrate(acceptReroute);
-        await services.stateRepo!.save(run);
-        continue;
-      }
-
-      if (outcome.status === "FAIL") {
-        await services.stateRepo!.save(run);
-        break;
-      }
-
-      if (stage.stage === "verify" && outcome.status === "PARTIAL") {
-        const verifyReroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
-        if (!verifyReroute) {
-          await services.stateRepo!.save(run);
-          break;
-        }
-        run = Run.rehydrate(verifyReroute);
-        await services.stateRepo!.save(run);
+      const reroute = await handleReroute(run, outcome, sink, stage, stageInstance, services);
+      if (reroute) {
+        run = reroute.run;
+        if (reroute.action === "break") break;
         continue;
       }
 
@@ -197,10 +166,10 @@ export async function runPipeline(options: {
         await emitQuickFixSkips(run.toSnapshot(), sink, stageInstance);
       }
 
-      const newState = await applyStageTransition(run.toSnapshot(), stage.stage, outcome, artifacts, services.artifactRepo);
+      const newState = await applyStageTransition(run.toSnapshot(), stage.stage, outcome, services.artifactRepo);
       run = Run.rehydrate(newState);
-      await services.stateRepo!.save(run);
-      await services.versionControl!.checkpoint(stage.stage, "complete", signal);
+      await services.stateRepo.save(run);
+      await services.versionControl.checkpoint(stage.stage, "complete", signal);
       await sink.regenerateRunLog(run.toSnapshot());
       await sink.regenerateMetrics(run.toSnapshot());
     }
@@ -211,6 +180,7 @@ export async function runPipeline(options: {
       route: run.state.route,
       status: run.nextStage === "done" ? "PASS" : "PARTIAL",
     });
+
     await sink.regenerateRunLog(run.toSnapshot());
     await sink.regenerateMetrics(run.toSnapshot());
     return run.toSnapshot();
@@ -228,4 +198,31 @@ export async function runPipeline(options: {
   } finally {
     services.progress.clear();
   }
+}
+
+async function handleReroute(
+  run: Run,
+  outcome: StageOutcome,
+  sink: TelemetrySink,
+  stage: StageModule,
+  stageInstance: number,
+  services: PipelineServices,
+): Promise<{ run: Run; action: "continue" | "break" } | undefined> {
+  if (stage.stage === "verify" && (outcome.status === "FAIL" || outcome.status === "PARTIAL")) {
+    const reroute = await maybeRouteVerifyFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
+    const nextRun = reroute ? Run.rehydrate(reroute) : run;
+    await services.stateRepo.save(nextRun);
+    return { run: nextRun, action: reroute ? "continue" : "break" };
+  }
+  if (stage.stage === "accept" && outcome.status === "FAIL") {
+    const reroute = await maybeRouteAcceptFix(run.toSnapshot(), outcome, sink, stage, stageInstance);
+    const nextRun = reroute ? Run.rehydrate(reroute) : run;
+    await services.stateRepo.save(nextRun);
+    return { run: nextRun, action: reroute ? "continue" : "break" };
+  }
+  if (outcome.status === "FAIL") {
+    await services.stateRepo.save(run);
+    return { run, action: "break" };
+  }
+  return undefined;
 }

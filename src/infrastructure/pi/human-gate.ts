@@ -88,6 +88,10 @@ export class DefaultGateManager implements GateManager {
     }
     return this.ctx.ui.confirm(title, message);
   }
+
+  createAskHumanTool() {
+    return createAskHumanTool(this);
+  }
 }
 
 /** Alias matching the new naming convention. */

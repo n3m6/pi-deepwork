@@ -4,7 +4,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { planStage, writePlanArtifacts } from "../../src/application/stage/plan.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, RunArtifacts } from "../../src/application/port/index.js";
+import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
+import type { RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -117,6 +118,10 @@ class TaskReviewCapDispatcher implements Dispatcher {
       results.push(await this.dispatch(request));
     }
     return results;
+  }
+
+  async dispatchGenericCoding(_prompt: string) {
+    return { status: "PASS" as const, filesWritten: [], summary: "" };
   }
 }
 

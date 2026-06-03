@@ -1,7 +1,7 @@
 import { parseMarkdownSections, parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
-import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
+import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
 interface TaskSpecsResult {
   status: "PASS" | "FAIL";
@@ -14,7 +14,7 @@ const PLAN_AGENT_TIMEOUT_MS = 600_000;
 export const planStage: StageModule = {
   stage: "plan",
   async run(runtime): Promise<StageOutcome> {
-    const repo = runtime.services.artifactRepo!;
+    const repo = runtime.services.artifactRepo;
     const goals = await readArtifact(runtime, { kind: "goals" });
     const requirements = await readArtifact(runtime, { kind: "requirements" });
     const research = await readArtifact(runtime, { kind: "researchSummary" });
@@ -156,7 +156,7 @@ export const planStage: StageModule = {
 
 export async function writePlanArtifacts(runtime: StageRuntime, output: string): Promise<string[]> {
   const filesWritten: string[] = [];
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const sections = parseMarkdownSections(output);
   const fallbackSections = extractLoosePlanSections(output);
   const plan = cleanArtifactMarkdown(sections["plan.md"] ?? sections["Implementation Plan"] ?? fallbackSections["plan.md"]);
@@ -303,7 +303,7 @@ async function runPlanReview(
 }
 
 async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Promise<TaskSpecsResult> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const outlineFiles = await repo.listOutlineFiles();
   const written: string[] = [];
 
@@ -431,7 +431,7 @@ function renderBaselineUnavailable(summary: string): string {
 }
 
 async function writeSimplePlan(runtime: StageRuntime, filePath: string, content: string): Promise<string[]> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const plan = [
     "# Implementation Plan",
     "",
@@ -526,9 +526,3 @@ async function writeSimplePlan(runtime: StageRuntime, filePath: string, content:
   ];
 }
 
-async function readAllTaskSpecs(runtime: StageRuntime): Promise<string> {
-  const repo = runtime.services.artifactRepo!;
-  const ids = await repo.listBaseTaskSpecs();
-  const contents = await Promise.all(ids.map((id) => repo.read(id)));
-  return contents.filter(Boolean).join("\n\n");
-}

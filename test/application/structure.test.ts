@@ -47,6 +47,7 @@ function makeStructureDispatcher(options: { reviewResponses?: string[] }): Dispa
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 }
 

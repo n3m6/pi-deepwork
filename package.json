@@ -34,7 +34,7 @@
   "scripts": {
     "test": "node --import tsx --test --test-concurrency=1 \"test/*.test.ts\" \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint --max-warnings=0 src/domain src/application",
+    "lint": "eslint --max-warnings=0 src/domain src/application src/infrastructure test",
     "verify": "npm run typecheck && npm run lint && npm test"
   },
   "peerDependencies": {

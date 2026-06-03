@@ -10,20 +10,25 @@ import { parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
 import { Run, MAX_ACCEPT_FIX_ATTEMPTS, MAX_VERIFY_FIX_ATTEMPTS } from "../../domain/run/index.js";
 import { isImplementationRepairableAcceptFailure } from "../../domain/stage/fix-routing-policy.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
+import type { VerifyStatus } from "../../domain/value/index.js";
 import type { TelemetrySink } from "../../application/port/index.js";
 import type {
   ArtifactRepository,
-  RunArtifacts,
   RunState,
+  StageName,
   StageModule,
   StageOutcome,
 } from "../port/index.js";
 
+function extractVerifyStatus(outcome: StageOutcome, fallback: VerifyStatus | undefined): VerifyStatus | undefined {
+  const raw = outcome.telemetry?.verify_status;
+  return raw === "PASS" || raw === "PARTIAL" || raw === "FAIL" ? raw : fallback;
+}
+
 export async function applyStageTransition(
   state: RunState,
-  stage: string,
-  outcome: { route?: string; telemetry?: Record<string, unknown> },
-  artifacts: RunArtifacts,
+  stage: StageName,
+  outcome: StageOutcome,
   artifactRepo?: ArtifactRepository,
 ): Promise<RunState> {
   const run = Run.rehydrate(state);
@@ -68,7 +73,7 @@ export async function applyStageTransition(
       return run.toSnapshot();
     }
     case "verify": {
-      const verifyStatus = (outcome.telemetry?.verify_status as typeof state.verifyStatus | undefined) ?? state.verifyStatus;
+      const verifyStatus = extractVerifyStatus(outcome, state.verifyStatus);
       run.completeStage(
         "verify",
         nextStageFor("verify", { route: run.state.route, currentPhase: run.state.currentPhase, totalPhases: run.state.totalPhases, ...(verifyStatus ? { verifyStatus } : {}) }),
@@ -150,7 +155,7 @@ export async function maybeRouteVerifyFix(
   stage: StageModule,
   stageInstance: number,
 ): Promise<RunState | undefined> {
-  const verifyStatus = (outcome.telemetry?.verify_status as typeof state.verifyStatus | undefined) ?? outcome.status;
+  const verifyStatus = extractVerifyStatus(outcome, outcome.status as VerifyStatus | undefined) ?? outcome.status;
   const run = Run.rehydrate(state);
 
   if (run.isVerifyFixCapHit()) {
@@ -181,7 +186,7 @@ export async function maybeRouteVerifyFix(
       verify_fix_attempts: state.verifyFixAttempts + 1,
     },
   });
-  const safeVerifyStatus = verifyStatus === "PASS" || verifyStatus === "PARTIAL" || verifyStatus === "FAIL" ? verifyStatus : "FAIL";
+  const safeVerifyStatus: VerifyStatus = verifyStatus === "PASS" || verifyStatus === "PARTIAL" || verifyStatus === "FAIL" ? verifyStatus : "FAIL";
   run.completeStage("verify", "implement", { verifyStatus: safeVerifyStatus });
   run.resetCurrentPhase();
   run.incrementVerifyFixAttempts();

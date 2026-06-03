@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
 
@@ -38,10 +36,9 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
     filesWritten.push(result.fileWritten);
   }
 
-  // Pass artifact paths (as workspace-relative text) to the synthesizer agent.
+  // Pass artifact paths (relative to run dir) to the synthesizer agent.
   const researchArtifactList = questions
-    .map((question) => path.join(runtime.artifacts.researchDir, `${question.id.toLowerCase()}.md`))
-    .map((filePath) => path.relative(runtime.artifacts.runDir, filePath))
+    .map((question) => runtime.services.artifactRepo.relPath({ kind: "researchFile", name: `${question.id.toLowerCase()}.md` }))
     .join("\n");
   const summary = await dispatchLeaf(runtime, "qrspi-research-synthesizer", researchArtifactList, {
     tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
@@ -111,7 +108,7 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
 
     const reviewId: ArtifactId = { kind: "reviewFile", name: `research-review-round-${String(reviewRounds).padStart(2, "0")}.md` };
     await writeArtifact(runtime, reviewId, review.text);
-    filesWritten.push(runtime.services.artifactRepo!.relPath(reviewId));
+    filesWritten.push(runtime.services.artifactRepo.relPath(reviewId));
 
     if (parseReviewStatus(review.text) === "PASS") {
       const ledger = questions
@@ -267,7 +264,7 @@ async function writeQuestionResearch(
 
   const qId: ArtifactId = { kind: "researchFile", name: `${question.id.toLowerCase()}.md` };
   await writeArtifact(runtime, qId, findings.join("\n\n"));
-  return { ok: true, fileWritten: runtime.services.artifactRepo!.relPath(qId) };
+  return { ok: true, fileWritten: runtime.services.artifactRepo.relPath(qId) };
 }
 
 function buildResearcherPrompt(question: ResearchQuestion, reviewFeedback?: string): string {
@@ -297,7 +294,7 @@ async function readQuestionArtifacts(runtime: StageRuntime, questions: ResearchQ
 }
 
 async function ensureResearchSummaryArtifact(runtime: StageRuntime, synthesizerText: string, label: string): Promise<string | undefined> {
-  const existing = await runtime.services.artifactRepo!.read({ kind: "researchSummary" });
+  const existing = await runtime.services.artifactRepo.read({ kind: "researchSummary" });
   if (existing !== undefined) {
     return undefined;
   }

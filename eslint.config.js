@@ -35,14 +35,13 @@ export default tseslint.config(
     },
   },
 
-  // Application layer: infrastructure imports below are flagged as warnings
-  // documenting known technical debt (ports not yet extracted for git/fs/pi adapters).
+  // Application layer: infrastructure imports below are errors.
   // codec/* is allowed as an anti-corruption layer for markdown parsing.
   {
     files: ["src/application/**/*.ts"],
     rules: {
       "no-restricted-imports": [
-        "warn",
+        "error",
         {
           patterns: [
             {
@@ -64,6 +63,18 @@ export default tseslint.config(
           ],
         },
       ],
+    },
+  },
+
+  // Infrastructure and test layers: TypeScript base rules, no boundary restrictions.
+  {
+    files: ["src/infrastructure/**/*.ts", "test/**/*.ts"],
+    extends: [tseslint.configs.base],
+    languageOptions: {
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
   },
 

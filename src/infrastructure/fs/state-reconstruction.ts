@@ -7,7 +7,8 @@ import { parseKeyValueLines } from "../codec/markdown-codec.js";
 import { fileExists, getRunArtifacts } from "./artifact-repository.js";
 import { loadState } from "./state-repository.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
-import type { FailurePolicy, InteractionMode, PhaseHistoryEntry, Route, RunArtifacts, RunState, StageName, VerifyStatus } from "../../application/port/index.js";
+import type { FailurePolicy, InteractionMode, PhaseHistoryEntry, Route, RunState, StageName, VerifyStatus } from "../../application/port/index.js";
+import type { RunArtifacts } from "./artifact-repository.js";
 
 const STAGE_MARKERS: Array<{ stage: StageName; path: (artifacts: RunArtifacts) => string }> = [
   { stage: "goals", path: (artifacts) => artifacts.goalsFile },
@@ -24,24 +25,13 @@ export async function resumeOrInferState(options: {
   runId: string;
   interactionMode: InteractionMode;
   failurePolicy: FailurePolicy;
-}): Promise<{ state: RunState | undefined; artifacts: RunArtifacts }> {
+}): Promise<RunState | undefined> {
   const artifacts = getRunArtifacts(options.workspaceRoot, options.runId);
   const state = await loadState(artifacts.stateFile);
   if (state) {
-    return {
-      state: {
-        ...state,
-        resumeSource: "resume",
-      },
-      artifacts,
-    };
+    return { ...state, resumeSource: "resume" };
   }
-
-  const inferred = await inferStateFromArtifacts(artifacts, options.interactionMode, options.failurePolicy);
-  return {
-    state: inferred,
-    artifacts,
-  };
+  return inferStateFromArtifacts(artifacts, options.interactionMode, options.failurePolicy);
 }
 
 export async function inferStateFromArtifacts(

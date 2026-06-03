@@ -1,4 +1,5 @@
 import type { FailurePolicy, GateChoice, GateManager, GateOption, InteractionMode } from "../../src/application/port/index.js";
+import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 
 export type ScriptedGateAnswer =
   | { method: "choose"; value: GateChoice | undefined }
@@ -57,6 +58,10 @@ export class ScriptedGateManager implements GateManager {
       return (answer as Extract<ScriptedGateAnswer, { method: "confirm" }>).value;
     }
     return false;
+  }
+
+  createAskHumanTool() {
+    return createAskHumanTool(this);
   }
 }
 

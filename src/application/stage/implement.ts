@@ -1,17 +1,13 @@
 import path from "node:path";
 
-// eslint-disable-next-line no-restricted-imports -- known tech debt: CheckpointManager/WorktreeManager should be accessed via VersionControl port
-import { CheckpointManager } from "../../infrastructure/git/version-control.js";
-import { parseMarkdownSections } from "../../infrastructure/codec/markdown-codec.js";
+import { parseAffectedArtifact, parseMarkdownSections, parseTaskSpecMetadata } from "../../infrastructure/codec/markdown-codec.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import { buildWaves } from "../../domain/stage/wave-planner.js";
-import type { ArtifactId, StageModule, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
-// eslint-disable-next-line no-restricted-imports -- known tech debt: CheckpointManager/WorktreeManager should be accessed via VersionControl port
-import { WorktreeManager, type TaskWorktree } from "../../infrastructure/git/version-control.js";
+import type { ArtifactId, StageModule, StageOutcome, StageRuntime, TaskWorktreeHandle } from "../port/index.js";
 import { runBaselineRegressionSubstage } from "./baseline-regression.js";
 import { runE2ERegressionSubstage } from "./e2e-regression.js";
 import { runFastImplLoopSubstage } from "./fast-impl-loop.js";
-import { artifactRelPath, dispatchGenericCoding, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { artifactRelPath, dispatchGenericCoding, dispatchLeaf, parseReviewStatus, writeArtifact } from "./utils.js";
 
 export interface TaskSpecSummary {
   taskId: string;
@@ -25,7 +21,6 @@ export const implementStage: StageModule = {
   stage: "implement",
   async run(runtime: StageRuntime): Promise<StageOutcome> {
     const phase = runtime.state.currentPhase;
-    const repo = runtime.services.artifactRepo!;
     const simpleTask = await detectSimpleExactFileTask(runtime);
     if (simpleTask && runtime.state.route === "quick-fix") {
       const filesWritten = await implementSimpleExactFileTask(runtime, phase, simpleTask.filePath, simpleTask.content);
@@ -41,10 +36,7 @@ export const implementStage: StageModule = {
       };
     }
 
-    const repoRoot = await new CheckpointManager(runtime.services.pi, runtime.artifacts.workspaceRoot).resolveRepoRoot(
-      runtime.services.eventContext.signal,
-    );
-    const worktrees = new WorktreeManager(runtime.services.pi, runtime.artifacts.workspaceRoot, repoRoot, runtime.state.runId);
+    const repoRoot = await runtime.services.versionControl.resolveRepoRoot(runtime.services.eventContext.signal);
     const tasks = await loadPhaseTasks(runtime, phase);
     const waves = buildWaves(tasks);
     const manifestRows: string[] = [];
@@ -54,7 +46,7 @@ export const implementStage: StageModule = {
       const prepared = await Promise.all(
         wave.map(async (task) => ({
           task,
-          worktree: await worktrees.prepare(phase, task.taskId, runtime.services.eventContext.signal),
+          worktree: await runtime.services.versionControl.prepareWorktree(phase, task.taskId, repoRoot, runtime.services.eventContext.signal),
         })),
       );
 
@@ -86,7 +78,7 @@ export const implementStage: StageModule = {
           summary: `Implementation failed in wave ${waveIndex + 1}.`,
           telemetry: {
             child_agent_calls: {
-              "generic-coding": results.length * 3,
+              "generic-coding": results.length * AGENT_CALLS_PER_TASK,
             },
           },
         };
@@ -94,13 +86,13 @@ export const implementStage: StageModule = {
 
       for (const { task, worktree } of results.sort((left, right) => left.task.taskId.localeCompare(right.task.taskId))) {
         await commitWorktreeChanges(runtime, worktree.worktreeRoot, phase, task.taskId, task.title);
-        const merge = await worktrees.squashMerge(
+        const merge = await runtime.services.versionControl.squashMerge(
           worktree,
           `qrspi: phase ${phase} task ${task.taskId} ${task.title}`,
           runtime.services.eventContext.signal,
         );
         if (!merge.ok) {
-          const resolved = await resolveSquashConflict(runtime, worktrees, worktree, phase, task.taskId, task.title, merge.conflictOutput ?? "merge conflict");
+          const resolved = await resolveSquashConflict(runtime, worktree, phase, task.taskId, task.title, merge.conflictOutput ?? "merge conflict");
           if (!resolved.ok) {
             manifestRows.push(`| ${task.taskId} | ${task.title} | ${waveIndex + 1} | FAIL | ${resolved.summary.replaceAll("|", "/")} |`);
             const manifestId: ArtifactId = { kind: "phaseFile", phase, name: "execution-manifest.md" };
@@ -131,34 +123,11 @@ export const implementStage: StageModule = {
     filesWritten.push(...e2e.outcome.filesWritten, ...baseline.filesWritten);
 
     const integrationId: ArtifactId = { kind: "phaseFile", phase, name: "integration-results.md" };
-    await writeArtifact(
-      runtime,
-      integrationId,
-      [
-        "# Integration Results",
-        "",
-        e2e.markdown,
-        "",
-        `Baseline regression: ${baseline.summary}`,
-      ].join("\n"),
-    );
+    await writeArtifact(runtime, integrationId, renderIntegrationResults(e2e.markdown, baseline.summary));
     filesWritten.push(artifactRelPath(runtime, integrationId));
 
     const integrationGate = await runIntegrationChecker(runtime, phase, manifestRows.join("\n"), baseline.summary);
-    await writeArtifact(
-      runtime,
-      integrationId,
-      [
-        "# Integration Results",
-        "",
-        e2e.markdown,
-        "",
-        `Baseline regression: ${baseline.summary}`,
-        "",
-        "## Integration Checker",
-        integrationGate.text,
-      ].join("\n"),
-    );
+    await writeArtifact(runtime, integrationId, renderIntegrationResults(e2e.markdown, baseline.summary, integrationGate.text));
     if (parseReviewStatus(integrationGate.text) === "FAIL") {
       const sections = parseMarkdownSections(integrationGate.text);
       const backwardLoopRequest = sections["Backward Loop Request"];
@@ -185,39 +154,20 @@ export const implementStage: StageModule = {
     }
 
     const stageSummaryId: ArtifactId = { kind: "phaseFile", phase, name: "stage7-summary.md" };
+    const summaryStatus = baseline.status === "FAIL" ? "PARTIAL" : "PASS";
     await writeArtifact(
       runtime,
       stageSummaryId,
-      [
-        `### Status — ${baseline.status === "FAIL" ? "PARTIAL" : "PASS"}`,
-        "",
-        "# Stage 7 Summary",
-        "",
+      renderStage7Summary(
+        summaryStatus,
         `Phase ${phase} implementation completed across ${tasks.length} task(s) in ${waves.length} wave(s).`,
-        "",
-        "## Phase Evidence Quality",
-        "- Deterministic: 0",
-        "- Flaky: 0",
-        "- Harness Noisy: 0",
-        "- Ambiguous: 0",
-        "- Redundant: 0",
-        "- No-Test Tasks: 0",
-        "- No-Test Audit Overrides: 0",
-      ].join("\n"),
+        0,
+      ),
     );
     filesWritten.push(artifactRelPath(runtime, stageSummaryId));
 
     const integrationSummaryId: ArtifactId = { kind: "phaseFile", phase, name: "stage7-integration-summary.md" };
-    await writeArtifact(
-      runtime,
-      integrationSummaryId,
-      [
-        "# Stage 7 Integration Summary",
-        "",
-        e2e.outcome.summary,
-        baseline.summary,
-      ].join("\n"),
-    );
+    await writeArtifact(runtime, integrationSummaryId, renderStage7IntegrationSummary(e2e.outcome.summary, baseline.summary));
     filesWritten.push(artifactRelPath(runtime, integrationSummaryId));
 
     return {
@@ -227,7 +177,7 @@ export const implementStage: StageModule = {
       summary: baseline.status === "FAIL" ? "Implementation completed with regression findings." : "Implementation completed successfully.",
       telemetry: {
         child_agent_calls: {
-          "generic-coding": tasks.length * 3,
+          "generic-coding": tasks.length * AGENT_CALLS_PER_TASK,
         },
       },
     };
@@ -235,7 +185,7 @@ export const implementStage: StageModule = {
 };
 
 async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number, filePath: string, content: string): Promise<string[]> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   await repo.writeWorkspaceFile(filePath, content);
 
   const manifestId: ArtifactId = { kind: "phaseFile", phase, name: "execution-manifest.md" };
@@ -265,41 +215,17 @@ async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number
   await writeArtifact(
     runtime,
     integrationId,
-    [
-      "# Integration Results",
-      "",
-      "### Status — PASS",
-      `Created \`${filePath}\` with exact byte length ${Buffer.byteLength(content, "utf8")}.`,
-    ].join("\n"),
+    renderIntegrationResults("### Status — PASS", `Created \`${filePath}\` with exact byte length ${Buffer.byteLength(content, "utf8")}.`),
   );
   await writeArtifact(
     runtime,
     summaryId,
-    [
-      "### Status — PASS",
-      "",
-      "# Stage 7 Summary",
-      "",
-      `Phase ${phase} implementation completed for \`${filePath}\`.`,
-      "",
-      "## Phase Evidence Quality",
-      "- Deterministic: 1",
-      "- Flaky: 0",
-      "- Harness Noisy: 0",
-      "- Ambiguous: 0",
-      "- Redundant: 0",
-      "- No-Test Tasks: 0",
-      "- No-Test Audit Overrides: 0",
-    ].join("\n"),
+    renderStage7Summary("PASS", `Phase ${phase} implementation completed for \`${filePath}\`.`, 1),
   );
   await writeArtifact(
     runtime,
     integrationSummaryId,
-    [
-      "# Stage 7 Integration Summary",
-      "",
-      `Exact-file implementation wrote \`${filePath}\` successfully.`,
-    ].join("\n"),
+    renderStage7IntegrationSummary(`Exact-file implementation wrote \`${filePath}\` successfully.`, ""),
   );
 
   return [
@@ -314,34 +240,68 @@ async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number
 }
 
 export async function loadPhaseTasks(runtime: StageRuntime, phase: number): Promise<TaskSpecSummary[]> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const usePhaseSpecs = await repo.hasPhaseTaskSpecs(phase);
   const ids = usePhaseSpecs ? await repo.listTaskSpecs(phase) : await repo.listBaseTaskSpecs();
   const summaries: TaskSpecSummary[] = [];
   for (const id of ids) {
     const content = (await repo.read(id)) ?? "";
-    const taskId = content.match(/\*\*Task:\*\*\s*(\d+)/)?.[1] ?? (id.kind === "taskSpec" ? id.taskId : id.kind === "baseTaskSpec" ? id.taskId : "00");
-    const taskPhase = content.match(/\*\*Phase:\*\*\s*(.+)$/m)?.[1]?.trim() ?? String(phase);
-    const title = content.match(/^# Task \d+:\s+(.+)$/m)?.[1]?.trim() ?? taskId;
-    const dependenciesBlock = content.match(/## Dependencies\n([\s\S]*?)(?=\n## )/)?.[1] ?? "";
-    const dependencies = [...dependenciesBlock.matchAll(/\b(\d{2})\b/g)]
-      .map((match) => match[1])
-      .filter((dependency): dependency is string => Boolean(dependency));
-    if (taskPhase !== String(phase) && taskPhase.toLowerCase() !== "quick-fix") {
+    const meta = parseTaskSpecMetadata(content, phase);
+    if (meta.taskPhase !== String(phase) && meta.taskPhase.toLowerCase() !== "quick-fix") {
       continue;
     }
     summaries.push({
-      taskId,
-      phase: taskPhase,
-      dependencies,
+      taskId: meta.taskId,
+      phase: meta.taskPhase,
+      dependencies: meta.dependencies,
       taskSpecId: id,
-      title,
+      title: meta.title,
     });
   }
   return summaries;
 }
 
 export { buildWaves };
+
+/** Each task runs code, test, and verify substages. */
+const AGENT_CALLS_PER_TASK = 3;
+
+function renderPhaseEvidenceQuality(deterministic: number): string {
+  return [
+    "## Phase Evidence Quality",
+    `- Deterministic: ${deterministic}`,
+    "- Flaky: 0",
+    "- Harness Noisy: 0",
+    "- Ambiguous: 0",
+    "- Redundant: 0",
+    "- No-Test Tasks: 0",
+    "- No-Test Audit Overrides: 0",
+  ].join("\n");
+}
+
+function renderStage7Summary(status: "PASS" | "PARTIAL", description: string, deterministic: number): string {
+  return [
+    `### Status — ${status}`,
+    "",
+    "# Stage 7 Summary",
+    "",
+    description,
+    "",
+    renderPhaseEvidenceQuality(deterministic),
+  ].join("\n");
+}
+
+function renderStage7IntegrationSummary(e2eSummary: string, baselineSummary: string): string {
+  return ["# Stage 7 Integration Summary", "", e2eSummary, baselineSummary].join("\n");
+}
+
+function renderIntegrationResults(e2eMarkdown: string, baselineSummary: string, checkerText?: string): string {
+  const base = ["# Integration Results", "", e2eMarkdown, "", `Baseline regression: ${baselineSummary}`];
+  if (checkerText) {
+    base.push("", "## Integration Checker", checkerText);
+  }
+  return base.join("\n");
+}
 
 function renderExecutionManifest(rows: string[]): string {
   return [
@@ -353,13 +313,6 @@ function renderExecutionManifest(rows: string[]): string {
   ].join("\n");
 }
 
-function requireVersionControl(runtime: StageRuntime): VersionControl {
-  if (!runtime.services.versionControl) {
-    throw new Error("VersionControl port is not wired; ensure the composition root initialises it.");
-  }
-  return runtime.services.versionControl;
-}
-
 async function commitWorktreeChanges(
   runtime: StageRuntime,
   worktreeRoot: string,
@@ -367,7 +320,7 @@ async function commitWorktreeChanges(
   taskId: string,
   title: string,
 ): Promise<void> {
-  const vc = requireVersionControl(runtime);
+  const vc = runtime.services.versionControl;
   const changed = await vc.changedFiles(worktreeRoot, runtime.services.eventContext.signal);
   if (changed.length === 0) {
     return;
@@ -377,14 +330,13 @@ async function commitWorktreeChanges(
 
 async function resolveSquashConflict(
   runtime: StageRuntime,
-  worktrees: WorktreeManager,
-  worktree: TaskWorktree,
+  worktree: TaskWorktreeHandle,
   phase: number,
   taskId: string,
   title: string,
   conflictOutput: string,
 ): Promise<{ ok: boolean; summary: string }> {
-  const rebase = await worktrees.rebaseOnRunBranch(worktree, runtime.services.eventContext.signal);
+  const rebase = await runtime.services.versionControl.rebaseWorktree(worktree, runtime.services.eventContext.signal);
   if (!rebase.ok) {
     const fix = await dispatchGenericCoding(
       runtime,
@@ -410,7 +362,7 @@ async function resolveSquashConflict(
         summary: `Implementation abandoned task ${taskId}; conflict fix failed: ${fix.summary}`,
       };
     }
-    const continued = await worktrees.continueRebase(worktree, runtime.services.eventContext.signal);
+    const continued = await runtime.services.versionControl.continueRebase(worktree, runtime.services.eventContext.signal);
     if (!continued.ok) {
       return {
         ok: false,
@@ -420,7 +372,7 @@ async function resolveSquashConflict(
   }
 
   await commitWorktreeChanges(runtime, worktree.worktreeRoot, phase, taskId, title);
-  const retry = await worktrees.squashMerge(
+  const retry = await runtime.services.versionControl.squashMerge(
     worktree,
     `qrspi: phase ${phase} task ${taskId} ${title}`,
     runtime.services.eventContext.signal,
@@ -439,7 +391,7 @@ async function runIntegrationChecker(
   executionManifestRows: string,
   baselineSummary: string,
 ) {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   return dispatchLeaf(
     runtime,
     "qrspi-integration-checker",
@@ -472,18 +424,14 @@ async function runIntegrationChecker(
 }
 
 export function classifyIntegrationLoop(markdown: string): "LOOP_PLAN" | "LOOP_STRUCTURE" | "LOOP_DESIGN" {
-  const affected = markdown.match(/Affected Artifact\*\*:\s*(design|structure|plan)/i)?.[1]?.toLowerCase();
-  if (affected === "design") {
-    return "LOOP_DESIGN";
-  }
-  if (affected === "structure") {
-    return "LOOP_STRUCTURE";
-  }
+  const affected = parseAffectedArtifact(markdown);
+  if (affected === "design") return "LOOP_DESIGN";
+  if (affected === "structure") return "LOOP_STRUCTURE";
   return "LOOP_PLAN";
 }
 
 async function completedPhaseSummaries(runtime: StageRuntime, currentPhase: number): Promise<string> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const blocks: string[] = [];
   for (let phase = 1; phase < currentPhase; phase += 1) {
     blocks.push([

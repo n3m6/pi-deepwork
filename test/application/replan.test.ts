@@ -1,13 +1,10 @@
 import { afterEach, test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { readFile, writeFile } from "node:fs/promises";
 
 import { replanStage } from "../../src/application/stage/replan.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
 import { TestHarness } from "../support/harness.js";
-import { markStageCompleted } from "../../src/domain/run/index.js";
-
 const harnesses: TestHarness[] = [];
 
 afterEach(async () => {
@@ -63,6 +60,7 @@ function makeReplanDispatcher(options: {
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 }
 

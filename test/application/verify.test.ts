@@ -84,6 +84,7 @@ function makeVerifyDispatcher(verifyText: string): Dispatcher {
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 }
 
@@ -166,6 +167,7 @@ test("verify stage uses simple exact-file fast path for quick-fix route with exa
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 
   const result = await verifyStage.run({

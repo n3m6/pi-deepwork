@@ -17,7 +17,9 @@ import type {
   DispatchResult,
   Dispatcher,
   LeafAgentDefinition,
+  StageOutcome,
 } from "../../application/port/index.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "./stage-return-tool.js";
 
 const DEFAULT_GENERIC_MAX_TURNS = 40;
 const DEFAULT_LEAF_TIMEOUT_MS = 180_000;
@@ -146,6 +148,26 @@ export class PiSessionDispatcher implements Dispatcher {
       results.push(await this.dispatch({ ...request, prompt }));
     }
     return results;
+  }
+
+  async dispatchGenericCoding(
+    prompt: string,
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+  ): Promise<StageOutcome> {
+    const stageReturns: StageReturnPayload[] = [];
+    const result = await this.dispatch({
+      target: {
+        kind: "generic",
+        name: "generic-coding",
+        tools: options?.tools ?? ["read", "bash", "edit", "write", "grep", "find", "ls"],
+        thinkingLevel: "high",
+      },
+      prompt,
+      cwd: options?.cwd ?? "",
+      ...(options?.signal ? { signal: options.signal } : {}),
+      customTools: [createStageReturnTool(stageReturns)],
+    });
+    return normalizeStageReturn(result);
   }
 }
 

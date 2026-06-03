@@ -3,7 +3,8 @@ import path from "node:path";
 
 import type { DomainEvent } from "../../domain/event/index.js";
 import type { TelemetrySink } from "../../application/port/index.js";
-import type { Route, RunArtifacts, RunState, StageName, TelemetryEvent } from "../../application/port/index.js";
+import type { Route, RunState, StageName, TelemetryEvent } from "../../application/port/index.js";
+import type { RunArtifacts } from "../fs/artifact-repository.js";
 
 const SCHEMA_VERSION = "1.0";
 

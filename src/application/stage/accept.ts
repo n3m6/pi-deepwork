@@ -9,7 +9,7 @@ export const acceptStage: StageModule = {
     const phase = runtime.state.currentPhase;
     const simpleTask = await detectSimpleExactFileTask(runtime);
     if (simpleTask && runtime.state.route === "quick-fix") {
-      const actual = await runtime.services.artifactRepo!.readWorkspaceFile(simpleTask.filePath);
+      const actual = await runtime.services.artifactRepo.readWorkspaceFile(simpleTask.filePath);
       const pass = actual === simpleTask.content;
       const filesWritten = await writeSimpleAcceptanceArtifacts(runtime, phase, simpleTask.filePath, simpleTask.content, pass);
       return {

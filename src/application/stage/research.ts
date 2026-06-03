@@ -105,7 +105,7 @@ async function writeSimpleResearchArtifacts(runtime: StageRuntime, filePath: str
   ].join("\n");
   const ledger = `- Q1: Does \`${filePath}\` already exist, and what exact content must be written? [codebase]`;
 
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   await writeArtifact(runtime, { kind: "questions" }, question);
   await writeArtifact(runtime, { kind: "researchFile", name: "q1.md" }, q1);
   await writeArtifact(runtime, { kind: "researchSummary" }, summary);

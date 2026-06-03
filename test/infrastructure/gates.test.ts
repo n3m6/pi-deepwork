@@ -29,6 +29,7 @@ test("ask_human returns no answer when the gate manager cannot prompt", async ()
     async confirm() {
       return false;
     },
+    createAskHumanTool() { return createAskHumanTool(this); },
   });
 
   const result = await tool.execute(

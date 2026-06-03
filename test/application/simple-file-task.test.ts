@@ -93,4 +93,8 @@ class ThrowingDispatcher implements Dispatcher {
   async dispatchChain(): Promise<DispatchResult[]> {
     throw new Error("Unexpected chain dispatch");
   }
+
+  async dispatchGenericCoding(_prompt: string): Promise<never> {
+    throw new Error("Unexpected dispatchGenericCoding call");
+  }
 }

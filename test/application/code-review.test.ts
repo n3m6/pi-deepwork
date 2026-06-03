@@ -96,6 +96,10 @@ class RecordingDispatcher implements Dispatcher {
   async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
     return this.dispatchParallel(requests);
   }
+
+  async dispatchGenericCoding(_prompt: string) {
+    return { status: "PASS" as const, filesWritten: [], summary: "" };
+  }
 }
 
 function makeVersionControl(changedFiles: string[], changedLines = 250): VersionControl {
@@ -147,7 +151,7 @@ function makeRuntime(
       failurePolicy: "best-effort",
       route: "full",
     }),
-    artifacts,
+    workspaceRoot: workspace,
     services: ({
       pi: { async exec() { return { stdout: "", stderr: "", code: 0, killed: false }; } },
       commandContext: {} as never,

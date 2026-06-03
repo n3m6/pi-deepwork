@@ -9,7 +9,8 @@ import { runFastImplCodeSubstage } from "../../src/application/stage/fast-impl-c
 import { runFastImplTestSubstage } from "../../src/application/stage/fast-impl-test.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createInitialState } from "../../src/domain/run/index.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, PipelineServices, StageRuntime } from "../../src/application/port/index.js";
+import type { DispatchRequest, DispatchResult, Dispatcher, PipelineServices } from "../../src/application/port/index.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import os from "node:os";
 import { mkdtemp } from "node:fs/promises";
@@ -37,7 +38,7 @@ test("renderAcceptanceRepairContext returns empty string when acceptFixAttempts 
   });
 
   const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
-  const result = await renderAcceptanceRepairContext({ state, artifacts, services });
+  const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
   assert.equal(result, "");
 });
 
@@ -64,7 +65,7 @@ test("renderAcceptanceRepairContext returns repair context when acceptFixAttempt
   };
 
   const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
-  const result = await renderAcceptanceRepairContext({ state, artifacts, services });
+  const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
 
   assert.match(result, /ACCEPTANCE REPAIR CONTEXT/);
   assert.match(result, /retry 1/);
@@ -90,7 +91,7 @@ test("renderAcceptanceRepairContext uses None. for missing artifact files", asyn
   };
 
   const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
-  const result = await renderAcceptanceRepairContext({ state, artifacts, services });
+  const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
 
   assert.match(result, /ACCEPTANCE REPAIR CONTEXT/);
   assert.match(result, /None\./);
@@ -135,6 +136,11 @@ test("runFastImplCodeSubstage embeds repair context in prompt when acceptFixAtte
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
+    },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
     },
   };
 
@@ -183,6 +189,11 @@ test("runFastImplTestSubstage embeds repair context in prompt when acceptFixAtte
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
+    },
   };
 
   const stateWithAttempts = { ...harness.state, acceptFixAttempts: 1 };
@@ -218,6 +229,11 @@ test("runFastImplCodeSubstage does not embed repair context when acceptFixAttemp
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
+    },
+    async dispatchGenericCoding(prompt, options) {
+      const sink: StageReturnPayload[] = [];
+      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      return normalizeStageReturn(result);
     },
   };
 

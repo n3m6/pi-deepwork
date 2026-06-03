@@ -153,3 +153,28 @@ export function requireMarkdownSection(markdown: string, sectionName: string): s
   }
   return section;
 }
+
+export interface TaskSpecMetadata {
+  taskId: string;
+  taskPhase: string;
+  title: string;
+  dependencies: string[];
+}
+
+export function parseTaskSpecMetadata(content: string, phaseHint: number): TaskSpecMetadata {
+  const normalized = normalizeNewlines(content);
+  const taskId = normalized.match(/\*\*Task:\*\*\s*(\d+)/)?.[1] ?? String(phaseHint).padStart(2, "0");
+  const taskPhase = normalized.match(/\*\*Phase:\*\*\s*(.+)$/m)?.[1]?.trim() ?? String(phaseHint);
+  const title = normalized.match(/^# Task \d+:\s+(.+)$/m)?.[1]?.trim() ?? taskId;
+  const dependenciesBlock = normalized.match(/## Dependencies\n([\s\S]*?)(?=\n## )/)?.[1] ?? "";
+  const dependencies = [...dependenciesBlock.matchAll(/\b(\d{2})\b/g)]
+    .map((match) => match[1])
+    .filter((dep): dep is string => Boolean(dep));
+  return { taskId, taskPhase, title, dependencies };
+}
+
+/** Parses the affected artifact type from an integration-checker backward-loop request. */
+export function parseAffectedArtifact(markdown: string): "design" | "structure" | "plan" {
+  const raw = markdown.match(/\*\*Affected Artifact\*\*:\s*(design|structure|plan)/i)?.[1]?.toLowerCase();
+  return raw === "design" ? "design" : raw === "structure" ? "structure" : "plan";
+}

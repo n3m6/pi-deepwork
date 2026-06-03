@@ -30,9 +30,9 @@ test("resumeOrInferState prefers persisted state.json", async () => {
     failurePolicy: "fail-closed",
   });
 
-  assert.ok(resumed.state);
-  assert.equal(resumed.state?.resumeSource, "resume");
-  assert.equal(resumed.state?.route, "quick-fix");
+  assert.ok(resumed);
+  assert.equal(resumed?.resumeSource, "resume");
+  assert.equal(resumed?.route, "quick-fix");
 });
 
 test("resumeOrInferState infers mid-loop replan as next phase implement", async () => {
@@ -61,9 +61,9 @@ test("resumeOrInferState infers mid-loop replan as next phase implement", async 
     failurePolicy: "best-effort",
   });
 
-  assert.equal(resumed.state?.lastCompletedStage, "replan");
-  assert.equal(resumed.state?.currentPhase, 2);
-  assert.equal(resumed.state?.nextStage, "implement");
+  assert.equal(resumed?.lastCompletedStage, "replan");
+  assert.equal(resumed?.currentPhase, 2);
+  assert.equal(resumed?.nextStage, "implement");
 });
 
 test("resumeOrInferState respects quick-fix route when inferring artifacts", async () => {
@@ -83,9 +83,9 @@ test("resumeOrInferState respects quick-fix route when inferring artifacts", asy
     failurePolicy: "best-effort",
   });
 
-  assert.equal(resumed.state?.route, "quick-fix");
-  assert.equal(resumed.state?.lastCompletedStage, "research");
-  assert.equal(resumed.state?.nextStage, "plan");
+  assert.equal(resumed?.route, "quick-fix");
+  assert.equal(resumed?.lastCompletedStage, "research");
+  assert.equal(resumed?.nextStage, "plan");
 });
 
 test("resumeOrInferState can infer progress from artifacts", async () => {
@@ -104,8 +104,8 @@ test("resumeOrInferState can infer progress from artifacts", async () => {
     failurePolicy: "best-effort",
   });
 
-  assert.ok(resumed.state);
-  assert.equal(resumed.state?.resumeSource, "artifacts");
-  assert.equal(resumed.state?.lastCompletedStage, "research");
-  assert.equal(resumed.state?.nextStage, "design");
+  assert.ok(resumed);
+  assert.equal(resumed?.resumeSource, "artifacts");
+  assert.equal(resumed?.lastCompletedStage, "research");
+  assert.equal(resumed?.nextStage, "design");
 });

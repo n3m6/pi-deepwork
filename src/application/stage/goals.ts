@@ -1,5 +1,3 @@
-// eslint-disable-next-line no-restricted-imports -- known tech debt: createAskHumanTool should be behind a GateManager port method
-import { createAskHumanTool } from "../../infrastructure/pi/human-gate.js";
 import { QUESTION_SET, inferFromTask } from "../../domain/goals/interview-policy.js";
 import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js";
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
@@ -91,11 +89,11 @@ export const goalsStage: StageModule = {
           .filter(Boolean)
           .join("\n"),
         {
-          customTools: [createAskHumanTool(runtime.services.gates)],
-        },
-      );
+        customTools: [runtime.services.gates.createAskHumanTool()],
+      },
+    );
 
-      const synthesisFailure = goalsDispatchFailureOutcome(synthesized, "Goals synthesis failed", ["requirements.md"], 0);
+    const synthesisFailure = goalsDispatchFailureOutcome(synthesized, "Goals synthesis failed", ["requirements.md"], 0);
       if (synthesisFailure) {
         return synthesisFailure;
       }
@@ -361,7 +359,7 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
         review.text,
       ].join("\n"),
       {
-        customTools: [createAskHumanTool(runtime.services.gates)],
+        customTools: [runtime.services.gates.createAskHumanTool()],
       },
     );
     const rewriteFailure = dispatchFailureSummary(rewritten, "Goals rewrite failed");

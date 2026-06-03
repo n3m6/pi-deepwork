@@ -6,7 +6,7 @@ export async function renderAcceptanceRepairContext(runtime: StageRuntime): Prom
   }
 
   const phase = runtime.state.currentPhase;
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const [coveragePlan, acceptanceResults, stageSummary] = await Promise.all([
     repo.read({ kind: "phaseFile", phase, name: "coverage-plan.md" }),
     repo.read({ kind: "phaseFile", phase, name: "acceptance-results.md" }),

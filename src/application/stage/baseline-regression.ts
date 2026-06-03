@@ -10,7 +10,7 @@ const BASELINE_SCRIPTS = [
 
 export async function runBaselineRegressionSubstage(runtime: StageRuntime, phase: number): Promise<StageOutcome> {
   const buildTool = requireBuildTool(runtime);
-  const cwd = runtime.artifacts.workspaceRoot;
+  const cwd = runtime.workspaceRoot;
   const available = new Set(await buildTool.availableScripts(cwd));
   const commands = BASELINE_SCRIPTS.filter((cmd) => available.has(cmd.script));
 

@@ -4,10 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
+import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
 
 import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { ensureRunDirectories, getRunArtifacts, type RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createRunId } from "../../src/infrastructure/system/id-generator.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
@@ -25,8 +27,8 @@ import type {
   InteractionMode,
   PipelineServices,
   ProgressReporter,
-  RunArtifacts,
   RunState,
+  StageOutcome,
   StageRuntime,
   TelemetrySink,
 } from "../../src/application/port/index.js";
@@ -69,7 +71,7 @@ export class TestHarness {
   }
 
   get telemetrySink(): TelemetrySink {
-    return this.services.telemetrySink!;
+    return this.services.telemetrySink;
   }
 
   static async create(options: HarnessOptions = {}): Promise<TestHarness> {
@@ -130,7 +132,7 @@ export class TestHarness {
   runtime(overrides?: Partial<RunState>): StageRuntime {
     return {
       state: { ...this.state, ...overrides },
-      artifacts: this.artifacts,
+      workspaceRoot: this.workspaceRoot,
       services: this.services,
     };
   }
@@ -167,6 +169,26 @@ class MockDispatcher implements Dispatcher {
       results.push(await this.dispatch(request));
     }
     return results;
+  }
+
+  async dispatchGenericCoding(
+    prompt: string,
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+  ): Promise<StageOutcome> {
+    const stageReturns: StageReturnPayload[] = [];
+    const result = await this.dispatch({
+      target: {
+        kind: "generic",
+        name: "generic-coding",
+        tools: options?.tools ?? ["read", "bash", "edit", "write", "grep", "find", "ls"],
+        thinkingLevel: "high",
+      },
+      prompt,
+      cwd: options?.cwd ?? this.artifacts.workspaceRoot,
+      ...(options?.signal ? { signal: options.signal } : {}),
+      customTools: [createStageReturnTool(stageReturns)],
+    });
+    return normalizeStageReturn(result);
   }
 
   private async handleLeaf(request: DispatchRequest): Promise<DispatchResult> {
@@ -344,6 +366,10 @@ class StaticGateManager implements GateManager {
   async confirm(): Promise<boolean> {
     return this.interactionMode === "interactive";
   }
+
+  createAskHumanTool() {
+    return createAskHumanTool(this);
+  }
 }
 
 class NoopProgressReporter implements ProgressReporter {
@@ -382,7 +408,7 @@ function createExecOnlyPi(workspaceRoot: string): Pick<ExtensionAPI, "exec"> {
   };
 }
 
-function createFakeCommandContext(workspaceRoot: string, pi: Pick<ExtensionAPI, "exec">): ExtensionCommandContext {
+function createFakeCommandContext(workspaceRoot: string, _pi: Pick<ExtensionAPI, "exec">): ExtensionCommandContext {
   return {
     cwd: workspaceRoot,
     hasUI: false,

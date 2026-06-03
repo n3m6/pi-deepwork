@@ -6,7 +6,7 @@ export const verifyStage: StageModule = {
   stage: "verify",
   async run(runtime: StageRuntime): Promise<StageOutcome> {
     const simpleTask = await detectSimpleExactFileTask(runtime);
-    const repo = runtime.services.artifactRepo!;
+    const repo = runtime.services.artifactRepo;
     if (simpleTask && runtime.state.route === "quick-fix") {
       const actual = await repo.readWorkspaceFile(simpleTask.filePath);
       const status: VerifyStatus = actual === simpleTask.content ? "PASS" : "FAIL";
@@ -81,7 +81,7 @@ export const verifyStage: StageModule = {
 };
 
 async function readPhaseArtifacts(runtime: StageRuntime, fileName: string): Promise<string> {
-  const repo = runtime.services.artifactRepo!;
+  const repo = runtime.services.artifactRepo;
   const phases = await repo.listPhases();
   const contents: string[] = [];
   for (const phase of phases) {

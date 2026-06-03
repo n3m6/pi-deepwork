@@ -51,6 +51,7 @@ function makeDesignDispatcher(options: {
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 }
 
@@ -174,6 +175,7 @@ test("design stage re-synthesizes when user provides feedback then approves", as
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
+    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
   };
 
   const result = await designStage.run({

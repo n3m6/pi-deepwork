@@ -1,5 +1,4 @@
 import { selectReviewers } from "../../domain/stage/reviewer-selection-policy.js";
-import type { ReviewerSpec } from "../../domain/stage/reviewer-selection-policy.js";
 import type { ArtifactId, DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
 import { artifactRelPath, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 

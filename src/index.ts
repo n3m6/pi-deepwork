@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { FileSystemArtifactRepository, ensureRunDirectories } from "./infrastructure/fs/artifact-repository.js";
+import { FileSystemArtifactRepository, ensureRunDirectories, getRunArtifacts } from "./infrastructure/fs/artifact-repository.js";
 import { FileSystemRunStateRepository } from "./infrastructure/fs/state-repository.js";
 import { resumeOrInferState } from "./infrastructure/fs/state-reconstruction.js";
 import { GitVersionControl } from "./infrastructure/git/version-control.js";
@@ -33,17 +33,17 @@ export default function (pi: ExtensionAPI): void {
       });
       const progress = new UiProgressReporter(ctx);
 
-      const resumed = await resumeOrInferState({
+      const resumedState = await resumeOrInferState({
         workspaceRoot: ctx.cwd,
         runId,
         interactionMode: interaction.interactionMode,
         failurePolicy: interaction.failurePolicy,
       });
-      const artifacts = resumed.artifacts;
+      const artifacts = getRunArtifacts(ctx.cwd, runId);
       await ensureRunDirectories(artifacts);
 
-      const initialRun = resumed.state
-        ? Run.rehydrate(resumed.state)
+      const initialRun = resumedState
+        ? Run.rehydrate(resumedState)
         : Run.start({
             runId,
             interactionMode: interaction.interactionMode,
@@ -77,8 +77,8 @@ export default function (pi: ExtensionAPI): void {
       const finalState = await runPipeline({
         services,
         state: initialRun.toSnapshot(),
-        artifacts,
-        isResumed: !!resumed.state,
+        workspaceRoot: ctx.cwd,
+        isResumed: !!resumedState,
       });
       ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");
     },

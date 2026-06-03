@@ -79,40 +79,6 @@ export type ArtifactId =
   | { kind: "runFile"; name: string };
 
 // ---------------------------------------------------------------------------
-// RunArtifacts — kept for migration compatibility until Phase 5/8
-// ---------------------------------------------------------------------------
-
-export interface RunArtifacts {
-  workspaceRoot: string;
-  runDir: string;
-  telemetryDir: string;
-  reviewsDir: string;
-  feedbackDir: string;
-  tasksDir: string;
-  outlinesDir: string;
-  phasesDir: string;
-  archiveDir: string;
-  stateFile: string;
-  requirementsFile: string;
-  goalsFile: string;
-  configFile: string;
-  researchDir: string;
-  researchSummaryFile: string;
-  researchQuestionsFile: string;
-  researchOpenQuestionsFile: string;
-  designFile: string;
-  structureFile: string;
-  planFile: string;
-  phaseManifestFile: string;
-  baselineResultsFile: string;
-  stage9SummaryFile: string;
-  stage10SummaryFile: string;
-  eventsFile: string;
-  runLogFile: string;
-  metricsFile: string;
-}
-
-// ---------------------------------------------------------------------------
 // Telemetry event schema
 // ---------------------------------------------------------------------------
 
@@ -245,6 +211,7 @@ export interface Dispatcher {
   dispatch(request: DispatchRequest): Promise<DispatchResult>;
   dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]>;
   dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]>;
+  dispatchGenericCoding(prompt: string, options?: { cwd?: string; tools?: string[]; signal?: AbortSignal }): Promise<StageOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +234,7 @@ export interface GateManager {
   askText(title: string, question: string, placeholder?: string): Promise<string | undefined>;
   choose(title: string, options: GateOption[], message?: string): Promise<GateChoice | undefined>;
   confirm(title: string, message: string): Promise<boolean>;
+  createAskHumanTool(): ToolDefinition<any, any>;
 }
 
 export interface ProgressReporter {
@@ -291,17 +259,17 @@ export interface PipelineServices {
   agentDefinitions: Map<string, LeafAgentDefinition>;
   gates: GateManager;
   progress: ProgressReporter;
-  /** Port-based infrastructure — populated by the composition root. */
-  versionControl?: VersionControl;
-  buildTool?: BuildToolPort;
-  artifactRepo?: ArtifactRepository;
-  telemetrySink?: TelemetrySink;
-  stateRepo?: RunStateRepository;
+  /** Port-based infrastructure — wired by the composition root. */
+  versionControl: VersionControl;
+  buildTool: BuildToolPort;
+  artifactRepo: ArtifactRepository;
+  telemetrySink: TelemetrySink;
+  stateRepo: RunStateRepository;
 }
 
 export interface StageRuntime {
   state: RunState;
-  artifacts: RunArtifacts;
+  workspaceRoot: string;
   services: PipelineServices;
 }
 
@@ -350,8 +318,6 @@ export interface ArtifactRepository {
   writeDeferredFeedback(phase: number, request: BackwardLoopRequest): Promise<void>;
   readWorkspaceFile(relativePath: string): Promise<string | undefined>;
   writeWorkspaceFile(relativePath: string, content: string): Promise<void>;
-  /** Legacy path bag, kept for migration compatibility until Phase 5 */
-  readonly paths: RunArtifacts;
 }
 
 // ---------------------------------------------------------------------------

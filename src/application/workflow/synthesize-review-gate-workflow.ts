@@ -5,8 +5,6 @@
  * synthesize → review (up to N rounds) → human gate → feedback → repeat.
  */
 
-// eslint-disable-next-line no-restricted-imports -- known tech debt: createAskHumanTool should be behind a GateManager port method
-import { createAskHumanTool } from "../../infrastructure/pi/human-gate.js";
 import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "../stage/utils.js";
 import type { ArtifactId, GateRoundDetail, StageOutcome, StageRuntime } from "../port/index.js";
 
@@ -66,7 +64,7 @@ export async function runSynthesizeReviewGate(
       runtime,
       cfg.synthesizerAgent,
       cfg.buildSynthesizerPrompt({ ...ctx, runtime, ...(designDiscussion ? { designDiscussion } : {}) }, feedbackHistory),
-      { customTools: [createAskHumanTool(runtime.services.gates)] },
+      { customTools: [runtime.services.gates.createAskHumanTool()] },
     );
     await writeArtifact(runtime, artifactId, synthesis.text);
 
@@ -181,7 +179,7 @@ async function runReviewLoop(
       runtime,
       cfg.reviewerAgent,
       cfg.buildReviewerPrompt({ ...ctx, runtime }, artifactText),
-      { customTools: [createAskHumanTool(runtime.services.gates)] },
+      { customTools: [runtime.services.gates.createAskHumanTool()] },
     );
 
     const reviewId: ArtifactId = { kind: "reviewFile", name: `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md` };

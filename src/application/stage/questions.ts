@@ -1,6 +1,6 @@
 import { normalizeNewlines } from "../../infrastructure/codec/markdown-codec.js";
 import type { LeafAgentDefinition, StageRuntime } from "../port/index.js";
-import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { dispatchFailureSummary, parseReviewStatus, readArtifact, readOnlyTools, writeArtifact } from "./utils.js";
 
 export interface QuestionBatchResult {
   status: "PASS" | "FAIL";
@@ -47,7 +47,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
       ]
         .filter(Boolean)
         .join("\n"),
-      cwd: runtime.artifacts.workspaceRoot,
+      cwd: runtime.workspaceRoot,
       ...(signal ? { signal } : {}),
       tools: readOnlyTools(generatorTarget.tools),
     });
@@ -83,7 +83,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
           "=== QUESTIONS ===",
           generated.text,
         ].join("\n"),
-        cwd: runtime.artifacts.workspaceRoot,
+        cwd: runtime.workspaceRoot,
         ...(signal ? { signal } : {}),
       },
       {
@@ -101,7 +101,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
           "=== QUESTIONS ===",
           generated.text,
         ].join("\n"),
-        cwd: runtime.artifacts.workspaceRoot,
+        cwd: runtime.workspaceRoot,
         ...(signal ? { signal } : {}),
       },
     ]);
@@ -232,6 +232,3 @@ function createFastQuestionTarget(runtime: StageRuntime, agentName: string, maxT
   return reviewTarget;
 }
 
-function readOnlyTools(tools: string[]): string[] {
-  return tools.filter((tool) => tool !== "write" && tool !== "edit");
-}

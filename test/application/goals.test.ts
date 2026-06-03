@@ -7,6 +7,7 @@ import path from "node:path";
 import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
 import type { DispatchRequest, DispatchResult, Dispatcher, GateManager, PipelineServices, ProgressReporter } from "../../src/application/port/index.js";
@@ -25,7 +26,7 @@ test("goals reports child dispatch session errors before parsing sections", asyn
 
     const runtime = {
       state,
-      artifacts,
+      workspaceRoot: workspace,
       services: {
         pi: { exec: async () => ({ stdout: "", stderr: "", code: 0, killed: false }) },
         commandContext: { signal: new AbortController().signal },
@@ -69,6 +70,10 @@ class FailingDispatcher implements Dispatcher {
   async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
     return Promise.all(requests.map((request) => this.dispatch(request)));
   }
+
+  async dispatchGenericCoding(_prompt: string) {
+    return { status: "FAIL" as const, filesWritten: [], summary: this.message, telemetry: { dispatch_end_reason: "session_error" } };
+  }
 }
 
 function automatedGates(): GateManager {
@@ -83,6 +88,9 @@ function automatedGates(): GateManager {
     },
     async confirm() {
       return false;
+    },
+    createAskHumanTool() {
+      return createAskHumanTool(this);
     },
   };
 }
