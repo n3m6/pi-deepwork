@@ -46,21 +46,70 @@ Optional flags:
 - `mode:interactive` or `mode:automated`
 - `failure:fail-closed` or `failure:best-effort`
 
-## Pipeline
+## Command Reference
 
-Full route:
+All flags are space-separated key:value pairs appended to the task description:
 
 ```text
-Goals -> Research -> Design -> Structure -> Plan -> (Implement -> Accept -> Replan)* -> Verify -> Report
+/deepwork my task description mode:automated failure:best-effort
+/deepwork resume run-id:qrspi-20260603-120000 mode:interactive
 ```
 
-Quick-fix route:
+### `mode:` — Interaction Mode
+
+Controls whether the pipeline presents human approval gates during execution.
+
+| Value | Behavior |
+|-------|----------|
+| `mode:interactive` | Stages pause at review gates and ask for feedback. Interview questions prompt the user for missing context. |
+| `mode:automated` | All gates are auto-approved. Required interview answers use conservative fallbacks when unavailable. |
+
+**Default**: If pi has a UI (TUI mode), the pipeline defaults to `interactive`. In headless or non-interactive environments, it defaults to `automated`.
+
+### `failure:` — Failure Policy
+
+Controls what happens when a stage cannot converge within its review loop cap, or when a required interview answer is unavailable.
+
+| Value | Behavior |
+|-------|----------|
+| `failure:fail-closed` | The run stops on unresolved review caps or missing required answers. |
+| `failure:best-effort` | Unresolved review caps are auto-approved as `PARTIAL`. Missing answers proceed with conservative defaults. |
+
+**Default**: `fail-closed` in interactive mode, `best-effort` in automated mode.
+
+### `run-id:` — Resume a Prior Run
+
+Resume a run that was interrupted or stopped. The pipeline reconstructs state from `.pipeline/<run-id>/state.json`. If the state file is missing, it attempts to infer the last completed stage from persisted artifacts.
+
+```text
+/deepwork resume run-id:qrspi-20260603-120000
+```
+
+You can combine `run-id:` with `mode:` and `failure:` to override the original run's settings on resume.
+
+## Route Selection
+
+The pipeline chooses between two routes at the **Goals** stage (Stage 1). The route is determined automatically, not via a flag.
+
+### Quick-Fix Route
+
+Triggered when the task is a "simple exact-file task" — creating a single file with exact, known content (e.g. "create a SMOKE.md file containing exactly one sentence"). The pipeline skips the Design and Structure stages:
 
 ```text
 Goals -> Research -> Plan -> Implement -> Accept -> Verify -> Report
 ```
 
-The controller decides the route at Stage 1, checkpoints stage boundaries in git, and resumes from persisted state or inferred artifacts when needed.
+Implementation is fully deterministic: no agent dispatch, no worktrees, no review loops. The file is written with byte-preserving precision.
+
+### Full Route
+
+Used for all other tasks — feature work, refactors, multi-file changes, etc. The complete QRSPI pipeline is executed:
+
+```text
+Goals -> Research -> Design -> Structure -> Plan -> (Implement -> Accept -> Replan)* -> Verify -> Report
+```
+
+Multi-phase work repeats the `Implement → Accept → Replan` loop until all phases are complete, then proceeds to `Verify → Report`.
 
 ## Repository Layout
 
