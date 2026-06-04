@@ -62,9 +62,8 @@ export default function (pi: ExtensionAPI): void {
       const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
 
       const services: PipelineServices = {
-        pi,
-        commandContext: ctx,
-        eventContext: ctx,
+        commandContext: { signal: ctx.signal },
+        eventContext: { signal: ctx.signal },
         dispatcher,
         agentDefinitions,
         gates,

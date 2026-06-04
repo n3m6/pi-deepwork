@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 import {
   createStageReturnTool,
@@ -27,6 +27,7 @@ import { NpmBuildTool } from "../../src/infrastructure/npm/build-tool.js";
 import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 import type {
   DispatchRequest,
+  CustomToolResult,
   DispatchResult,
   Dispatcher,
   FailurePolicy,
@@ -119,9 +120,8 @@ export class TestHarness {
     await telemetrySink.initialize();
 
     const services: PipelineServices = {
-      pi,
-      commandContext: ctx,
-      eventContext: ctx,
+      commandContext: { signal: ctx.signal },
+      eventContext: { signal: ctx.signal },
       dispatcher,
       agentDefinitions,
       gates,
@@ -815,13 +815,8 @@ async function withStageReturn(request: DispatchRequest, payload: Record<string,
   const calls = [];
   const tool = request.customTools?.find((candidate) => candidate.name === "stage_return");
   if (tool) {
-    const result = (await tool.execute(
-      "tool-1",
-      payload,
-      undefined,
-      undefined,
-      {} as never,
-    )) as AgentToolResult<unknown>;
+    const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+    const result = await callTool.execute("tool-1", payload, undefined, undefined, {});
     calls.push({ name: "stage_return", result });
   }
   return {

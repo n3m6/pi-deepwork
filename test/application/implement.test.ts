@@ -4,7 +4,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildWaves, classifyIntegrationLoop, TaskSpecSummary } from "../../src/application/stage/implement.js";
-import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
+import type {
+  CustomToolResult,
+  DispatchRequest,
+  DispatchResult,
+  Dispatcher,
+} from "../../src/application/port/index.js";
 import type { RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import {
   createStageReturnTool,
@@ -213,7 +218,8 @@ async function stageReturnResult(request: DispatchRequest, payload: Record<strin
   if (!tool) {
     return { text: "", messages: [], customToolCalls: [] };
   }
-  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
+  const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+  const result = await callTool.execute("tool-1", payload, undefined, undefined, {});
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 

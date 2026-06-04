@@ -2,23 +2,40 @@
  * Application port definitions — the source of truth for all shared types.
  * Infrastructure adapters implement the interfaces defined here.
  *
- * TODO(phase-7): Remove the SDK imports below. Replace with opaque local types:
- *   - ExtensionCommandContext / ExtensionContext → { readonly signal?: AbortSignal }
- *   - ToolDefinition / AgentToolResult → CustomTool / CustomToolResult
- *   - Model<any> → ModelHandle
- * After that, add @earendil-works/ to the no-restricted-imports rule for application/*.
+ * This file is SDK-free. All SDK types are replaced with opaque local types.
+ * Infrastructure adapters cast at the session boundary — see:
+ *   src/infrastructure/pi/session-dispatcher.ts
+ *   src/infrastructure/pi/human-gate.ts
  */
 
-/* eslint-disable no-restricted-imports -- Phase 7: SDK types still needed here until decoupling is complete */
-import type {
-  AgentToolResult,
-  ExtensionAPI,
-  ExtensionCommandContext,
-  ExtensionContext,
-  ToolDefinition,
-} from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
-/* eslint-enable no-restricted-imports */
+// ---------------------------------------------------------------------------
+// Opaque SDK-boundary types
+// Application code must not inspect these; only infrastructure adapters cast them.
+// ---------------------------------------------------------------------------
+
+/**
+ * Opaque handle for a tool passed through the agent session boundary.
+ * Application code may read .name for display/routing. Must not call .execute.
+ */
+export interface CustomTool {
+  readonly name: string;
+}
+
+/**
+ * Opaque result returned by a custom tool invocation.
+ * Application code may read .details to check for structured payloads.
+ */
+export interface CustomToolResult {
+  readonly details?: unknown;
+}
+
+/** Opaque model configuration handle. */
+export type ModelHandle = object;
+
+/** Narrow context shape used by the application — only .signal is read. */
+export interface SignalContext {
+  readonly signal?: AbortSignal | undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Re-export pure domain value types
@@ -176,8 +193,7 @@ export interface GenericCodingTarget {
   kind: "generic";
   name: "generic-coding";
   tools: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque ModelHandle
-  model?: Model<any>;
+  model?: ModelHandle;
   thinkingLevel?: ThinkingLevelName;
 }
 
@@ -203,14 +219,13 @@ export interface DispatchRequest {
   cwd: string;
   signal?: AbortSignal;
   tools?: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque CustomTool[]
-  customTools?: Array<ToolDefinition<any, any, any>>;
+  customTools?: CustomTool[];
   timeoutMs?: number;
 }
 
 export interface DispatchCustomToolCall {
   name: string;
-  result: AgentToolResult<unknown>;
+  result: CustomToolResult;
 }
 
 export interface DispatchResult {
@@ -251,8 +266,7 @@ export interface GateManager {
   askText(title: string, question: string, placeholder?: string): Promise<string | undefined>;
   choose(title: string, options: GateOption[], message?: string): Promise<GateChoice | undefined>;
   confirm(title: string, message: string): Promise<boolean>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque CustomTool
-  createAskHumanTool(): ToolDefinition<any, any>;
+  createAskHumanTool(): CustomTool;
 }
 
 export interface ProgressReporter {
@@ -262,13 +276,12 @@ export interface ProgressReporter {
 }
 
 // ---------------------------------------------------------------------------
-// Pipeline services + stage runtime (infrastructure-coupled, migration compat)
+// Pipeline services + stage runtime
 // ---------------------------------------------------------------------------
 
 export interface PipelineServices {
-  pi: Pick<ExtensionAPI, "exec">;
-  commandContext: ExtensionCommandContext;
-  eventContext: ExtensionContext;
+  commandContext: SignalContext;
+  eventContext: SignalContext;
   dispatcher: Dispatcher;
   agentDefinitions: Map<string, LeafAgentDefinition>;
   gates: GateManager;

@@ -99,18 +99,18 @@ export class PiSessionDispatcher implements Dispatcher {
     const stageReturn = new Promise<void>((resolve) => {
       resolveStageReturn = resolve;
     });
-    const customTools = instrumentCustomTools(request.customTools ?? [], customToolCalls, (toolName) => {
+    // Cast opaque CustomTool[] to SDK ToolDefinition[] at the infrastructure boundary
+    const sdkTools = (request.customTools ?? []) as unknown as ToolDefinition[];
+    const customTools = instrumentCustomTools(sdkTools, customToolCalls, (toolName) => {
       if (toolName === "stage_return") {
         resolveStageReturn?.();
       }
     });
     const target = request.target;
     const isLeaf = target.kind === "leaf";
-    /* eslint-disable @typescript-eslint/no-unsafe-argument -- customTools typed as any[] at SDK boundary; Phase 7 will introduce opaque CustomTool */
     const toolAllowlist = mergeToolAllowlist(target.tools, request.tools, customTools);
     const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? target.modelName : undefined);
     const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
-    /* eslint-enable @typescript-eslint/no-unsafe-argument */
 
     try {
       const endReason = await waitForPromptCompletion(

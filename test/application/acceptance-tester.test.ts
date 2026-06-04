@@ -8,7 +8,13 @@ import {
   isPipelineArtifact,
   runAcceptanceTesterSubstage,
 } from "../../src/application/stage/acceptance-tester.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, VersionControl } from "../../src/application/port/index.js";
+import type {
+  CustomToolResult,
+  DispatchRequest,
+  DispatchResult,
+  Dispatcher,
+  VersionControl,
+} from "../../src/application/port/index.js";
 import {
   createStageReturnTool,
   normalizeStageReturn,
@@ -90,7 +96,8 @@ async function stageReturnResult(request: DispatchRequest, payload: Record<strin
   if (!tool) {
     return { text: "", messages: [], customToolCalls: [] };
   }
-  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
+  const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+  const result = await callTool.execute("tool-1", payload, undefined, undefined, {});
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 

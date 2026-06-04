@@ -2,6 +2,7 @@ import { defineTool, type ExtensionCommandContext, type ToolDefinition } from "@
 import { Type } from "typebox";
 
 import type {
+  CustomTool,
   ExplicitRunOptions,
   FailurePolicy,
   GateChoice,
@@ -92,7 +93,7 @@ export class DefaultGateManager implements GateManager {
     return this.ctx.ui.confirm(title, message);
   }
 
-  createAskHumanTool() {
+  createAskHumanTool(): CustomTool {
     return createAskHumanTool(this);
   }
 }

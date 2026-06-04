@@ -10,6 +10,7 @@ import { runFastImplTestSubstage } from "../../src/application/stage/fast-impl-t
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import type {
+  CustomToolResult,
   DispatchRequest,
   DispatchResult,
   Dispatcher,
@@ -126,7 +127,8 @@ test("renderAcceptanceRepairContext uses None. for missing artifact files", asyn
 async function stageReturnResult(request: DispatchRequest, payload: Record<string, unknown>): Promise<DispatchResult> {
   const tool = request.customTools?.find((t) => t.name === "stage_return");
   if (!tool) return { text: "", messages: [], customToolCalls: [] };
-  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
+  const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+  const result = await callTool.execute("tool-1", payload, undefined, undefined, {});
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 

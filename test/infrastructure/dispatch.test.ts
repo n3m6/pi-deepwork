@@ -14,7 +14,7 @@ import {
   waitForPromptCompletion,
 } from "../../src/infrastructure/pi/session-dispatcher.js";
 import { makeFakeModelRegistry, makeSessionFactory, FakeSession } from "../support/fake-session.js";
-import type { DispatchRequest } from "../../src/application/port/index.js";
+import type { CustomTool, DispatchRequest } from "../../src/application/port/index.js";
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -271,7 +271,7 @@ test("PiSessionDispatcher captures customToolCalls via instrumentCustomTools", a
             return { content: [{ type: "text" as const, text: "fired" }], details: { fired: true } };
           },
         },
-      ],
+      ] as unknown as CustomTool[],
     }),
   );
   // The tool isn't called by the fake session - but the instrumented wrapper is in place
