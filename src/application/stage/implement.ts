@@ -9,7 +9,14 @@ import type { ArtifactId, StageModule, StageOutcome, StageRuntime, TaskWorktreeH
 import { runBaselineRegressionSubstage } from "./baseline-regression.js";
 import { runE2ERegressionSubstage } from "./e2e-regression.js";
 import { runFastImplLoopSubstage } from "./fast-impl-loop.js";
-import { artifactRelPath, dispatchGenericCoding, dispatchLeaf, parseReviewStatus, writeArtifact } from "./utils.js";
+import {
+  artifactRelPath,
+  dispatchGenericCoding,
+  dispatchLeaf,
+  parseReviewStatus,
+  subStageContext,
+  writeArtifact,
+} from "./utils.js";
 
 export interface TaskSpecSummary {
   taskId: string;
@@ -43,6 +50,7 @@ export const implementStage: StageModule = {
     const waves = buildWaves(tasks);
     const manifestRows: string[] = [];
     const filesWritten: string[] = [];
+    const implCtx = subStageContext(runtime);
 
     for (const [waveIndex, wave] of waves.entries()) {
       const prepared = await Promise.all(
@@ -57,6 +65,18 @@ export const implementStage: StageModule = {
         })),
       );
 
+      // Emit task.started sequentially before parallel fan-out.
+      for (const { task } of prepared) {
+        await runtime.services.telemetrySink.record({
+          type: "task.started",
+          phase: implCtx.phase,
+          route: implCtx.route,
+          taskId: task.taskId,
+          title: task.title,
+          wave: waveIndex + 1,
+        });
+      }
+
       const results = await Promise.all(
         prepared.map(async ({ task, worktree }) => ({
           task,
@@ -68,6 +88,18 @@ export const implementStage: StageModule = {
           }),
         })),
       );
+
+      for (const { task, result } of results) {
+        await runtime.services.telemetrySink.record({
+          type: "task.completed",
+          phase: implCtx.phase,
+          route: implCtx.route,
+          taskId: task.taskId,
+          title: task.title,
+          wave: waveIndex + 1,
+          status: result.status === "PASS" ? "PASS" : "FAIL",
+        });
+      }
 
       const failures = results.filter((entry) => entry.result.status !== "PASS");
       if (failures.length > 0) {

@@ -5,13 +5,20 @@
  * synthesize → review (up to N rounds) → human gate → feedback → repeat.
  */
 
-import { artifactRelPath, dispatchLeaf, readArtifact, secondsBetween, writeArtifact } from "../stage/utils.js";
+import {
+  artifactRelPath,
+  dispatchLeaf,
+  readArtifact,
+  secondsBetween,
+  subStageContext,
+  writeArtifact,
+} from "../stage/utils.js";
 import { runAgentReviewLoop } from "./agent-review-loop.js";
-import type { ArtifactId, GateRoundDetail, StageOutcome, StageRuntime } from "../port/index.js";
+import type { ArtifactId, GateRoundDetail, StageName, StageOutcome, StageRuntime } from "../port/index.js";
 
 export interface SynthesizeReviewGateConfig {
   /** Stage name used in gate labels and filenames (e.g. "design" | "structure") */
-  stageName: string;
+  stageName: StageName;
   /** Agent that produces the artifact */
   synthesizerAgent: string;
   /** Agent that reviews the artifact */
@@ -106,7 +113,15 @@ export async function runSynthesizeReviewGate(
       };
     }
 
+    const gateCtx = subStageContext(runtime);
     const presentedAt = new Date().toISOString();
+    await runtime.services.telemetrySink.record({
+      type: "gate.presented",
+      stage: cfg.stageName,
+      phase: gateCtx.phase,
+      route: gateCtx.route,
+      summary: `${capitalise(cfg.stageName)} approval gate presented.`,
+    });
     const decision = await runtime.services.gates.choose(
       `${capitalise(cfg.stageName)} approval`,
       [
@@ -125,6 +140,13 @@ export async function runSynthesizeReviewGate(
         decision: "approved",
         presented_at: presentedAt,
         responded_at: respondedAt,
+      });
+      await runtime.services.telemetrySink.record({
+        type: "gate.approved",
+        stage: cfg.stageName,
+        phase: gateCtx.phase,
+        route: gateCtx.route,
+        summary: `${capitalise(cfg.stageName)} gate approved.`,
       });
       return {
         status: "PASS",
@@ -147,6 +169,13 @@ export async function runSynthesizeReviewGate(
       decision: "rejected",
       presented_at: presentedAt,
       responded_at: respondedAt,
+    });
+    await runtime.services.telemetrySink.record({
+      type: "gate.rejected",
+      stage: cfg.stageName,
+      phase: gateCtx.phase,
+      route: gateCtx.route,
+      summary: `${capitalise(cfg.stageName)} gate rejected; requesting revision feedback.`,
     });
     const feedback = await runtime.services.gates.askText(
       `${capitalise(cfg.stageName)} feedback`,

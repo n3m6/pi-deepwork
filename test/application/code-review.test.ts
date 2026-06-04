@@ -179,6 +179,7 @@ function makeRuntime(
       progress: {} as never,
       versionControl: makeVersionControl(changedFiles),
       artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+      telemetrySink: { record: async () => {}, regenerateRunLog: async () => {}, regenerateMetrics: async () => {} },
     } as unknown as PipelineServices,
   };
 }

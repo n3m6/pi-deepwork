@@ -6,7 +6,7 @@
  * and status aggregation.
  */
 
-import { parseReviewStatus, writeArtifact, artifactRelPath } from "../stage/utils.js";
+import { parseReviewStatus, subStageContext, writeArtifact, artifactRelPath } from "../stage/utils.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
 
 export interface AgentReviewLoopResult {
@@ -44,11 +44,31 @@ export async function runAgentReviewLoop(
   config: AgentReviewLoopConfig,
 ): Promise<AgentReviewLoopResult> {
   const filesWritten: string[] = [];
+  const ctx = subStageContext(runtime);
+  const stage = ctx.stage ?? (config.stageName as import("../port/index.js").StageName);
 
   for (let round = 1; round <= config.maxRounds; round++) {
+    await runtime.services.telemetrySink.record({
+      type: "review.round.started",
+      stage,
+      phase: ctx.phase,
+      route: ctx.route,
+      reviewRound: round,
+      maxRounds: config.maxRounds,
+    });
+
     const reviewResult = await config.runReview(round);
 
     if ("failure" in reviewResult) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage,
+        phase: ctx.phase,
+        route: ctx.route,
+        reviewRound: round,
+        maxRounds: config.maxRounds,
+        status: "FAIL",
+      });
       return {
         status: "FAIL",
         reviewRounds: round,
@@ -65,7 +85,18 @@ export async function runAgentReviewLoop(
     await writeArtifact(runtime, reviewId, reviewResult.text);
     filesWritten.push(artifactRelPath(runtime, reviewId));
 
-    if (parseReviewStatus(reviewResult.text) === "PASS") {
+    const roundStatus = parseReviewStatus(reviewResult.text) === "PASS" ? "PASS" : "FAIL";
+    await runtime.services.telemetrySink.record({
+      type: "review.round.completed",
+      stage,
+      phase: ctx.phase,
+      route: ctx.route,
+      reviewRound: round,
+      maxRounds: config.maxRounds,
+      status: roundStatus,
+    });
+
+    if (roundStatus === "PASS") {
       return { status: "PASS", reviewRounds: round, filesWritten };
     }
 

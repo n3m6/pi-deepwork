@@ -40,6 +40,7 @@ import type {
   RunState,
   StageOutcome,
   StageRuntime,
+  StageName,
   TelemetrySink,
 } from "../../src/application/port/index.js";
 
@@ -145,11 +146,12 @@ export class TestHarness {
     return new TestHarness(workspaceRoot, artifacts, state, services);
   }
 
-  runtime(overrides?: Partial<RunState>): StageRuntime {
+  runtime(overrides?: Partial<RunState>, currentStage?: StageName): StageRuntime {
     return {
       state: { ...this.state, ...overrides },
       workspaceRoot: this.workspaceRoot,
       services: this.services,
+      ...(currentStage !== undefined ? { currentStage } : {}),
     };
   }
 

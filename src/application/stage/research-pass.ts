@@ -1,6 +1,13 @@
 import { MAX_RESEARCH_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
-import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import {
+  dispatchFailureSummary,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  subStageContext,
+  writeArtifact,
+} from "./utils.js";
 
 const RESEARCH_AGENT_TIMEOUT_MS = 600_000;
 
@@ -83,7 +90,16 @@ export async function runResearchPassSubstage(
   }
 
   let reviewRounds = 1;
+  const researchCtx = subStageContext(runtime);
   while (reviewRounds <= MAX_RESEARCH_REVIEW_ROUNDS) {
+    await runtime.services.telemetrySink.record({
+      type: "review.round.started",
+      stage: "research",
+      phase: researchCtx.phase,
+      route: researchCtx.route,
+      reviewRound: reviewRounds,
+      maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+    });
     const questionArtifacts = await readQuestionArtifacts(runtime, questions);
     const review = await dispatchLeaf(
       runtime,
@@ -107,6 +123,15 @@ export async function runResearchPassSubstage(
     );
     const reviewFailure = dispatchFailureSummary(review, "Research review failed");
     if (reviewFailure) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: "research",
+        phase: researchCtx.phase,
+        route: researchCtx.route,
+        reviewRound: reviewRounds,
+        maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+        status: "FAIL",
+      });
       return {
         status: "FAIL",
         filesWritten,
@@ -123,7 +148,18 @@ export async function runResearchPassSubstage(
     await writeArtifact(runtime, reviewId, review.text);
     filesWritten.push(runtime.services.artifactRepo.relPath(reviewId));
 
-    if (parseReviewStatus(review.text) === "PASS") {
+    const researchRoundStatus = parseReviewStatus(review.text) === "PASS" ? "PASS" : "FAIL";
+    await runtime.services.telemetrySink.record({
+      type: "review.round.completed",
+      stage: "research",
+      phase: researchCtx.phase,
+      route: researchCtx.route,
+      reviewRound: reviewRounds,
+      maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+      status: researchRoundStatus,
+    });
+
+    if (researchRoundStatus === "PASS") {
       const ledger = questions.map((question) => `- ${question.id}: ${question.title} [${question.tag}]`).join("\n");
       await writeArtifact(runtime, { kind: "researchFile", name: "question-ledger.md" }, ledger);
       await writeArtifact(runtime, { kind: "researchOpenQuestions" }, "None.");

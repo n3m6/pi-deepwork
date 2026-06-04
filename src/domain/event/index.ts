@@ -37,7 +37,14 @@ export type DomainEvent =
   | BackwardLoopDecided
   | BackwardLoopDeferred
   | BackwardLoopReset
-  | BackwardLoopFailed;
+  | BackwardLoopFailed
+  | PhaseStarted
+  | ReviewRoundStarted
+  | ReviewRoundCompleted
+  | DispatchStarted
+  | DispatchCompleted
+  | TaskStarted
+  | TaskCompleted;
 
 export interface RunStarted {
   type: "run.started";
@@ -118,7 +125,7 @@ export interface GatePresented {
   type: "gate.presented";
   stage: StageName;
   phase: number;
-  stageInstance: number;
+  stageInstance?: number;
   route: Route;
   summary: string;
 }
@@ -127,7 +134,7 @@ export interface GateApproved {
   type: "gate.approved";
   stage: StageName;
   phase: number;
-  stageInstance: number;
+  stageInstance?: number;
   route: Route;
   summary: string;
 }
@@ -136,7 +143,7 @@ export interface GateRejected {
   type: "gate.rejected";
   stage: StageName;
   phase: number;
-  stageInstance: number;
+  stageInstance?: number;
   route: Route;
   summary: string;
 }
@@ -187,4 +194,74 @@ export interface BackwardLoopFailed {
   route: Route;
   classification: BackwardLoopClassification;
   maxLoops: number;
+}
+
+// ---------------------------------------------------------------------------
+// Sub-stage progress events — emitted from within stage/workflow code.
+// These carry phase/route but omit stageInstance (pipeline-layer concept).
+// ---------------------------------------------------------------------------
+
+export interface PhaseStarted {
+  type: "phase.started";
+  phase: number;
+  totalPhases: number;
+  route: Route;
+}
+
+export interface ReviewRoundStarted {
+  type: "review.round.started";
+  stage: StageName;
+  phase: number;
+  route: Route;
+  reviewRound: number;
+  maxRounds: number;
+}
+
+export interface ReviewRoundCompleted {
+  type: "review.round.completed";
+  stage: StageName;
+  phase: number;
+  route: Route;
+  reviewRound: number;
+  maxRounds: number;
+  status: "PASS" | "FAIL";
+}
+
+export interface DispatchStarted {
+  type: "dispatch.started";
+  stage?: StageName;
+  phase: number;
+  route: Route;
+  childAgent: string;
+  taskId?: string;
+}
+
+export interface DispatchCompleted {
+  type: "dispatch.completed";
+  stage?: StageName;
+  phase: number;
+  route: Route;
+  childAgent: string;
+  taskId?: string;
+  endReason?: string;
+  status: "PASS" | "FAIL" | "PARTIAL";
+}
+
+export interface TaskStarted {
+  type: "task.started";
+  phase: number;
+  route: Route;
+  taskId: string;
+  title: string;
+  wave: number;
+}
+
+export interface TaskCompleted {
+  type: "task.completed";
+  phase: number;
+  route: Route;
+  taskId: string;
+  title: string;
+  wave: number;
+  status: "PASS" | "FAIL";
 }

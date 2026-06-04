@@ -12,6 +12,7 @@ import {
   readArtifact,
   requireMarkdownSection,
   secondsBetween,
+  subStageContext,
   writeArtifact,
 } from "./utils.js";
 
@@ -203,7 +204,15 @@ export const goalsStage: StageModule = {
         };
       }
 
+      const goalsCtx = subStageContext(runtime);
       const presentedAt = new Date().toISOString();
+      await runtime.services.telemetrySink.record({
+        type: "gate.presented",
+        stage: "goals",
+        phase: goalsCtx.phase,
+        route: goalsCtx.route,
+        summary: "Goals approval gate presented.",
+      });
       const decision = await runtime.services.gates.choose(
         "Goals approval",
         [
@@ -222,6 +231,13 @@ export const goalsStage: StageModule = {
           decision: "approved",
           presented_at: presentedAt,
           responded_at: respondedAt,
+        });
+        await runtime.services.telemetrySink.record({
+          type: "gate.approved",
+          stage: "goals",
+          phase: goalsCtx.phase,
+          route: goalsCtx.route,
+          summary: "Goals gate approved.",
         });
         const route = parseRoute(configMarkdown);
         return {
@@ -246,6 +262,13 @@ export const goalsStage: StageModule = {
         decision: "rejected",
         presented_at: presentedAt,
         responded_at: respondedAt,
+      });
+      await runtime.services.telemetrySink.record({
+        type: "gate.rejected",
+        stage: "goals",
+        phase: goalsCtx.phase,
+        route: goalsCtx.route,
+        summary: "Goals gate rejected; requesting revision feedback.",
       });
 
       const feedback = await runtime.services.gates.askText(

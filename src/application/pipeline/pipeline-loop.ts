@@ -55,12 +55,14 @@ export async function runPipeline(options: {
   const signal = services.commandContext.signal;
   let run = Run.rehydrate(options.state);
   const stageInstances = new Map<string, number>();
+  let lastEmittedPhase = -1;
 
   if (!isResumed) {
     await services.versionControl.createRunBranch(run.state.runId, signal);
     await sink.record({ type: "run.started", runId: run.state.runId, route: run.state.route });
   } else {
     await sink.record({ type: "run.resumed", runId: run.state.runId, route: run.state.route });
+    lastEmittedPhase = run.state.currentPhase;
   }
 
   await services.stateRepo.save(run);
@@ -71,11 +73,22 @@ export async function runPipeline(options: {
       const stage = STAGES[stageName];
       services.progress.setStage(`deepwork/${stageName}`, `phase ${run.state.currentPhase}`);
 
+      if (run.state.currentPhase !== lastEmittedPhase) {
+        lastEmittedPhase = run.state.currentPhase;
+        await sink.record({
+          type: "phase.started",
+          phase: run.state.currentPhase,
+          totalPhases: run.state.totalPhases,
+          route: run.state.route,
+        });
+      }
+
       const stateSnapshot = run.toSnapshot();
       const runtime: StageRuntime = {
         state: stateSnapshot,
         workspaceRoot,
         services,
+        currentStage: stage.stage,
       };
 
       const { outcome, stageInstance, startedAt } = await executeStage(

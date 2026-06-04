@@ -1,7 +1,14 @@
 import { parseMarkdownSections } from "../../infrastructure/codec/markdown-codec.js";
 import { MAX_REPLAN_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
-import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import {
+  artifactRelPath,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  subStageContext,
+  writeArtifact,
+} from "./utils.js";
 
 export const replanStage: StageModule = {
   stage: "replan",
@@ -11,7 +18,16 @@ export const replanStage: StageModule = {
     const repo = runtime.services.artifactRepo;
 
     let reviewRound = 1;
+    const replanCtx = subStageContext(runtime);
     while (reviewRound <= MAX_REPLAN_REVIEW_ROUNDS) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.started",
+        stage: "replan",
+        phase: replanCtx.phase,
+        route: replanCtx.route,
+        reviewRound,
+        maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+      });
       const writer = await dispatchLeaf(
         runtime,
         "qrspi-replan-writer",
@@ -66,6 +82,15 @@ export const replanStage: StageModule = {
       if (backwardLoopRequest) {
         const affected = backwardLoopRequest.match(/Affected Upstream Stage:\s*(Goals|Design)/i)?.[1]?.toUpperCase();
         const classification: BackwardLoopClassification = affected === "GOALS" ? "LOOP_GOALS" : "LOOP_DESIGN";
+        await runtime.services.telemetrySink.record({
+          type: "review.round.completed",
+          stage: "replan",
+          phase: replanCtx.phase,
+          route: replanCtx.route,
+          reviewRound,
+          maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+          status: "FAIL",
+        });
         return {
           status: "FAIL",
           filesWritten: [],
@@ -127,7 +152,18 @@ export const replanStage: StageModule = {
       };
       await writeArtifact(runtime, reviewId, review.text);
 
-      if (parseReviewStatus(review.text) === "PASS") {
+      const replanRoundStatus = parseReviewStatus(review.text) === "PASS" ? "PASS" : "FAIL";
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: "replan",
+        phase: replanCtx.phase,
+        route: replanCtx.route,
+        reviewRound,
+        maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+        status: replanRoundStatus,
+      });
+
+      if (replanRoundStatus === "PASS") {
         return {
           status: "PASS",
           phase,

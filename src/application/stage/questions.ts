@@ -1,7 +1,14 @@
 import { normalizeNewlines } from "../../infrastructure/codec/markdown-codec.js";
 import { MAX_QUESTIONS_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { LeafAgentDefinition, StageRuntime } from "../port/index.js";
-import { dispatchFailureSummary, parseReviewStatus, readArtifact, readOnlyTools, writeArtifact } from "./utils.js";
+import {
+  dispatchFailureSummary,
+  parseReviewStatus,
+  readArtifact,
+  readOnlyTools,
+  subStageContext,
+  writeArtifact,
+} from "./utils.js";
 
 export interface QuestionBatchResult {
   status: "PASS" | "FAIL";
@@ -23,9 +30,24 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
 
   let reviewRound = 1;
   let feedback = "";
+  const ctx = subStageContext(runtime);
+  const questionsStage = ctx.stage ?? "research";
   while (reviewRound <= MAX_QUESTIONS_REVIEW_ROUNDS) {
+    await runtime.services.telemetrySink.record({
+      type: "review.round.started",
+      stage: questionsStage,
+      phase: ctx.phase,
+      route: ctx.route,
+      reviewRound,
+      maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+    });
     const generatorTarget = createFastQuestionTarget(runtime, "qrspi-question-generator");
     const signal = runtime.services.eventContext.signal;
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.started",
+      ...ctx,
+      childAgent: "qrspi-question-generator",
+    });
     const generated = await runtime.services.dispatcher.dispatch({
       target: generatorTarget,
       prompt: [
@@ -52,8 +74,23 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
       ...(signal ? { signal } : {}),
       tools: readOnlyTools(generatorTarget.tools),
     });
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.completed",
+      ...ctx,
+      childAgent: "qrspi-question-generator",
+      status: generated.errorMessage ? "FAIL" : "PASS",
+    });
     const generationFailure = dispatchFailureSummary(generated, "Question generation failed");
     if (generationFailure) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: questionsStage,
+        phase: ctx.phase,
+        route: ctx.route,
+        reviewRound,
+        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        status: "FAIL",
+      });
       return {
         status: "FAIL",
         questionsMarkdown: generated.text,
@@ -68,6 +105,17 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
 
     const leakageReviewer = createFastReviewTarget(runtime, "qrspi-question-leakage-reviewer");
     const qualityReviewer = createFastReviewTarget(runtime, "qrspi-question-quality-reviewer");
+    // Emit started events sequentially before parallel fan-out.
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.started",
+      ...ctx,
+      childAgent: "qrspi-question-leakage-reviewer",
+    });
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.started",
+      ...ctx,
+      childAgent: "qrspi-question-quality-reviewer",
+    });
     const reviewResults = await runtime.services.dispatcher.dispatchParallel([
       {
         target: leakageReviewer,
@@ -106,9 +154,30 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         ...(signal ? { signal } : {}),
       },
     ]);
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.completed",
+      ...ctx,
+      childAgent: "qrspi-question-leakage-reviewer",
+      status: reviewResults[0]?.errorMessage ? "FAIL" : "PASS",
+    });
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.completed",
+      ...ctx,
+      childAgent: "qrspi-question-quality-reviewer",
+      status: reviewResults[1]?.errorMessage ? "FAIL" : "PASS",
+    });
     const leakage = reviewResults[0];
     const quality = reviewResults[1];
     if (!leakage || !quality) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: questionsStage,
+        phase: ctx.phase,
+        route: ctx.route,
+        reviewRound,
+        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        status: "FAIL",
+      });
       return {
         status: "FAIL",
         questionsMarkdown: generated.text,
@@ -122,6 +191,15 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
     const leakageFailure = dispatchFailureSummary(leakage, "Question leakage review failed");
     const qualityFailure = dispatchFailureSummary(quality, "Question quality review failed");
     if (leakageFailure || qualityFailure) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: questionsStage,
+        phase: ctx.phase,
+        route: ctx.route,
+        reviewRound,
+        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        status: "FAIL",
+      });
       return {
         status: "FAIL",
         questionsMarkdown: generated.text,
@@ -136,7 +214,19 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
     await writeArtifact(runtime, { kind: "runFile", name: "question-quality-review.md" }, quality.text);
     filesWritten.push("questions.md", "question-leakage-review.md", "question-quality-review.md");
 
-    if (parseReviewStatus(leakage.text) === "PASS" && parseReviewStatus(quality.text) === "PASS") {
+    const questionsRoundStatus =
+      parseReviewStatus(leakage.text) === "PASS" && parseReviewStatus(quality.text) === "PASS" ? "PASS" : "FAIL";
+    await runtime.services.telemetrySink.record({
+      type: "review.round.completed",
+      stage: questionsStage,
+      phase: ctx.phase,
+      route: ctx.route,
+      reviewRound,
+      maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+      status: questionsRoundStatus,
+    });
+
+    if (questionsRoundStatus === "PASS") {
       return {
         status: "PASS",
         questionsMarkdown: generated.text,

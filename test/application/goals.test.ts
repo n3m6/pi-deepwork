@@ -43,6 +43,7 @@ test("goals reports child dispatch session errors before parsing sections", asyn
         gates: automatedGates(),
         progress: noopProgress(),
         artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+        telemetrySink: { record: async () => {}, regenerateRunLog: async () => {}, regenerateMetrics: async () => {} },
       } as unknown as PipelineServices,
     };
 

@@ -49,6 +49,8 @@ interface RunView {
   stageStartedAt?: number;
   lastSummary?: string;
   runStartedAt?: number;
+  /** Short label for what is happening right now within the current stage. */
+  currentActivity?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,8 +58,8 @@ interface RunView {
 // ---------------------------------------------------------------------------
 
 /**
- * Maps a DomainEvent to a breadcrumb line. Returns undefined for events that
- * should not produce a transcript entry (e.g. stage.started).
+ * Maps a DomainEvent to a breadcrumb line. Returns undefined for high-frequency
+ * events that update the widget activity line instead of the transcript.
  */
 export function breadcrumbFor(event: DomainEvent): BreadcrumbResult | undefined {
   switch (event.type) {
@@ -69,6 +71,8 @@ export function breadcrumbFor(event: DomainEvent): BreadcrumbResult | undefined 
       return { line: `Deepwork ${event.status}`, level: "info" };
     case "run.aborted":
       return { line: `Deepwork aborted - ${event.error}`, level: "error" };
+    case "stage.started":
+      return { line: `starting ${event.stage}` };
     case "stage.completed":
       return { line: `OK ${event.stage} - ${event.outcome.summary}` };
     case "stage.failed":
@@ -87,7 +91,17 @@ export function breadcrumbFor(event: DomainEvent): BreadcrumbResult | undefined 
       return { line: `gate ${event.stage} approved` };
     case "gate.rejected":
       return { line: `gate ${event.stage} rejected` };
-    case "stage.started":
+    case "phase.started":
+      return { line: `phase ${event.phase}/${event.totalPhases} started` };
+    case "review.round.started":
+      return { line: `${event.stage} review round ${event.reviewRound}/${event.maxRounds}` };
+    case "task.completed":
+      return { line: `task ${event.taskId} ${event.status === "PASS" ? "done" : "FAIL"} (wave ${event.wave})` };
+    // High-frequency — widget activity line only, no transcript breadcrumb.
+    case "dispatch.started":
+    case "dispatch.completed":
+    case "review.round.completed":
+    case "task.started":
     case "backward_loop.requested":
     case "backward_loop.deferred":
       return undefined;
@@ -149,7 +163,9 @@ export function renderWidgetLines(view: RunView, nowMs?: number): string[] {
   const lastLabel = state.lastCompletedStage === "none" ? "none" : state.lastCompletedStage;
   const lastLine = view.lastSummary ? `last: ${lastLabel} - ${view.lastSummary}` : `last: ${lastLabel}`;
 
-  return [header, stageRow, phaseLine, loopLine, lastLine];
+  const activityLine = view.currentActivity ? `activity: ${view.currentActivity}` : "activity: —";
+
+  return [header, stageRow, phaseLine, loopLine, lastLine, activityLine];
 }
 
 // ---------------------------------------------------------------------------
@@ -244,23 +260,39 @@ export class LiveUiTelemetrySink implements TelemetrySink {
       case "run.resumed":
         this.view = { ...this.view, runStartedAt: Date.now() };
         break;
-      case "stage.started":
-        this.view = {
-          ...this.view,
-          currentStage: event.stage,
-          stageStartedAt: Date.now(),
-        };
+      case "stage.started": {
+        const { currentActivity: _ca0, ...rest0 } = this.view;
+        this.view = { ...rest0, currentStage: event.stage, stageStartedAt: Date.now() };
         break;
+      }
       case "stage.completed": {
-        const { currentStage: _cs1, stageStartedAt: _ss1, ...rest1 } = this.view;
+        const { currentStage: _cs1, stageStartedAt: _ss1, currentActivity: _ca1, ...rest1 } = this.view;
         this.view = { ...rest1, lastSummary: event.outcome.summary };
         break;
       }
       case "stage.failed": {
-        const { currentStage: _cs2, stageStartedAt: _ss2, ...rest2 } = this.view;
+        const { currentStage: _cs2, stageStartedAt: _ss2, currentActivity: _ca2, ...rest2 } = this.view;
         this.view = { ...rest2, lastSummary: event.summary };
         break;
       }
+      case "dispatch.started":
+        this.view = { ...this.view, currentActivity: `dispatching ${event.childAgent}` };
+        break;
+      case "dispatch.completed":
+        this.view = { ...this.view, currentActivity: `${event.childAgent} done` };
+        break;
+      case "review.round.started":
+        this.view = {
+          ...this.view,
+          currentActivity: `${event.stage} review round ${event.reviewRound}/${event.maxRounds}`,
+        };
+        break;
+      case "task.started":
+        this.view = {
+          ...this.view,
+          currentActivity: `task ${event.taskId} wave ${event.wave}`,
+        };
+        break;
       default:
         break;
     }

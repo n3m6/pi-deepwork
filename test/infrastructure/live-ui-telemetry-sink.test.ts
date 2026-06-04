@@ -256,7 +256,7 @@ test("breadcrumbFor returns backward_loop.failed with error level", () => {
   assert.match(crumb.line, /cap reached/);
 });
 
-test("breadcrumbFor returns undefined for stage.started (silent)", () => {
+test("breadcrumbFor returns a breadcrumb for stage.started", () => {
   const crumb = breadcrumbFor({
     type: "stage.started",
     stage: "research",
@@ -264,7 +264,8 @@ test("breadcrumbFor returns undefined for stage.started (silent)", () => {
     stageInstance: 1,
     route: "full",
   });
-  assert.equal(crumb, undefined);
+  assert.ok(crumb !== undefined);
+  assert.match(crumb.line, /research/);
 });
 
 test("breadcrumbFor returns undefined for backward_loop.requested (silent)", () => {
@@ -307,7 +308,7 @@ test("renderWidgetLines full route: no skipped stages, shows ✓ for completed, 
     Date.now(),
   );
 
-  assert.equal(lines.length, 5);
+  assert.equal(lines.length, 6);
   // Header contains run ID and route
   assert.match(lines[0] ?? "", /qrspi-20260601-000000/);
   assert.match(lines[0] ?? "", /full/);
@@ -490,7 +491,7 @@ test("LiveUiTelemetrySink with hasUI:true sends breadcrumbs for milestone events
   assert.equal(ui.notifyCalls[0]?.level, "info");
 });
 
-test("LiveUiTelemetrySink stage.started does not produce a breadcrumb", async () => {
+test("LiveUiTelemetrySink stage.started produces a breadcrumb and refreshes widget", async () => {
   const inner = new StubTelemetrySink();
   const { ctx, ui } = createFakeCtx(true);
   const { pi, spy } = createFakePi();
@@ -498,7 +499,8 @@ test("LiveUiTelemetrySink stage.started does not produce a breadcrumb", async ()
 
   await sink.record({ type: "stage.started", stage: "goals", phase: 1, stageInstance: 1, route: "full" });
 
-  assert.equal(spy.sentMessages.length, 0);
+  assert.equal(spy.sentMessages.length, 1);
+  assert.match(spy.sentMessages[0]?.content ?? "", /goals/);
   assert.equal(ui.notifyCalls.length, 0);
   // Widget should still be refreshed
   assert.equal(ui.widgetCalls.length, 1);
@@ -601,18 +603,95 @@ test("LiveUiTelemetrySink full event sequence produces correct breadcrumbs", asy
     await sink.record(event);
   }
 
-  // stage.started is silent — 5 events produce breadcrumbs (all except stage.started)
-  assert.equal(spy.sentMessages.length, 5);
+  // stage.started now produces a breadcrumb — 6 events produce breadcrumbs
+  assert.equal(spy.sentMessages.length, 6);
 
   const contents = spy.sentMessages.map((m) => m.content);
   assert.match(contents[0] ?? "", /Deepwork started/);
-  assert.match(contents[1] ?? "", /OK goals/);
-  assert.match(contents[2] ?? "", /loop back to plan/);
-  assert.match(contents[3] ?? "", /approval needed at design/);
-  assert.match(contents[4] ?? "", /Deepwork PASS/);
+  assert.match(contents[1] ?? "", /starting goals/);
+  assert.match(contents[2] ?? "", /OK goals/);
+  assert.match(contents[3] ?? "", /loop back to plan/);
+  assert.match(contents[4] ?? "", /approval needed at design/);
+  assert.match(contents[5] ?? "", /Deepwork PASS/);
 
   // gate.presented triggers warning notify
   const warningNotify = ui.notifyCalls.find((n) => n.level === "warning");
   assert.ok(warningNotify);
   assert.match(warningNotify.message, /approval needed/);
+});
+
+test("breadcrumbFor returns undefined for dispatch.started (widget-only)", () => {
+  const crumb = breadcrumbFor({
+    type: "dispatch.started",
+    stage: "goals",
+    phase: 1,
+    route: "full",
+    childAgent: "qrspi-goals-synthesizer",
+  });
+  assert.equal(crumb, undefined);
+});
+
+test("breadcrumbFor returns undefined for dispatch.completed (widget-only)", () => {
+  const crumb = breadcrumbFor({
+    type: "dispatch.completed",
+    stage: "goals",
+    phase: 1,
+    route: "full",
+    childAgent: "qrspi-goals-synthesizer",
+    status: "PASS",
+  });
+  assert.equal(crumb, undefined);
+});
+
+test("applyEventToView tracks currentActivity from dispatch.started and clears on stage.completed", async () => {
+  const inner = new StubTelemetrySink();
+  const { ctx, ui } = createFakeCtx(true);
+  const { pi } = createFakePi();
+  const sink = new LiveUiTelemetrySink(inner, pi, ctx);
+
+  // Seed view.state so the 6-line widget is rendered.
+  const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
+  await sink.regenerateRunLog(state);
+
+  // Stage starts, then a dispatch begins — widget activity line should show the agent name.
+  await sink.record({ type: "stage.started", stage: "goals", phase: 1, stageInstance: 1, route: "full" });
+  await sink.record({
+    type: "dispatch.started",
+    stage: "goals",
+    phase: 1,
+    route: "full",
+    childAgent: "qrspi-goals-synthesizer",
+  });
+
+  const linesAfterDispatch = ui.widgetCalls.at(-1) ?? [];
+  assert.ok(linesAfterDispatch.some((l) => l.includes("dispatching qrspi-goals-synthesizer")));
+
+  // Stage completion clears the activity line.
+  await sink.record({
+    type: "stage.completed",
+    stage: "goals",
+    phase: 1,
+    stageInstance: 1,
+    route: "full",
+    outcome: { status: "PASS", filesWritten: [], summary: "Done." },
+    startedAt: "2026-06-01T00:00:00Z",
+    endedAt: "2026-06-01T00:00:05Z",
+  });
+  const linesAfterCompletion = ui.widgetCalls.at(-1) ?? [];
+  assert.ok(linesAfterCompletion.some((l) => l.includes("activity: —")));
+  assert.ok(ui.widgetCalls.length > 0);
+});
+
+test("renderWidgetLines shows activity line as — when currentActivity absent", () => {
+  const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
+  const lines = renderWidgetLines({ state });
+  assert.equal(lines.length, 6);
+  assert.match(lines[5] ?? "", /activity: —/);
+});
+
+test("renderWidgetLines shows activity line content when currentActivity is set", () => {
+  const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
+  const lines = renderWidgetLines({ state, currentActivity: "dispatching qrspi-goals-synthesizer" });
+  assert.equal(lines.length, 6);
+  assert.match(lines[5] ?? "", /activity: dispatching qrspi-goals-synthesizer/);
 });

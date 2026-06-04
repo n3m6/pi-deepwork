@@ -4,7 +4,15 @@ import {
   parseReviewStatus,
   requireMarkdownSection,
 } from "../../infrastructure/codec/markdown-codec.js";
-import type { ArtifactId, DispatchRequest, DispatchResult, StageOutcome, StageRuntime } from "../port/index.js";
+import type {
+  ArtifactId,
+  DispatchRequest,
+  DispatchResult,
+  StageOutcome,
+  StageRuntime,
+  StageName,
+} from "../port/index.js";
+import type { Route } from "../../domain/value/index.js";
 
 export const GENERIC_CODING_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"] as const;
 
@@ -17,13 +25,21 @@ export async function dispatchLeaf(
     tools?: string[];
     customTools?: DispatchRequest["customTools"];
     timeoutMs?: number;
+    taskId?: string;
   },
 ): Promise<DispatchResult> {
   const target = runtime.services.agentDefinitions.get(agentName);
   if (!target) {
     throw new Error(`Missing leaf agent definition: ${agentName}`);
   }
-  return runtime.services.dispatcher.dispatch({
+  const ctx = subStageContext(runtime);
+  await runtime.services.telemetrySink.record({
+    type: "dispatch.started",
+    ...ctx,
+    childAgent: agentName,
+    ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
+  });
+  const result = await runtime.services.dispatcher.dispatch({
     target,
     prompt,
     cwd: options?.cwd ?? runtime.workspaceRoot,
@@ -32,6 +48,22 @@ export async function dispatchLeaf(
     ...(options?.customTools ? { customTools: options.customTools } : {}),
     ...(options?.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
   });
+  await runtime.services.telemetrySink.record({
+    type: "dispatch.completed",
+    ...ctx,
+    childAgent: agentName,
+    ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
+    ...(result.endReason !== undefined ? { endReason: result.endReason } : {}),
+    status:
+      result.errorMessage ||
+      result.endReason === "aborted" ||
+      result.endReason === "max_turns" ||
+      result.endReason === "timeout" ||
+      result.endReason === "session_error"
+        ? "FAIL"
+        : "PASS",
+  });
+  return result;
 }
 
 export async function dispatchGenericCoding(
@@ -40,13 +72,29 @@ export async function dispatchGenericCoding(
   options?: {
     cwd?: string;
     tools?: string[];
+    taskId?: string;
   },
 ): Promise<StageOutcome> {
-  return runtime.services.dispatcher.dispatchGenericCoding(prompt, {
+  const ctx = subStageContext(runtime);
+  await runtime.services.telemetrySink.record({
+    type: "dispatch.started",
+    ...ctx,
+    childAgent: "generic-coding",
+    ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
+  });
+  const outcome = await runtime.services.dispatcher.dispatchGenericCoding(prompt, {
     cwd: options?.cwd ?? runtime.workspaceRoot,
     ...(options?.tools ? { tools: options.tools } : {}),
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
   });
+  await runtime.services.telemetrySink.record({
+    type: "dispatch.completed",
+    ...ctx,
+    childAgent: "generic-coding",
+    ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
+    status: outcome.status === "FAIL" ? "FAIL" : outcome.status === "PARTIAL" ? "PARTIAL" : "PASS",
+  });
+  return outcome;
 }
 
 /** Write a pipeline artifact via the artifact repository. */
@@ -108,4 +156,24 @@ export function readOnlyTools(tools: string[]): string[] {
 /** Returns the elapsed time in whole seconds between two ISO-8601 timestamps (clamped to ≥ 0). */
 export function secondsBetween(start: string, end: string): number {
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+}
+
+/**
+ * Builds the minimal sub-stage context fields shared across progress events
+ * emitted from within stage/workflow code (phase, route, and the active stage
+ * when available).
+ */
+export function subStageContext(runtime: StageRuntime): {
+  phase: number;
+  route: Route;
+  stage?: StageName;
+} {
+  const ctx: { phase: number; route: Route; stage?: StageName } = {
+    phase: runtime.state.currentPhase,
+    route: runtime.state.route,
+  };
+  if (runtime.currentStage !== undefined) {
+    ctx.stage = runtime.currentStage;
+  }
+  return ctx;
 }

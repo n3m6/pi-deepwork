@@ -20,6 +20,11 @@ import type {
   BackwardLoopDeferred,
   BackwardLoopReset,
   BackwardLoopFailed,
+  PhaseStarted,
+  ReviewRoundStarted,
+  ReviewRoundCompleted,
+  TaskStarted,
+  TaskCompleted,
 } from "../../domain/event/index.js";
 import type { Clock, TelemetrySink } from "../../application/port/index.js";
 import type { Route, RunState, StageName, TelemetryEvent } from "../../application/port/index.js";
@@ -33,6 +38,8 @@ const SCHEMA_VERSION = "1.0";
 
 export class TelemetryRecorder {
   private sequence = 1;
+  /** Serializes concurrent append() calls so parallel wave/dispatch emissions don't interleave the file. */
+  private appendQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly artifacts: RunArtifacts,
@@ -62,29 +69,43 @@ export class TelemetryRecorder {
     }
   }
 
-  async append(
+  append(
     event: Omit<
       TelemetryEvent,
       "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope"
     >,
   ): Promise<TelemetryEvent> {
-    const fullEvent: TelemetryEvent = {
-      schema_version: SCHEMA_VERSION,
-      event_id: `${this.runId}-${this.sequence}`,
-      sequence: this.sequence,
-      ts: (this.clock?.now() ?? new Date()).toISOString(),
-      run_id: this.runId,
-      writer_agent: "deepwork",
-      writer_scope: "orchestrator",
-      ...event,
-    };
-    this.sequence += 1;
+    let resolveOuter!: (value: TelemetryEvent) => void;
+    let rejectOuter!: (reason: unknown) => void;
+    const outer = new Promise<TelemetryEvent>((resolve, reject) => {
+      resolveOuter = resolve;
+      rejectOuter = reject;
+    });
 
-    const line = JSON.stringify(fullEvent);
-    const existing = await readSafe(this.artifacts.eventsFile);
-    const next = existing ? `${existing.trimEnd()}\n${line}\n` : `${line}\n`;
-    await writeFile(this.artifacts.eventsFile, next, "utf8");
-    return fullEvent;
+    this.appendQueue = this.appendQueue.then(async () => {
+      try {
+        const fullEvent: TelemetryEvent = {
+          schema_version: SCHEMA_VERSION,
+          event_id: `${this.runId}-${this.sequence}`,
+          sequence: this.sequence,
+          ts: (this.clock?.now() ?? new Date()).toISOString(),
+          run_id: this.runId,
+          writer_agent: "deepwork",
+          writer_scope: "orchestrator",
+          ...event,
+        };
+        this.sequence += 1;
+        const line = JSON.stringify(fullEvent);
+        const existing = await readSafe(this.artifacts.eventsFile);
+        const next = existing ? `${existing.trimEnd()}\n${line}\n` : `${line}\n`;
+        await writeFile(this.artifacts.eventsFile, next, "utf8");
+        resolveOuter(fullEvent);
+      } catch (err) {
+        rejectOuter(err);
+      }
+    });
+
+    return outer;
   }
 
   async regenerateRunLog(state: RunState): Promise<void> {
@@ -328,6 +349,7 @@ type BackwardLoopEvent =
   | BackwardLoopDeferred
   | BackwardLoopReset
   | BackwardLoopFailed;
+type SubStageEvent = PhaseStarted | ReviewRoundStarted | ReviewRoundCompleted | TaskStarted | TaskCompleted;
 
 function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial | undefined {
   switch (event.type) {
@@ -352,6 +374,17 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
     case "backward_loop.reset":
     case "backward_loop.failed":
       return mapBackwardLoopEvent(event);
+    case "phase.started":
+    case "review.round.started":
+    case "review.round.completed":
+    case "task.started":
+    case "task.completed":
+      return mapSubStageEvent(event);
+    case "dispatch.started":
+    case "dispatch.completed":
+      // Dispatch events are persisted for audit but excluded from the timeline/run-log
+      // (they are already aggregated via child_agent_calls in stage context).
+      return mapDispatchEvent(event);
     default:
       return undefined;
   }
@@ -399,7 +432,12 @@ type StageLevelEvent = StageEvent | GateEvent | BackwardLoopEvent;
 function stageEventFields(
   event: StageLevelEvent,
 ): Pick<TelemetryEventPartial, "route" | "stage" | "phase" | "stage_instance"> {
-  return { route: event.route, stage: event.stage, phase: event.phase, stage_instance: event.stageInstance };
+  return {
+    route: event.route,
+    stage: event.stage,
+    phase: event.phase,
+    ...(event.stageInstance !== undefined ? { stage_instance: event.stageInstance } : {}),
+  };
 }
 
 function mapStageEvent(event: StageEvent): TelemetryEventPartial {
@@ -513,6 +551,96 @@ function mapBackwardLoopEvent(event: BackwardLoopEvent): TelemetryEventPartial {
         context: { classification: event.classification },
       };
   }
+}
+
+function mapSubStageEvent(event: SubStageEvent): TelemetryEventPartial {
+  switch (event.type) {
+    case "phase.started":
+      return {
+        event_type: "phase.started",
+        status: "RUNNING",
+        route: event.route,
+        phase: event.phase,
+        summary: `Phase ${event.phase} of ${event.totalPhases} started.`,
+        context: { total_phases: event.totalPhases },
+      };
+    case "review.round.started":
+      return {
+        event_type: "review.round.started",
+        status: "RUNNING",
+        route: event.route,
+        stage: event.stage,
+        phase: event.phase,
+        review_round: event.reviewRound,
+        summary: `${event.stage} review round ${event.reviewRound}/${event.maxRounds} started.`,
+        context: { max_rounds: event.maxRounds },
+      };
+    case "review.round.completed":
+      return {
+        event_type: "review.round.completed",
+        status: event.status,
+        route: event.route,
+        stage: event.stage,
+        phase: event.phase,
+        review_round: event.reviewRound,
+        summary: `${event.stage} review round ${event.reviewRound}/${event.maxRounds} ${event.status === "PASS" ? "passed" : "failed"}.`,
+        context: { max_rounds: event.maxRounds },
+      };
+    case "task.started":
+      return {
+        event_type: "task.started",
+        status: "RUNNING",
+        route: event.route,
+        phase: event.phase,
+        task_id: event.taskId,
+        summary: `Task ${event.taskId} (${event.title}) started in wave ${event.wave}.`,
+        context: { wave: event.wave, title: event.title },
+      };
+    case "task.completed":
+      return {
+        event_type: "task.completed",
+        status: event.status,
+        route: event.route,
+        phase: event.phase,
+        task_id: event.taskId,
+        summary: `Task ${event.taskId} (${event.title}) ${event.status === "PASS" ? "completed" : "failed"} in wave ${event.wave}.`,
+        context: { wave: event.wave, title: event.title },
+      };
+  }
+}
+
+type DispatchEvent =
+  | {
+      type: "dispatch.started";
+      stage?: import("../../domain/value/index.js").StageName;
+      phase: number;
+      route: import("../../domain/value/index.js").Route;
+      childAgent: string;
+      taskId?: string;
+    }
+  | {
+      type: "dispatch.completed";
+      stage?: import("../../domain/value/index.js").StageName;
+      phase: number;
+      route: import("../../domain/value/index.js").Route;
+      childAgent: string;
+      taskId?: string;
+      endReason?: string;
+      status: string;
+    };
+
+function mapDispatchEvent(event: DispatchEvent): TelemetryEventPartial {
+  const base: TelemetryEventPartial = {
+    event_type: event.type,
+    status: event.type === "dispatch.started" ? "RUNNING" : String((event as { status: string }).status),
+    route: event.route,
+    phase: event.phase,
+    child_agent: event.childAgent,
+    ...(event.stage !== undefined ? { stage: event.stage } : {}),
+    ...(event.taskId !== undefined ? { task_id: event.taskId } : {}),
+    summary: event.type === "dispatch.started" ? `Dispatching ${event.childAgent}.` : `${event.childAgent} completed.`,
+  };
+  return base;
 }
 
 // ---------------------------------------------------------------------------

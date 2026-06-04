@@ -138,7 +138,14 @@ export interface TelemetryEvent {
     | "backward_loop.reset"
     | "backward_loop.failed"
     | "checkpoint.created"
-    | "metrics.generated";
+    | "metrics.generated"
+    | "phase.started"
+    | "review.round.started"
+    | "review.round.completed"
+    | "dispatch.started"
+    | "dispatch.completed"
+    | "task.started"
+    | "task.completed";
   status: string;
   route: Route;
   summary: string;
@@ -299,6 +306,8 @@ export interface StageRuntime {
   state: RunState;
   workspaceRoot: string;
   services: PipelineServices;
+  /** The stage currently executing. Set by the pipeline loop; undefined in isolated stage tests. */
+  currentStage?: StageName;
 }
 
 export interface StageModule {

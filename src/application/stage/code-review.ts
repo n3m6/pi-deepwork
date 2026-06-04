@@ -1,6 +1,6 @@
 import { selectReviewers } from "../../domain/stage/reviewer-selection-policy.js";
 import type { ArtifactId, DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
-import { artifactRelPath, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { artifactRelPath, parseReviewStatus, readArtifact, subStageContext, writeArtifact } from "./utils.js";
 
 export async function runCodeReviewSubstage(
   runtime: StageRuntime,
@@ -28,7 +28,28 @@ export async function runCodeReviewSubstage(
     };
   });
 
+  const ctx = subStageContext(runtime);
+  for (const reviewer of reviewers) {
+    await runtime.services.telemetrySink.record({
+      type: "dispatch.started",
+      ...ctx,
+      childAgent: reviewer.agentName,
+      taskId: options.taskId,
+    });
+  }
   const results = await runtime.services.dispatcher.dispatchParallel(requests);
+  for (const [index, result] of results.entries()) {
+    const reviewer = reviewers[index];
+    if (reviewer) {
+      await runtime.services.telemetrySink.record({
+        type: "dispatch.completed",
+        ...ctx,
+        childAgent: reviewer.agentName,
+        taskId: options.taskId,
+        status: result.errorMessage ? "FAIL" : "PASS",
+      });
+    }
+  }
   const filesWritten: string[] = [];
   const blockingFailures: string[] = [];
   const summaries: string[] = [];

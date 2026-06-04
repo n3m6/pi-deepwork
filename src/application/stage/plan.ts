@@ -2,7 +2,14 @@ import { parseMarkdownSections, parseTotalPhases } from "../../infrastructure/co
 import { MAX_PLAN_REVIEW_ROUNDS, MAX_PLAN_TASK_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
-import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import {
+  artifactRelPath,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  subStageContext,
+  writeArtifact,
+} from "./utils.js";
 
 interface TaskSpecsResult {
   status: "PASS" | "FAIL";
@@ -41,7 +48,17 @@ export const planStage: StageModule = {
 
     let reviewRound = 1;
     let latestPlanWriterOutput = "";
+    const planCtx = subStageContext(runtime);
     while (reviewRound <= MAX_PLAN_REVIEW_ROUNDS) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.started",
+        stage: "plan",
+        phase: planCtx.phase,
+        route: planCtx.route,
+        reviewRound,
+        maxRounds: MAX_PLAN_REVIEW_ROUNDS,
+      });
+
       latestPlanWriterOutput = await runPlanWriter(runtime, {
         goals,
         requirements,
@@ -67,7 +84,18 @@ export const planStage: StageModule = {
       await writeArtifact(runtime, reviewId, review.text);
       filesWritten.push(artifactRelPath(runtime, reviewId));
 
-      if (parseReviewStatus(review.text) === "PASS") {
+      const planRoundStatus = parseReviewStatus(review.text) === "PASS" ? "PASS" : "FAIL";
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: "plan",
+        phase: planCtx.phase,
+        route: planCtx.route,
+        reviewRound,
+        maxRounds: MAX_PLAN_REVIEW_ROUNDS,
+        status: planRoundStatus,
+      });
+
+      if (planRoundStatus === "PASS") {
         const specResult = await writeTaskSpecs(runtime, agentsGuidance);
         if (specResult.status === "FAIL") {
           await writeArtifact(
@@ -316,6 +344,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
   const repo = runtime.services.artifactRepo;
   const outlineFiles = await repo.listOutlineFiles();
   const written: string[] = [];
+  const specCtx = subStageContext(runtime);
 
   for (const outlineFile of outlineFiles) {
     const taskNumber = outlineFile.match(/task-(\d+)\.outline/i)?.[1];
@@ -326,6 +355,14 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
     let reviewRound = 1;
     let reviewFeedback = "";
     while (reviewRound <= MAX_PLAN_TASK_REVIEW_ROUNDS) {
+      await runtime.services.telemetrySink.record({
+        type: "review.round.started",
+        stage: "plan",
+        phase: specCtx.phase,
+        route: specCtx.route,
+        reviewRound,
+        maxRounds: MAX_PLAN_TASK_REVIEW_ROUNDS,
+      });
       const writer = await dispatchLeaf(
         runtime,
         "qrspi-task-spec-writer",
@@ -406,7 +443,18 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
       await repo.write(reviewId, review.text);
       written.push(repo.relPath(reviewId), repo.relPath(taskSpecId));
 
-      if (parseReviewStatus(review.text) === "PASS") {
+      const specRoundStatus = parseReviewStatus(review.text) === "PASS" ? "PASS" : "FAIL";
+      await runtime.services.telemetrySink.record({
+        type: "review.round.completed",
+        stage: "plan",
+        phase: specCtx.phase,
+        route: specCtx.route,
+        reviewRound,
+        maxRounds: MAX_PLAN_TASK_REVIEW_ROUNDS,
+        status: specRoundStatus,
+      });
+
+      if (specRoundStatus === "PASS") {
         break;
       }
 

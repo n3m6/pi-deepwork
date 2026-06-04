@@ -7,6 +7,7 @@ import {
   dispatchLeaf,
   parseReviewStatus,
   readArtifact,
+  subStageContext,
   writeArtifact,
 } from "./utils.js";
 
@@ -38,8 +39,18 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
   });
   let plannerReviewCycles = 0;
   const reviewArtifacts: string[] = [];
-  while (plannerReviewCycles < 3) {
+  const acceptCtx = subStageContext(runtime);
+  const ACCEPTANCE_PLANNER_MAX_CYCLES = 3;
+  while (plannerReviewCycles < ACCEPTANCE_PLANNER_MAX_CYCLES) {
     plannerReviewCycles += 1;
+    await runtime.services.telemetrySink.record({
+      type: "review.round.started",
+      stage: "accept",
+      phase: acceptCtx.phase,
+      route: acceptCtx.route,
+      reviewRound: plannerReviewCycles,
+      maxRounds: ACCEPTANCE_PLANNER_MAX_CYCLES,
+    });
     const reviewResults = await dispatchAcceptancePlanReviewers(runtime, coveragePlan.text, {
       phase,
       goals,
@@ -63,10 +74,20 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
         blocking.push(result.text);
       }
     }
+    const acceptRoundStatus = blocking.length === 0 ? "PASS" : "FAIL";
+    await runtime.services.telemetrySink.record({
+      type: "review.round.completed",
+      stage: "accept",
+      phase: acceptCtx.phase,
+      route: acceptCtx.route,
+      reviewRound: plannerReviewCycles,
+      maxRounds: ACCEPTANCE_PLANNER_MAX_CYCLES,
+      status: acceptRoundStatus,
+    });
     if (blocking.length === 0) {
       break;
     }
-    if (plannerReviewCycles === 3) {
+    if (plannerReviewCycles === ACCEPTANCE_PLANNER_MAX_CYCLES) {
       return {
         status: "FAIL",
         phase,
@@ -301,7 +322,23 @@ async function dispatchAcceptancePlanReviewers(
       ].join("\n"),
     };
   });
-  return runtime.services.dispatcher.dispatchParallel(requests);
+  const ctx = subStageContext(runtime);
+  for (const agentName of ACCEPTANCE_PLAN_REVIEWERS) {
+    await runtime.services.telemetrySink.record({ type: "dispatch.started", ...ctx, childAgent: agentName });
+  }
+  const results = await runtime.services.dispatcher.dispatchParallel(requests);
+  for (const [index, result] of results.entries()) {
+    const agentName = ACCEPTANCE_PLAN_REVIEWERS[index];
+    if (agentName) {
+      await runtime.services.telemetrySink.record({
+        type: "dispatch.completed",
+        ...ctx,
+        childAgent: agentName,
+        status: result.errorMessage ? "FAIL" : "PASS",
+      });
+    }
+  }
+  return results;
 }
 
 function extractPhaseSection(manifest: string, phase: number): string {
