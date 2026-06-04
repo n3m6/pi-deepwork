@@ -58,9 +58,10 @@ export async function runCodeReviewSubstage(
   return {
     status: blockingFailures.length > 0 ? "FAIL" : "PASS",
     filesWritten,
-    summary: blockingFailures.length > 0
-      ? `Blocking code reviewers failed: ${blockingFailures.join(", ")}.`
-      : "Code-review fanout passed.",
+    summary:
+      blockingFailures.length > 0
+        ? `Blocking code reviewers failed: ${blockingFailures.join(", ")}.`
+        : "Code-review fanout passed.",
     telemetry: {
       child_agent_calls: Object.fromEntries(reviewers.map((reviewer) => [reviewer.agentName, 1])),
       review_rounds: 1,

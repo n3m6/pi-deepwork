@@ -3,9 +3,17 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { isTestFile, isPipelineArtifact, runAcceptanceTesterSubstage } from "../../src/application/stage/acceptance-tester.js";
+import {
+  isTestFile,
+  isPipelineArtifact,
+  runAcceptanceTesterSubstage,
+} from "../../src/application/stage/acceptance-tester.js";
 import type { DispatchRequest, DispatchResult, Dispatcher, VersionControl } from "../../src/application/port/index.js";
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -94,8 +102,16 @@ async function writeCoreArtifacts(harness: TestHarness): Promise<void> {
   await writeFile(harness.artifacts.requirementsFile, "Example requirement.", "utf8");
   await writeFile(harness.artifacts.designFile, "# Design\n\nOne slice.", "utf8");
   await writeFile(harness.artifacts.structureFile, "# Structure\n\n- src/example.ts", "utf8");
-  await writeFile(harness.artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n", "utf8");
-  await writeFile(path.join(phaseDir, "execution-manifest.md"), "# Execution Manifest\n\n| Task | Title | Wave | Status | Evidence Summary |\n| 01 | Ex | 1 | PASS | ok |\n", "utf8");
+  await writeFile(
+    harness.artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n",
+    "utf8",
+  );
+  await writeFile(
+    path.join(phaseDir, "execution-manifest.md"),
+    "# Execution Manifest\n\n| Task | Title | Wave | Status | Evidence Summary |\n| 01 | Ex | 1 | PASS | ok |\n",
+    "utf8",
+  );
 }
 
 test("runAcceptanceTesterSubstage returns unclean-cap when plan reviewers fail for 3 cycles", async () => {
@@ -109,7 +125,9 @@ test("runAcceptanceTesterSubstage returns unclean-cap when plan reviewers fail f
         return textResult("### Coverage Plan\n- Criterion 1: Example\n  - Action: new\n  - Test Type: unit");
       }
       if (request.target.name?.startsWith("qrspi-review-accept-")) {
-        return textResult("### Status — FAIL\n\n### Findings\n| 1 | HIGH | file | 1 | bug | issue | fix |\n\n### Summary\nPlan incomplete.");
+        return textResult(
+          "### Status — FAIL\n\n### Findings\n| 1 | HIGH | file | 1 | bug | issue | fix |\n\n### Summary\nPlan incomplete.",
+        );
       }
       return textResult("### Status — PASS\n\n### Summary\nPass.");
     },
@@ -123,7 +141,12 @@ test("runAcceptanceTesterSubstage returns unclean-cap when plan reviewers fail f
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };
@@ -173,7 +196,17 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
               status: "PASS",
               filesWritten: ["test/example.test.ts"],
               summary: "Tests written.",
-              telemetry: { evidence_quality: { deterministic: 1, flaky: 0, harnessNoisy: 0, ambiguous: 0, redundant: 0, noTestTasks: 0, noTestAuditOverrides: 0 } },
+              telemetry: {
+                evidence_quality: {
+                  deterministic: 1,
+                  flaky: 0,
+                  harnessNoisy: 0,
+                  ambiguous: 0,
+                  redundant: 0,
+                  noTestTasks: 0,
+                  noTestAuditOverrides: 0,
+                },
+              },
             });
           }
           return textResult("### Status — PASS\n\n### Summary\nPass.");
@@ -188,7 +221,12 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
         },
         async dispatchGenericCoding(prompt: string, options?: { cwd?: string; tools?: string[] }) {
           const sink: StageReturnPayload[] = [];
-          const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+          const result = await this.dispatch({
+            target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+            prompt,
+            cwd: options?.cwd ?? ".",
+            customTools: [createStageReturnTool(sink)],
+          });
           return normalizeStageReturn(result);
         },
       } as Dispatcher,
@@ -223,13 +261,31 @@ test("runAcceptanceTesterSubstage retries acceptance dispatch up to 3 rounds on 
         }
         const phase = harness.state.currentPhase;
         const phaseDir = path.join(harness.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
-        await writeFile(path.join(phaseDir, "acceptance-results.md"), "# Acceptance Results\n\n| 1 | Ex | PASS | none |\n", "utf8");
-        await writeFile(path.join(phaseDir, "stage8-summary.md"), "### Status — PASS\n\n# Stage 8 Summary\nPassed.", "utf8");
+        await writeFile(
+          path.join(phaseDir, "acceptance-results.md"),
+          "# Acceptance Results\n\n| 1 | Ex | PASS | none |\n",
+          "utf8",
+        );
+        await writeFile(
+          path.join(phaseDir, "stage8-summary.md"),
+          "### Status — PASS\n\n# Stage 8 Summary\nPassed.",
+          "utf8",
+        );
         return stageReturnResult(request, {
           status: "PASS",
           filesWritten: ["test/example.test.ts"],
           summary: "Tests passed.",
-          telemetry: { evidence_quality: { deterministic: 1, flaky: 0, harnessNoisy: 0, ambiguous: 0, redundant: 0, noTestTasks: 0, noTestAuditOverrides: 0 } },
+          telemetry: {
+            evidence_quality: {
+              deterministic: 1,
+              flaky: 0,
+              harnessNoisy: 0,
+              ambiguous: 0,
+              redundant: 0,
+              noTestTasks: 0,
+              noTestAuditOverrides: 0,
+            },
+          },
         });
       }
       return textResult("### Status — PASS\n\n### Summary\nPass.");
@@ -244,7 +300,12 @@ test("runAcceptanceTesterSubstage retries acceptance dispatch up to 3 rounds on 
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };

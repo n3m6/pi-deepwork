@@ -11,7 +11,13 @@ export const acceptStage: StageModule = {
     if (simpleTask && runtime.state.route === "quick-fix") {
       const actual = await runtime.services.artifactRepo.readWorkspaceFile(simpleTask.filePath);
       const pass = actual === simpleTask.content;
-      const filesWritten = await writeSimpleAcceptanceArtifacts(runtime, phase, simpleTask.filePath, simpleTask.content, pass);
+      const filesWritten = await writeSimpleAcceptanceArtifacts(
+        runtime,
+        phase,
+        simpleTask.filePath,
+        simpleTask.content,
+        pass,
+      );
       return {
         status: pass ? "PASS" : "FAIL",
         phase,
@@ -88,8 +94,5 @@ async function writeSimpleAcceptanceArtifacts(
       pass ? "Acceptance passed for the simple exact-file task." : "Acceptance failed for the simple exact-file task.",
     ].join("\n"),
   );
-  return [
-    artifactRelPath(runtime, acceptanceId),
-    artifactRelPath(runtime, summaryId),
-  ];
+  return [artifactRelPath(runtime, acceptanceId), artifactRelPath(runtime, summaryId)];
 }

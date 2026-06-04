@@ -8,14 +8,8 @@ export interface ReviewerSpec {
   advisory: boolean;
 }
 
-export function selectReviewers(
-  route: Route,
-  changedFiles: string[],
-  changedLineCount: number,
-): ReviewerSpec[] {
-  const reviewers: ReviewerSpec[] = [
-    { agentName: "qrspi-review-code-quality", advisory: false },
-  ];
+export function selectReviewers(route: Route, changedFiles: string[], changedLineCount: number): ReviewerSpec[] {
+  const reviewers: ReviewerSpec[] = [{ agentName: "qrspi-review-code-quality", advisory: false }];
   const hasTaskTests = changedFiles.some((file) => /\b(__tests__|tests?|spec)\b|[._-](test|spec)\./i.test(file));
   if (hasTaskTests) {
     reviewers.push({ agentName: "qrspi-review-test-coverage", advisory: false });

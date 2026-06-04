@@ -17,7 +17,11 @@ afterEach(async () => {
 async function writeReportArtifacts(harness: TestHarness): Promise<void> {
   await writeFile(harness.artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. Works.", "utf8");
   await writeFile(harness.artifacts.baselineResultsFile, "### Baseline Status — PASS\n\nAll clean.", "utf8");
-  await writeFile(harness.artifacts.stage9SummaryFile, "### Overall Status — PASS\n\n### Stage Summary\nVerification passed.", "utf8");
+  await writeFile(
+    harness.artifacts.stage9SummaryFile,
+    "### Overall Status — PASS\n\n### Stage Summary\nVerification passed.",
+    "utf8",
+  );
   const phase = harness.state.currentPhase;
   const phaseDir = path.join(harness.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   await mkdir(phaseDir, { recursive: true });
@@ -64,7 +68,10 @@ test("runPipeline emits run.started and run.completed telemetry on a trivial run
 
   const stageStartedEvents = events.filter((e: TelemetryEvent) => e.event_type === "stage.started");
   assert.ok(stageStartedEvents.length > 0, "No stage.started events");
-  assert.ok(stageStartedEvents[0]!.summary.startsWith("Stage "), `Unexpected summary: ${stageStartedEvents[0]!.summary}`);
+  assert.ok(
+    stageStartedEvents[0]!.summary.startsWith("Stage "),
+    `Unexpected summary: ${stageStartedEvents[0]!.summary}`,
+  );
   assert.ok(stageStartedEvents[0]!.summary.includes("Route:"), "stage.started summary missing Route");
 });
 
@@ -110,18 +117,27 @@ test("runPipeline emits backward_loop events when implement returns integration-
 
   // Write artifacts implement and plan need (plan stage runs after backward loop)
   await writeFile(harness.artifacts.planFile, "# Plan\n\n## Overview\nOne phase.", "utf8");
-  await writeFile(harness.artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n", "utf8");
+  await writeFile(
+    harness.artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n",
+    "utf8",
+  );
   await writeFile(harness.artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. Works.", "utf8");
   await writeFile(harness.artifacts.requirementsFile, "Build CLI.", "utf8");
   await writeFile(harness.artifacts.baselineResultsFile, "### Baseline Status — PASS\n", "utf8");
-  await writeFile(harness.artifacts.configFile, `created: 2026-06-01\nroute: full\nrun_id: ${harness.state.runId}\n`, "utf8");
+  await writeFile(
+    harness.artifacts.configFile,
+    `created: 2026-06-01\nroute: full\nrun_id: ${harness.state.runId}\n`,
+    "utf8",
+  );
   // Plan stage also needs research summary, design, and structure
   await mkdir(harness.artifacts.researchDir, { recursive: true });
   await writeFile(harness.artifacts.researchSummaryFile, "# Research Summary\n\nFindings synthesized.", "utf8");
   await writeFile(harness.artifacts.designFile, "# Design\n\nSimple design.", "utf8");
   await writeFile(harness.artifacts.structureFile, "# Structure\n\n- `src/example.ts` (MODIFY)", "utf8");
 
-  const taskSpec = "# Task 01: Example\n\n## Metadata\n- **Task:** 01\n- **Phase:** 1\n- **Route:** full\n\n## Files\n- `src/example.ts` (MODIFY)\n";
+  const taskSpec =
+    "# Task 01: Example\n\n## Metadata\n- **Task:** 01\n- **Phase:** 1\n- **Route:** full\n\n## Files\n- `src/example.ts` (MODIFY)\n";
   await mkdir(harness.artifacts.tasksDir, { recursive: true });
   await writeFile(path.join(harness.artifacts.tasksDir, "task-01.md"), taskSpec, "utf8");
 
@@ -138,13 +154,17 @@ test("runPipeline emits backward_loop events when implement returns integration-
       // Delegate everything else to the harness MockDispatcher
       return harness.dispatcher.dispatch(request);
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(prompt, options) { return harness.dispatcher.dispatchGenericCoding(prompt, options); },
+    async dispatchGenericCoding(prompt, options) {
+      return harness.dispatcher.dispatchGenericCoding(prompt, options);
+    },
   };
 
   const finalState = await runPipeline({
@@ -182,13 +202,25 @@ test("runPipeline emits backward_loop.failed when implement backward loop hits c
   harness.state = { ...harness.state, nextStage: "implement", backwardLoops: 3 };
 
   await writeFile(harness.artifacts.planFile, "# Plan\n\n## Overview\nOne phase.", "utf8");
-  await writeFile(harness.artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n", "utf8");
+  await writeFile(
+    harness.artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n",
+    "utf8",
+  );
   await writeFile(harness.artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. Works.", "utf8");
   await writeFile(harness.artifacts.requirementsFile, "Build CLI.", "utf8");
   await writeFile(harness.artifacts.baselineResultsFile, "### Baseline Status — PASS\n", "utf8");
-  await writeFile(harness.artifacts.configFile, `created: 2026-06-01\nroute: full\nrun_id: ${harness.state.runId}\n`, "utf8");
+  await writeFile(
+    harness.artifacts.configFile,
+    `created: 2026-06-01\nroute: full\nrun_id: ${harness.state.runId}\n`,
+    "utf8",
+  );
   await mkdir(harness.artifacts.tasksDir, { recursive: true });
-  await writeFile(path.join(harness.artifacts.tasksDir, "task-01.md"), "# Task 01\n\n## Metadata\n- **Task:** 01\n- **Phase:** 1\n- **Route:** full\n\n## Files\n- `src/example.ts` (MODIFY)\n", "utf8");
+  await writeFile(
+    path.join(harness.artifacts.tasksDir, "task-01.md"),
+    "# Task 01\n\n## Metadata\n- **Task:** 01\n- **Phase:** 1\n- **Route:** full\n\n## Files\n- `src/example.ts` (MODIFY)\n",
+    "utf8",
+  );
 
   const capDispatcher: Dispatcher = {
     async dispatch(request: DispatchRequest): Promise<DispatchResult> {
@@ -202,13 +234,17 @@ test("runPipeline emits backward_loop.failed when implement backward loop hits c
       }
       return harness.dispatcher.dispatch(request);
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(prompt, options) { return harness.dispatcher.dispatchGenericCoding(prompt, options); },
+    async dispatchGenericCoding(prompt, options) {
+      return harness.dispatcher.dispatchGenericCoding(prompt, options);
+    },
   };
 
   const finalState = await runPipeline({
@@ -244,7 +280,11 @@ test("runPipeline emits stage.skipped for design and structure in quick-fix rout
   // Write goals and requirements so the research stage can proceed
   await writeFile(harness.artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. Works.", "utf8");
   await writeFile(harness.artifacts.requirementsFile, "Build CLI.", "utf8");
-  await writeFile(harness.artifacts.researchQuestionsFile, "# Research Questions\n\n### Q1: What paths exist?\n**Tag**: codebase\n**Covers**: FR-1\n**Answer shape**: Identify paths.\n**Decision unblocked**: Which subsystem.\n", "utf8").catch(() => undefined);
+  await writeFile(
+    harness.artifacts.researchQuestionsFile,
+    "# Research Questions\n\n### Q1: What paths exist?\n**Tag**: codebase\n**Covers**: FR-1\n**Answer shape**: Identify paths.\n**Decision unblocked**: Which subsystem.\n",
+    "utf8",
+  ).catch(() => undefined);
 
   harness.state = markStageCompleted(harness.state, "goals", "research");
   harness.state = { ...harness.state, nextStage: "research", route: "quick-fix" };
@@ -259,10 +299,7 @@ test("runPipeline emits stage.skipped for design and structure in quick-fix rout
   const events = await harness.telemetrySink.readEvents();
   const eventTypes = events.map((e: TelemetryEvent) => e.event_type);
 
-  assert.ok(
-    eventTypes.includes("stage.skipped"),
-    `Expected stage.skipped events; got ${JSON.stringify(eventTypes)}`,
-  );
+  assert.ok(eventTypes.includes("stage.skipped"), `Expected stage.skipped events; got ${JSON.stringify(eventTypes)}`);
 
   const skippedStages = events
     .filter((e: TelemetryEvent) => e.event_type === "stage.skipped")
@@ -292,7 +329,11 @@ test("runPipeline reroutes to implement when verify returns PARTIAL", async () =
   await writeFile(harness.artifacts.baselineResultsFile, "### Baseline Status — PASS\n\nAll clean.", "utf8");
   await writeFile(harness.artifacts.planFile, "# Plan\n\n## Overview\nOne phase.", "utf8");
   await writeFile(harness.artifacts.requirementsFile, "Build a minimal CLI.", "utf8");
-  await writeFile(harness.artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n", "utf8");
+  await writeFile(
+    harness.artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n",
+    "utf8",
+  );
   // accept stage reads design and structure for route=full
   await writeFile(harness.artifacts.designFile, "# Design\n\nSimple CLI design.", "utf8");
   await writeFile(harness.artifacts.structureFile, "# Structure\n\n- `src/cli.ts` (CREATE)", "utf8");
@@ -311,9 +352,7 @@ test("runPipeline reroutes to implement when verify returns PARTIAL", async () =
   const verifyCompleted = events.some(
     (e: TelemetryEvent) => e.event_type === "stage.completed" && e.stage === "verify",
   );
-  const verifyFailed = events.some(
-    (e: TelemetryEvent) => e.event_type === "stage.failed" && e.stage === "verify",
-  );
+  const verifyFailed = events.some((e: TelemetryEvent) => e.event_type === "stage.failed" && e.stage === "verify");
 
   assert.ok(verifyCompleted || verifyFailed, "verify stage should have run and emitted telemetry");
   void finalState;

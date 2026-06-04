@@ -21,7 +21,11 @@ async function writeCoreArtifacts(harness: TestHarness): Promise<void> {
   await writeFile(harness.artifacts.designFile, "# Design\n\nExisting design.", "utf8");
   await writeFile(harness.artifacts.structureFile, "# Structure\n\n- `src/cli.ts` (CREATE)", "utf8");
   await writeFile(harness.artifacts.planFile, "# Plan\n\n## Overview\nExisting plan.", "utf8");
-  await writeFile(harness.artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n", "utf8");
+  await writeFile(
+    harness.artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1\n- **Tasks:** 01\n",
+    "utf8",
+  );
 }
 
 function makePlanWithBackwardLoop(classification: "LOOP_GOALS" | "LOOP_DESIGN" | "LOOP_PLAN"): string {
@@ -32,10 +36,7 @@ function makePlanWithBackwardLoop(classification: "LOOP_GOALS" | "LOOP_DESIGN" |
   return `# Revised Plan\n\n## Phase 1 — Core\n- **Tasks:** 01\n\n${loopBlock}`;
 }
 
-function makeReplanDispatcher(options: {
-  plannerText?: string;
-  reviewResponses?: string[];
-}): Dispatcher {
+function makeReplanDispatcher(options: { plannerText?: string; reviewResponses?: string[] }): Dispatcher {
   let reviewCall = 0;
   const plannerText = options.plannerText ?? "# Revised Plan\n\n## Phase 1\n- **Tasks:** 01\n";
   const reviewResponses = options.reviewResponses ?? ["### Status — PASS\n\n### Summary\nPlan accepted."];
@@ -46,7 +47,8 @@ function makeReplanDispatcher(options: {
         return textResult(plannerText);
       }
       if (request.target.name === "qrspi-replan-reviewer") {
-        const response = reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
+        const response =
+          reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
         reviewCall += 1;
         return textResult(response);
       }
@@ -60,7 +62,9 @@ function makeReplanDispatcher(options: {
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 }
 

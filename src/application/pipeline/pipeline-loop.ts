@@ -77,7 +77,13 @@ export async function runPipeline(options: {
         services,
       };
 
-      const { outcome, stageInstance, startedAt } = await executeStage(stage, runtime, stateSnapshot, sink, stageInstances);
+      const { outcome, stageInstance, startedAt } = await executeStage(
+        stage,
+        runtime,
+        stateSnapshot,
+        sink,
+        stageInstances,
+      );
 
       if (outcome.backwardLoop) {
         await sink.record({

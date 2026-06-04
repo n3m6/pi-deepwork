@@ -18,7 +18,10 @@ export interface ResearchPassResult {
   dispatchFailure?: boolean;
 }
 
-export async function runResearchPassSubstage(runtime: StageRuntime, questionsMarkdown: string): Promise<ResearchPassResult> {
+export async function runResearchPassSubstage(
+  runtime: StageRuntime,
+  questionsMarkdown: string,
+): Promise<ResearchPassResult> {
   const filesWritten: string[] = [];
   const questions = parseQuestions(questionsMarkdown);
 
@@ -38,7 +41,9 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
 
   // Pass artifact paths (relative to run dir) to the synthesizer agent.
   const researchArtifactList = questions
-    .map((question) => runtime.services.artifactRepo.relPath({ kind: "researchFile", name: `${question.id.toLowerCase()}.md` }))
+    .map((question) =>
+      runtime.services.artifactRepo.relPath({ kind: "researchFile", name: `${question.id.toLowerCase()}.md` }),
+    )
     .join("\n");
   const summary = await dispatchLeaf(runtime, "qrspi-research-synthesizer", researchArtifactList, {
     tools: ["read", "bash", "grep", "find", "ls", "write", "edit"],
@@ -61,7 +66,11 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       reviewRounds: 0,
     };
   }
-  const summaryArtifactFailure = await ensureResearchSummaryArtifact(runtime, summary.text, "Research synthesis failed");
+  const summaryArtifactFailure = await ensureResearchSummaryArtifact(
+    runtime,
+    summary.text,
+    "Research synthesis failed",
+  );
   if (summaryArtifactFailure) {
     return {
       status: "FAIL",
@@ -106,14 +115,15 @@ export async function runResearchPassSubstage(runtime: StageRuntime, questionsMa
       };
     }
 
-    const reviewId: ArtifactId = { kind: "reviewFile", name: `research-review-round-${String(reviewRounds).padStart(2, "0")}.md` };
+    const reviewId: ArtifactId = {
+      kind: "reviewFile",
+      name: `research-review-round-${String(reviewRounds).padStart(2, "0")}.md`,
+    };
     await writeArtifact(runtime, reviewId, review.text);
     filesWritten.push(runtime.services.artifactRepo.relPath(reviewId));
 
     if (parseReviewStatus(review.text) === "PASS") {
-      const ledger = questions
-        .map((question) => `- ${question.id}: ${question.title} [${question.tag}]`)
-        .join("\n");
+      const ledger = questions.map((question) => `- ${question.id}: ${question.title} [${question.tag}]`).join("\n");
       await writeArtifact(runtime, { kind: "researchFile", name: "question-ledger.md" }, ledger);
       await writeArtifact(runtime, { kind: "researchOpenQuestions" }, "None.");
       filesWritten.push("research/question-ledger.md", "research/open-questions.md", "research/summary.md");
@@ -212,7 +222,9 @@ function parseQuestions(markdown: string): ResearchQuestion[] {
     const title = match[2]?.trim() ?? `Question ${index + 1}`;
     const nextStart = matches[index + 1]?.index;
     const block = markdown.slice(match.index ?? 0, nextStart);
-    const tag = block.match(/\*\*Tag\*\*:\s*(codebase|web|hybrid)/i)?.[1]?.toLowerCase() as ResearchQuestion["tag"] | undefined;
+    const tag = block.match(/\*\*Tag\*\*:\s*(codebase|web|hybrid)/i)?.[1]?.toLowerCase() as
+      | ResearchQuestion["tag"]
+      | undefined;
     return {
       id,
       title,
@@ -244,14 +256,9 @@ async function writeQuestionResearch(
     findings.push(codebase.text);
   }
   if (question.tag === "web" || question.tag === "hybrid") {
-    const web = await dispatchLeaf(
-      runtime,
-      "qrspi-web-researcher",
-      buildResearcherPrompt(question, reviewFeedback),
-      {
-        timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
-      },
-    );
+    const web = await dispatchLeaf(runtime, "qrspi-web-researcher", buildResearcherPrompt(question, reviewFeedback), {
+      timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
+    });
     const webFailure = dispatchFailureSummary(
       web,
       `${reviewFeedback ? "Web research revision" : "Web research"} failed for ${question.id}`,
@@ -279,7 +286,9 @@ function buildResearcherPrompt(question: ResearchQuestion, reviewFeedback?: stri
     reviewFeedback ? "=== REVIEW FEEDBACK ===" : undefined,
     reviewFeedback,
     reviewFeedback ? "" : undefined,
-    reviewFeedback ? "Revise the findings for this question only. Address every reviewer finding that names this question artifact." : undefined,
+    reviewFeedback
+      ? "Revise the findings for this question only. Address every reviewer finding that names this question artifact."
+      : undefined,
   ]
     .filter((part): part is string => Boolean(part))
     .join("\n");
@@ -293,7 +302,11 @@ async function readQuestionArtifacts(runtime: StageRuntime, questions: ResearchQ
   );
 }
 
-async function ensureResearchSummaryArtifact(runtime: StageRuntime, synthesizerText: string, label: string): Promise<string | undefined> {
+async function ensureResearchSummaryArtifact(
+  runtime: StageRuntime,
+  synthesizerText: string,
+  label: string,
+): Promise<string | undefined> {
   const existing = await runtime.services.artifactRepo.read({ kind: "researchSummary" });
   if (existing !== undefined) {
     return undefined;
@@ -320,7 +333,11 @@ function questionsReferencedByReview(reviewText: string, questions: ResearchQues
     if (failedArtifactPattern.test(artifactFindings)) {
       return true;
     }
-    if (!normalizedPerQuestionIssues || normalizedPerQuestionIssues === "none." || normalizedPerQuestionIssues === "none") {
+    if (
+      !normalizedPerQuestionIssues ||
+      normalizedPerQuestionIssues === "none." ||
+      normalizedPerQuestionIssues === "none"
+    ) {
       return false;
     }
     return new RegExp(`\\b${escapedId}\\b|${artifactNamePattern}`, "i").test(perQuestionIssues);

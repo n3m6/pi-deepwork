@@ -6,7 +6,11 @@ import path from "node:path";
 
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createInitialState } from "../../src/domain/run/index.js";
-import { TelemetryRecorder, renderMetricsSummary, renderRunLog } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
+import {
+  TelemetryRecorder,
+  renderMetricsSummary,
+  renderRunLog,
+} from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 
 test("telemetry recorder appends jsonl and renders summaries", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-telemetry-"));

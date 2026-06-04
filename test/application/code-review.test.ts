@@ -8,7 +8,15 @@ import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifa
 import { getRunArtifacts, ensureRunDirectories } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { runCodeReviewSubstage } from "../../src/application/stage/code-review.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, LeafAgentDefinition, PipelineServices, StageRuntime, VersionControl } from "../../src/application/port/index.js";
+import type {
+  DispatchRequest,
+  DispatchResult,
+  Dispatcher,
+  LeafAgentDefinition,
+  PipelineServices,
+  StageRuntime,
+  VersionControl,
+} from "../../src/application/port/index.js";
 
 test("code-review fanout blocks on failing non-advisory reviewer", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-review-"));
@@ -38,7 +46,12 @@ test("code-review fanout treats simplifier as advisory", async () => {
   await mkdir(artifacts.tasksDir, { recursive: true });
   await writeFile(path.join(artifacts.tasksDir, "task-01.md"), "# Task 01\n", "utf8");
   const dispatcher = new RecordingDispatcher("qrspi-review-code-simplifier");
-  const runtime = makeRuntime(workspace, artifacts, dispatcher, ["src/shared-helper.ts", "src/a.ts", "src/b.ts", "test/example.test.ts"]);
+  const runtime = makeRuntime(workspace, artifacts, dispatcher, [
+    "src/shared-helper.ts",
+    "src/a.ts",
+    "src/b.ts",
+    "test/example.test.ts",
+  ]);
 
   const outcome = await runCodeReviewSubstage(runtime, {
     taskId: "01",
@@ -152,8 +165,12 @@ function makeRuntime(
       route: "full",
     }),
     workspaceRoot: workspace,
-    services: ({
-      pi: { async exec() { return { stdout: "", stderr: "", code: 0, killed: false }; } },
+    services: {
+      pi: {
+        async exec() {
+          return { stdout: "", stderr: "", code: 0, killed: false };
+        },
+      },
       commandContext: {} as never,
       eventContext: {},
       dispatcher,
@@ -162,6 +179,6 @@ function makeRuntime(
       progress: {} as never,
       versionControl: makeVersionControl(changedFiles),
       artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
-    } as unknown) as PipelineServices,
+    } as unknown as PipelineServices,
   };
 }

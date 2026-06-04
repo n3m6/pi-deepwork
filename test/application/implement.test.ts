@@ -6,7 +6,11 @@ import path from "node:path";
 import { buildWaves, classifyIntegrationLoop, TaskSpecSummary } from "../../src/application/stage/implement.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
 import type { RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import { implementStage } from "../../src/application/stage/implement.js";
 import { markStageCompleted } from "../../src/domain/run/index.js";
@@ -99,7 +103,9 @@ function makeFastImplDispatcher(options: {
       // Baseline checker (leaf agent)
       if (request.target.name === "qrspi-baseline-checker") {
         const status = options.baselineStatus ?? "PASS";
-        return textResult(`### Baseline Status — ${status}\n\n### Check Results\n| Check | Status | Command | Details |\n|-------|--------|---------|---------|\n| Build | ${status} | \`npm run build\` | ok |\n\n### Failure Inventory\nNone.\n\n### Stage Summary\nBaseline ${status}.`);
+        return textResult(
+          `### Baseline Status — ${status}\n\n### Check Results\n| Check | Status | Command | Details |\n|-------|--------|---------|---------|\n| Build | ${status} | \`npm run build\` | ok |\n\n### Failure Inventory\nNone.\n\n### Stage Summary\nBaseline ${status}.`,
+        );
       }
 
       // Integration checker (leaf agent)
@@ -126,10 +132,18 @@ function makeFastImplDispatcher(options: {
         if (prompt.includes("Implement the production-code portion")) {
           const taskId = prompt.match(/Task:\s*(\d+)/)?.[1] ?? "01";
           if (options.failTaskId === taskId && prompt.includes("Attempt: 1")) {
-            return stageReturnResult(request, { status: "FAIL", filesWritten: [], summary: `Task ${taskId} code failed.` });
+            return stageReturnResult(request, {
+              status: "FAIL",
+              filesWritten: [],
+              summary: `Task ${taskId} code failed.`,
+            });
           }
           await touchFile(path.join(request.cwd, "src", "example.ts"), `export const t = "${taskId}";\n`);
-          return stageReturnResult(request, { status: "PASS", filesWritten: ["src/example.ts"], summary: "Code done." });
+          return stageReturnResult(request, {
+            status: "PASS",
+            filesWritten: ["src/example.ts"],
+            summary: "Code done.",
+          });
         }
         // Fast-impl-test
         if (prompt.includes("Write or update only the tests needed")) {
@@ -137,7 +151,17 @@ function makeFastImplDispatcher(options: {
             status: "PASS",
             filesWritten: ["test/example.test.ts"],
             summary: "Tests done.",
-            telemetry: { evidence_quality: { deterministic: 1, flaky: 0, harnessNoisy: 0, ambiguous: 0, redundant: 0, noTestTasks: 0, noTestAuditOverrides: 0 } },
+            telemetry: {
+              evidence_quality: {
+                deterministic: 1,
+                flaky: 0,
+                harnessNoisy: 0,
+                ambiguous: 0,
+                redundant: 0,
+                noTestTasks: 0,
+                noTestAuditOverrides: 0,
+              },
+            },
           });
         }
         // Fast-impl-verify
@@ -168,7 +192,12 @@ function makeFastImplDispatcher(options: {
     },
     async dispatchGenericCoding(prompt: string, options?: { cwd?: string; tools?: string[] }) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };
@@ -217,7 +246,11 @@ async function writeTaskSpec(artifacts: RunArtifacts, taskNumber: string, phase:
 
 async function writePlanAndManifest(artifacts: RunArtifacts): Promise<void> {
   await writeFile(artifacts.planFile, "# Plan\n\n## Overview\nTest plan.", "utf8");
-  await writeFile(artifacts.phaseManifestFile, "---\ntotal_phases: 1\n---\n\n## Phase 1 — Core\n- **Tasks:** 01\n", "utf8");
+  await writeFile(
+    artifacts.phaseManifestFile,
+    "---\ntotal_phases: 1\n---\n\n## Phase 1 — Core\n- **Tasks:** 01\n",
+    "utf8",
+  );
   await writeFile(artifacts.configFile, "route: full\n", "utf8");
   await writeFile(artifacts.goalsFile, "# Goals\n\n## Acceptance Criteria\n1. Example works.", "utf8");
   await writeFile(artifacts.requirementsFile, "Implement example behavior.", "utf8");

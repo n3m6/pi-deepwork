@@ -1,7 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createAskHumanTool, DefaultGateManager, determineInteractionMode, parseExplicitRunOptions } from "../../src/infrastructure/pi/human-gate.js";
+import {
+  createAskHumanTool,
+  DefaultGateManager,
+  determineInteractionMode,
+  parseExplicitRunOptions,
+} from "../../src/infrastructure/pi/human-gate.js";
 
 test("parseExplicitRunOptions reads mode failure and run-id flags", () => {
   const options = parseExplicitRunOptions("resume run-id:qrspi-20260601-123456 mode:automated failure:best-effort");
@@ -29,7 +34,9 @@ test("ask_human returns no answer when the gate manager cannot prompt", async ()
     async confirm() {
       return false;
     },
-    createAskHumanTool() { return createAskHumanTool(this); },
+    createAskHumanTool() {
+      return createAskHumanTool(this);
+    },
   });
 
   const result = await tool.execute(

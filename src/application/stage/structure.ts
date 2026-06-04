@@ -10,49 +10,53 @@ export const structureStage: StageModule = {
     const research = await readArtifact(runtime, { kind: "researchSummary" });
     const design = await readArtifact(runtime, { kind: "design" });
 
-    return runSynthesizeReviewGate(runtime, {
-      stageName: "structure",
-      synthesizerAgent: "qrspi-structure-mapper",
-      reviewerAgent: "qrspi-structure-reviewer",
-      artifactId: { kind: "structure" },
-      artifactDisplayName: "structure.md",
-      approveLabel: "Approve structure",
-      feedbackLabel: "Provide structure feedback",
-      feedbackQuestion: "Describe the required structure revisions.",
-      buildSynthesizerPrompt: (_ctx, feedbackHistory) =>
-        [
-          "=== GOALS ===",
-          goals,
-          "",
-          "=== REQUIREMENTS ===",
-          requirements,
-          "",
-          "=== RESEARCH SUMMARY ===",
-          research,
-          "",
-          "=== DESIGN ===",
-          design,
-          ...(feedbackHistory.length > 0 ? ["\n=== FEEDBACK HISTORY ===", feedbackHistory.join("\n\n")] : []),
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      buildReviewerPrompt: (_ctx, artifactText) =>
-        [
-          "=== GOALS ===",
-          goals,
-          "",
-          "=== REQUIREMENTS ===",
-          requirements,
-          "",
-          "=== RESEARCH SUMMARY ===",
-          research,
-          "",
-          "=== DESIGN ===",
-          design,
-          "",
-          "=== STRUCTURE ===",
-          artifactText,
-        ].join("\n"),
-    }, { runtime });
+    return runSynthesizeReviewGate(
+      runtime,
+      {
+        stageName: "structure",
+        synthesizerAgent: "qrspi-structure-mapper",
+        reviewerAgent: "qrspi-structure-reviewer",
+        artifactId: { kind: "structure" },
+        artifactDisplayName: "structure.md",
+        approveLabel: "Approve structure",
+        feedbackLabel: "Provide structure feedback",
+        feedbackQuestion: "Describe the required structure revisions.",
+        buildSynthesizerPrompt: (_ctx, feedbackHistory) =>
+          [
+            "=== GOALS ===",
+            goals,
+            "",
+            "=== REQUIREMENTS ===",
+            requirements,
+            "",
+            "=== RESEARCH SUMMARY ===",
+            research,
+            "",
+            "=== DESIGN ===",
+            design,
+            ...(feedbackHistory.length > 0 ? ["\n=== FEEDBACK HISTORY ===", feedbackHistory.join("\n\n")] : []),
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        buildReviewerPrompt: (_ctx, artifactText) =>
+          [
+            "=== GOALS ===",
+            goals,
+            "",
+            "=== REQUIREMENTS ===",
+            requirements,
+            "",
+            "=== RESEARCH SUMMARY ===",
+            research,
+            "",
+            "=== DESIGN ===",
+            design,
+            "",
+            "=== STRUCTURE ===",
+            artifactText,
+          ].join("\n"),
+      },
+      { runtime },
+    );
   },
 };

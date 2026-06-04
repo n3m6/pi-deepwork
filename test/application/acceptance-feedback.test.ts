@@ -9,8 +9,17 @@ import { runFastImplCodeSubstage } from "../../src/application/stage/fast-impl-c
 import { runFastImplTestSubstage } from "../../src/application/stage/fast-impl-test.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createInitialState } from "../../src/domain/run/index.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, PipelineServices } from "../../src/application/port/index.js";
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import type {
+  DispatchRequest,
+  DispatchResult,
+  Dispatcher,
+  PipelineServices,
+} from "../../src/application/port/index.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import os from "node:os";
 import { mkdtemp } from "node:fs/promises";
@@ -37,7 +46,10 @@ test("renderAcceptanceRepairContext returns empty string when acceptFixAttempts 
     route: "full",
   });
 
-  const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
+  const services = {
+    commandContext: { signal: undefined },
+    artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+  } as unknown as PipelineServices;
   const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
   assert.equal(result, "");
 });
@@ -51,7 +63,11 @@ test("renderAcceptanceRepairContext returns repair context when acceptFixAttempt
   const phaseDir = path.join(artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   await mkdir(phaseDir, { recursive: true });
   await writeFile(path.join(phaseDir, "coverage-plan.md"), "# Coverage Plan\n\nCriterion 1: example.", "utf8");
-  await writeFile(path.join(phaseDir, "acceptance-results.md"), "# Acceptance Results\n\n| 1 | Ex | FAIL | missing |", "utf8");
+  await writeFile(
+    path.join(phaseDir, "acceptance-results.md"),
+    "# Acceptance Results\n\n| 1 | Ex | FAIL | missing |",
+    "utf8",
+  );
   await writeFile(path.join(phaseDir, "stage8-summary.md"), "# Stage 8 Summary\n\nTests failed.", "utf8");
 
   const state = {
@@ -64,7 +80,10 @@ test("renderAcceptanceRepairContext returns repair context when acceptFixAttempt
     acceptFixAttempts: 1,
   };
 
-  const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
+  const services = {
+    commandContext: { signal: undefined },
+    artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+  } as unknown as PipelineServices;
   const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
 
   assert.match(result, /ACCEPTANCE REPAIR CONTEXT/);
@@ -90,7 +109,10 @@ test("renderAcceptanceRepairContext uses None. for missing artifact files", asyn
     acceptFixAttempts: 2,
   };
 
-  const services = { commandContext: { signal: undefined }, artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts) } as unknown as PipelineServices;
+  const services = {
+    commandContext: { signal: undefined },
+    artifactRepo: FileSystemArtifactRepository.fromPaths(artifacts),
+  } as unknown as PipelineServices;
   const result = await renderAcceptanceRepairContext({ state, workspaceRoot: workspace, services });
 
   assert.match(result, /ACCEPTANCE REPAIR CONTEXT/);
@@ -116,7 +138,11 @@ test("runFastImplCodeSubstage embeds repair context in prompt when acceptFixAtte
   const phaseDir = path.join(harness.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   await mkdir(phaseDir, { recursive: true });
   await writeFile(path.join(phaseDir, "coverage-plan.md"), "# Coverage Plan\n\nCriterion 1: check output.", "utf8");
-  await writeFile(path.join(phaseDir, "acceptance-results.md"), "# Acceptance Results\n\n| 1 | Ex | FAIL | missing output |", "utf8");
+  await writeFile(
+    path.join(phaseDir, "acceptance-results.md"),
+    "# Acceptance Results\n\n| 1 | Ex | FAIL | missing output |",
+    "utf8",
+  );
   await writeFile(path.join(phaseDir, "stage8-summary.md"), "# Stage 8\n\nOutput missing.", "utf8");
 
   await writeFile(
@@ -131,7 +157,9 @@ test("runFastImplCodeSubstage embeds repair context in prompt when acceptFixAtte
       capturedPrompts.push(request.prompt);
       return stageReturnResult(request, { status: "PASS", filesWritten: ["src/example.ts"], summary: "Done." });
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
@@ -139,7 +167,12 @@ test("runFastImplCodeSubstage embeds repair context in prompt when acceptFixAtte
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };
@@ -148,7 +181,12 @@ test("runFastImplCodeSubstage embeds repair context in prompt when acceptFixAtte
 
   await runFastImplCodeSubstage(
     { ...harness.runtime(), state: stateWithAttempts, services: { ...harness.services, dispatcher } },
-    { taskId: "01", worktreeRoot: harness.workspaceRoot, taskSpecId: { kind: "baseTaskSpec", taskId: "01" }, attempt: 2 },
+    {
+      taskId: "01",
+      worktreeRoot: harness.workspaceRoot,
+      taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+      attempt: 2,
+    },
   );
 
   assert.ok(capturedPrompts.length > 0);
@@ -163,7 +201,11 @@ test("runFastImplTestSubstage embeds repair context in prompt when acceptFixAtte
   const phase = harness.state.currentPhase;
   const phaseDir = path.join(harness.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   await mkdir(phaseDir, { recursive: true });
-  await writeFile(path.join(phaseDir, "acceptance-results.md"), "# Acceptance Results\n\n| 1 | Ex | FAIL | assertion failed |", "utf8");
+  await writeFile(
+    path.join(phaseDir, "acceptance-results.md"),
+    "# Acceptance Results\n\n| 1 | Ex | FAIL | assertion failed |",
+    "utf8",
+  );
   await writeFile(path.join(phaseDir, "stage8-summary.md"), "# Stage 8\n\nAssertion failed.", "utf8");
 
   await writeFile(
@@ -180,10 +222,22 @@ test("runFastImplTestSubstage embeds repair context in prompt when acceptFixAtte
         status: "PASS",
         filesWritten: ["test/example.test.ts"],
         summary: "Tests written.",
-        telemetry: { evidence_quality: { deterministic: 1, flaky: 0, harnessNoisy: 0, ambiguous: 0, redundant: 0, noTestTasks: 0, noTestAuditOverrides: 0 } },
+        telemetry: {
+          evidence_quality: {
+            deterministic: 1,
+            flaky: 0,
+            harnessNoisy: 0,
+            ambiguous: 0,
+            redundant: 0,
+            noTestTasks: 0,
+            noTestAuditOverrides: 0,
+          },
+        },
       });
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
@@ -191,7 +245,12 @@ test("runFastImplTestSubstage embeds repair context in prompt when acceptFixAtte
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };
@@ -200,7 +259,12 @@ test("runFastImplTestSubstage embeds repair context in prompt when acceptFixAtte
 
   await runFastImplTestSubstage(
     { ...harness.runtime(), state: stateWithAttempts, services: { ...harness.services, dispatcher } },
-    { taskId: "01", worktreeRoot: harness.workspaceRoot, taskSpecId: { kind: "baseTaskSpec", taskId: "01" }, attempt: 2 },
+    {
+      taskId: "01",
+      worktreeRoot: harness.workspaceRoot,
+      taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+      attempt: 2,
+    },
   );
 
   assert.ok(capturedPrompts.length > 0);
@@ -224,7 +288,9 @@ test("runFastImplCodeSubstage does not embed repair context when acceptFixAttemp
       capturedPrompts.push(request.prompt);
       return stageReturnResult(request, { status: "PASS", filesWritten: [], summary: "Done." });
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
@@ -232,14 +298,24 @@ test("runFastImplCodeSubstage does not embed repair context when acceptFixAttemp
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };
 
   await runFastImplCodeSubstage(
     { ...harness.runtime(), services: { ...harness.services, dispatcher } },
-    { taskId: "01", worktreeRoot: harness.workspaceRoot, taskSpecId: { kind: "baseTaskSpec", taskId: "01" }, attempt: 1 },
+    {
+      taskId: "01",
+      worktreeRoot: harness.workspaceRoot,
+      taskSpecId: { kind: "baseTaskSpec", taskId: "01" },
+      attempt: 1,
+    },
   );
 
   assert.ok(capturedPrompts.length > 0);

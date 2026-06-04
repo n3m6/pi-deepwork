@@ -3,7 +3,15 @@ import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { DispatchResult } from "../port/index.js";
 import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
-import { artifactRelPath, dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, requireMarkdownSection, writeArtifact } from "./utils.js";
+import {
+  artifactRelPath,
+  dispatchFailureSummary,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  requireMarkdownSection,
+  writeArtifact,
+} from "./utils.js";
 
 interface InterviewEntry {
   branch: string;
@@ -89,11 +97,16 @@ export const goalsStage: StageModule = {
           .filter(Boolean)
           .join("\n"),
         {
-        customTools: [runtime.services.gates.createAskHumanTool()],
-      },
-    );
+          customTools: [runtime.services.gates.createAskHumanTool()],
+        },
+      );
 
-    const synthesisFailure = goalsDispatchFailureOutcome(synthesized, "Goals synthesis failed", ["requirements.md"], 0);
+      const synthesisFailure = goalsDispatchFailureOutcome(
+        synthesized,
+        "Goals synthesis failed",
+        ["requirements.md"],
+        0,
+      );
       if (synthesisFailure) {
         return synthesisFailure;
       }
@@ -205,7 +218,10 @@ export const goalsStage: StageModule = {
         };
       }
 
-      const feedbackId = { kind: "feedbackFile" as const, name: `goals-round-${String(gateRounds).padStart(2, "0")}.md` };
+      const feedbackId = {
+        kind: "feedbackFile" as const,
+        name: `goals-round-${String(gateRounds).padStart(2, "0")}.md`,
+      };
       const feedbackBlock = [
         `## Round ${gateRounds} Feedback`,
         "",
@@ -235,7 +251,10 @@ export const goalsStage: StageModule = {
   },
 };
 
-async function collectInterview(runtime: StageRuntime, userTask: string): Promise<{ entries: InterviewEntry[] } | { failure: string }> {
+async function collectInterview(
+  runtime: StageRuntime,
+  userTask: string,
+): Promise<{ entries: InterviewEntry[] } | { failure: string }> {
   const entries: InterviewEntry[] = [
     {
       branch: "user-task",
@@ -283,7 +302,10 @@ async function collectInterview(runtime: StageRuntime, userTask: string): Promis
   return { entries };
 }
 
-async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewEntry[]): Promise<{
+async function runReviewLoop(
+  runtime: StageRuntime,
+  interviewEntries: InterviewEntry[],
+): Promise<{
   status: "PASS" | "FAIL";
   reviewRounds: number;
   filesWritten: string[];
@@ -322,7 +344,10 @@ async function runReviewLoop(runtime: StageRuntime, interviewEntries: InterviewE
       };
     }
 
-    const reviewId = { kind: "reviewFile" as const, name: `goals-review-round-${String(reviewRound).padStart(2, "0")}.md` };
+    const reviewId = {
+      kind: "reviewFile" as const,
+      name: `goals-review-round-${String(reviewRound).padStart(2, "0")}.md`,
+    };
     await writeArtifact(runtime, reviewId, review.text);
     filesWritten.push(artifactRelPath(runtime, reviewId));
 

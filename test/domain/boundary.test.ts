@@ -25,9 +25,7 @@ const DOMAIN_APP_FORBIDDEN_PATTERNS = [
 ];
 
 /** Domain must never import from infrastructure at all. */
-const DOMAIN_ONLY_FORBIDDEN = [
-  /from\s+["'][^"']*infrastructure\//,
-];
+const DOMAIN_ONLY_FORBIDDEN = [/from\s+["'][^"']*infrastructure\//];
 
 async function collectTsFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -35,7 +33,7 @@ async function collectTsFiles(dir: string): Promise<string[]> {
   for (const entry of entries) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...await collectTsFiles(full));
+      results.push(...(await collectTsFiles(full)));
     } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) {
       results.push(full);
     }
@@ -43,7 +41,10 @@ async function collectTsFiles(dir: string): Promise<string[]> {
   return results;
 }
 
-async function findViolations(dir: string, patterns: RegExp[]): Promise<Array<{ file: string; line: number; text: string }>> {
+async function findViolations(
+  dir: string,
+  patterns: RegExp[],
+): Promise<Array<{ file: string; line: number; text: string }>> {
   const files = await collectTsFiles(dir).catch(() => [] as string[]);
   const violations: Array<{ file: string; line: number; text: string }> = [];
   for (const file of files) {

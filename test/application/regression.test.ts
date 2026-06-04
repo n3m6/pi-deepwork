@@ -98,7 +98,9 @@ test("baseline: includes lint check when lint script is present", async () => {
 
   const calledScripts: string[] = [];
   const buildTool: BuildToolPort = {
-    async availableScripts() { return ["lint", "test"]; },
+    async availableScripts() {
+      return ["lint", "test"];
+    },
     async runScript(name) {
       calledScripts.push(name);
       return { stdout: "", stderr: "", code: 0 };
@@ -160,7 +162,9 @@ test("e2e: falls back to e2e script when test:e2e is absent", async () => {
 
   const calledScripts: string[] = [];
   const buildTool: BuildToolPort = {
-    async availableScripts() { return ["e2e"]; },
+    async availableScripts() {
+      return ["e2e"];
+    },
     async runScript(name) {
       calledScripts.push(name);
       return { stdout: "ok all tests passed", stderr: "", code: 0 };
@@ -176,7 +180,10 @@ test("e2e: falls back to e2e script when test:e2e is absent", async () => {
   );
 
   assert.equal(result.outcome.status, "PASS");
-  assert.ok(calledScripts.some((c) => c.includes("e2e")), "e2e script should have been called");
+  assert.ok(
+    calledScripts.some((c) => c.includes("e2e")),
+    "e2e script should have been called",
+  );
 });
 
 test("e2e: returns FAIL when test:e2e script exits with non-zero code", async () => {
@@ -207,7 +214,9 @@ test("e2e: embeds stdout and stderr in result when script fails", async () => {
       ...harness.runtime(),
       services: {
         ...harness.services,
-        buildTool: makeBuildTool(["test:e2e"], { "test:e2e": { stdout: "Running tests\n1 failed", stderr: "Error: timeout", code: 1 } }),
+        buildTool: makeBuildTool(["test:e2e"], {
+          "test:e2e": { stdout: "Running tests\n1 failed", stderr: "Error: timeout", code: 1 },
+        }),
       },
     },
     harness.state.currentPhase,

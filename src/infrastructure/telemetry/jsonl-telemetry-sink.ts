@@ -42,7 +42,12 @@ export class TelemetryRecorder {
     }
   }
 
-  async append(event: Omit<TelemetryEvent, "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope">): Promise<TelemetryEvent> {
+  async append(
+    event: Omit<
+      TelemetryEvent,
+      "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope"
+    >,
+  ): Promise<TelemetryEvent> {
     const fullEvent: TelemetryEvent = {
       schema_version: SCHEMA_VERSION,
       event_id: `${this.runId}-${this.sequence}`,
@@ -291,20 +296,36 @@ export function createRunEventSummary(stage: StageName | undefined, route: Route
 // Domain event → TelemetryEvent mapping
 // ---------------------------------------------------------------------------
 
-type TelemetryEventPartial = Omit<TelemetryEvent, "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope">;
+type TelemetryEventPartial = Omit<
+  TelemetryEvent,
+  "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope"
+>;
 
 function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial | undefined {
   switch (event.type) {
     case "run.started":
-      return { event_type: "run.started", status: "PASS", route: event.route, summary: `Pipeline started. Route: ${event.route}.` };
+      return {
+        event_type: "run.started",
+        status: "PASS",
+        route: event.route,
+        summary: `Pipeline started. Route: ${event.route}.`,
+      };
     case "run.resumed":
-      return { event_type: "run.resumed", status: "PASS", route: event.route, summary: `Pipeline resumed. Route: ${event.route}.` };
+      return {
+        event_type: "run.resumed",
+        status: "PASS",
+        route: event.route,
+        summary: `Pipeline resumed. Route: ${event.route}.`,
+      };
     case "run.completed":
       return {
         event_type: "run.completed",
         status: event.status,
         route: event.route,
-        summary: event.status === "PASS" ? `Pipeline completed. Route: ${event.route}.` : `Pipeline stopped. Route: ${event.route}.`,
+        summary:
+          event.status === "PASS"
+            ? `Pipeline completed. Route: ${event.route}.`
+            : `Pipeline stopped. Route: ${event.route}.`,
       };
     case "run.aborted":
       return {
@@ -326,7 +347,11 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       };
     case "stage.completed": {
       const resolvedEventType =
-        event.outcome.status === "SKIP" ? "stage.skipped" : event.outcome.status === "FAIL" ? "stage.failed" : "stage.completed";
+        event.outcome.status === "SKIP"
+          ? "stage.skipped"
+          : event.outcome.status === "FAIL"
+            ? "stage.failed"
+            : "stage.completed";
       return {
         event_type: resolvedEventType,
         status: event.outcome.status,
@@ -519,7 +544,10 @@ function aggregateChildCalls(events: TelemetryEvent[]): string[] {
 function aggregateReviewRounds(events: TelemetryEvent[]): string[] {
   return events
     .filter((event) => Boolean(event.stage) && typeof event.context?.review_rounds === "number")
-    .map((event) => `| ${event.stage ?? "—"} | ${String(event.context?.review_type ?? "reviewer")} | ${String(event.context?.review_rounds ?? 0)} |`);
+    .map(
+      (event) =>
+        `| ${event.stage ?? "—"} | ${String(event.context?.review_type ?? "reviewer")} | ${String(event.context?.review_rounds ?? 0)} |`,
+    );
 }
 
 function aggregateGateRows(events: TelemetryEvent[]): string[] {
@@ -544,7 +572,18 @@ function aggregateGateRows(events: TelemetryEvent[]): string[] {
 }
 
 function aggregateEvidence(events: TelemetryEvent[]): string[] {
-  const phases = new Map<number, { deterministic: number; flaky: number; harnessNoisy: number; ambiguous: number; redundant: number; noTestTasks: number; noTestAuditOverrides: number }>();
+  const phases = new Map<
+    number,
+    {
+      deterministic: number;
+      flaky: number;
+      harnessNoisy: number;
+      ambiguous: number;
+      redundant: number;
+      noTestTasks: number;
+      noTestAuditOverrides: number;
+    }
+  >();
   for (const event of events) {
     if (!event.phase || !event.context?.evidence_quality || typeof event.context.evidence_quality !== "object") {
       continue;

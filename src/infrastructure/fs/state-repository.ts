@@ -7,9 +7,7 @@ import { Run } from "../../domain/run/index.js";
 import type { RunState, RunStateRepository } from "../../application/port/index.js";
 
 export class FileSystemRunStateRepository implements RunStateRepository {
-  constructor(
-    private readonly stateFilePath: string,
-  ) {}
+  constructor(private readonly stateFilePath: string) {}
 
   async load(_runId: string): Promise<Run | undefined> {
     const state = await loadState(this.stateFilePath);

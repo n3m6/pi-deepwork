@@ -144,13 +144,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
       };
     }
 
-    feedback = [
-      "### Leakage Review",
-      leakage.text,
-      "",
-      "### Quality Review",
-      quality.text,
-    ].join("\n");
+    feedback = ["### Leakage Review", leakage.text, "", "### Quality Review", quality.text].join("\n");
     reviewRound += 1;
   }
 
@@ -231,4 +225,3 @@ function createFastQuestionTarget(runtime: StageRuntime, agentName: string, maxT
   delete reviewTarget.modelName;
   return reviewTarget;
 }
-

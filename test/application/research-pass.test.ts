@@ -175,7 +175,9 @@ class RecordingResearchDispatcher implements Dispatcher {
     switch (request.target.name) {
       case "qrspi-codebase-researcher":
         this.codebasePrompts.push(request.prompt);
-        return textResult("## Findings for Q1\n\n### Summary\nNo project markdown files exist outside ignored metadata.\n");
+        return textResult(
+          "## Findings for Q1\n\n### Summary\nNo project markdown files exist outside ignored metadata.\n",
+        );
       case "qrspi-web-researcher":
         this.webTimeouts.push(request.timeoutMs);
         return textResult("## Findings for Q1\n\n### Summary\nExternal reference patterns are documented.\n");
@@ -189,9 +191,15 @@ class RecordingResearchDispatcher implements Dispatcher {
           return textResult("# Research Summary\n\n## Overview\nSynthesized findings.\n");
         }
         if (!this.options.skipSummaryWrite) {
-          await writeFile(this.artifacts.researchSummaryFile, "# Research Summary\n\n## Overview\nSynthesized findings.\n", "utf8");
+          await writeFile(
+            this.artifacts.researchSummaryFile,
+            "# Research Summary\n\n## Overview\nSynthesized findings.\n",
+            "utf8",
+          );
         }
-        return textResult("### Status — PASS\n### Files Written — research/summary.md\n### Summary — Synthesized findings.");
+        return textResult(
+          "### Status — PASS\n### Files Written — research/summary.md\n### Summary — Synthesized findings.",
+        );
       case "qrspi-research-reviewer":
         this.reviewerTimeouts.push(request.timeoutMs);
         this.reviewCalls += 1;

@@ -55,7 +55,8 @@ export const replanStage: StageModule = {
           String(phase),
           "",
           "=== DEFERRED REPLAN FEEDBACK ===",
-          (await repo.read({ kind: "feedbackFile", name: `deferred-replan-${String(phase).padStart(2, "0")}.md` })) ?? "None.",
+          (await repo.read({ kind: "feedbackFile", name: `deferred-replan-${String(phase).padStart(2, "0")}.md` })) ??
+            "None.",
         ].join("\n"),
       );
 
@@ -111,22 +112,25 @@ export const replanStage: StageModule = {
           String(phase),
           "",
           "=== REPLAN NOTE ===",
-          (await repo.read({ kind: "phaseFile", phase, name: `replan/phase-${String(phase).padStart(2, "0")}-replan.md` })) ?? "None.",
+          (await repo.read({
+            kind: "phaseFile",
+            phase,
+            name: `replan/phase-${String(phase).padStart(2, "0")}-replan.md`,
+          })) ?? "None.",
         ].join("\n"),
       );
 
-      const reviewId: ArtifactId = { kind: "reviewFile", name: `replan-review-round-${String(reviewRound).padStart(2, "0")}.md` };
+      const reviewId: ArtifactId = {
+        kind: "reviewFile",
+        name: `replan-review-round-${String(reviewRound).padStart(2, "0")}.md`,
+      };
       await writeArtifact(runtime, reviewId, review.text);
 
       if (parseReviewStatus(review.text) === "PASS") {
         return {
           status: "PASS",
           phase,
-          filesWritten: [
-            "plan.md",
-            "phase-manifest.md",
-            artifactRelPath(runtime, reviewId),
-          ],
+          filesWritten: ["plan.md", "phase-manifest.md", artifactRelPath(runtime, reviewId)],
           summary: "Remaining work was replanned for the next phase.",
           telemetry: {
             review_rounds: reviewRound,
@@ -164,13 +168,22 @@ export const replanStage: StageModule = {
   },
 };
 
-async function writeReplanArtifacts(runtime: StageRuntime, phase: number, nextPhase: number, sections: Record<string, string>) {
+async function writeReplanArtifacts(
+  runtime: StageRuntime,
+  phase: number,
+  nextPhase: number,
+  sections: Record<string, string>,
+) {
   const repo = runtime.services.artifactRepo;
-  await writeArtifact(runtime, { kind: "plan" }, sections["plan.md"] ?? await readArtifact(runtime, { kind: "plan" }));
+  await writeArtifact(
+    runtime,
+    { kind: "plan" },
+    sections["plan.md"] ?? (await readArtifact(runtime, { kind: "plan" })),
+  );
   await writeArtifact(
     runtime,
     { kind: "phaseManifest" },
-    sections["phase-manifest.md"] ?? await readArtifact(runtime, { kind: "phaseManifest" }),
+    sections["phase-manifest.md"] ?? (await readArtifact(runtime, { kind: "phaseManifest" })),
   );
 
   for (const [heading, content] of Object.entries(sections)) {

@@ -59,14 +59,21 @@ export const planStage: StageModule = {
         agentsGuidance,
       });
 
-      const reviewId: ArtifactId = { kind: "reviewFile", name: `plan-review-round-${String(reviewRound).padStart(2, "0")}.md` };
+      const reviewId: ArtifactId = {
+        kind: "reviewFile",
+        name: `plan-review-round-${String(reviewRound).padStart(2, "0")}.md`,
+      };
       await writeArtifact(runtime, reviewId, review.text);
       filesWritten.push(artifactRelPath(runtime, reviewId));
 
       if (parseReviewStatus(review.text) === "PASS") {
         const specResult = await writeTaskSpecs(runtime, agentsGuidance);
         if (specResult.status === "FAIL") {
-          await writeArtifact(runtime, { kind: "baselineResults" }, renderBaselineUnavailable(specResult.summary ?? "Task spec review did not converge."));
+          await writeArtifact(
+            runtime,
+            { kind: "baselineResults" },
+            renderBaselineUnavailable(specResult.summary ?? "Task spec review did not converge."),
+          );
           filesWritten.push("baseline-results.md", ...specResult.filesWritten);
           const totalPhases = parseTotalPhases(await readArtifact(runtime, { kind: "phaseManifest" }));
           await repo.ensurePhaseLayout(runtime.state.currentPhase, totalPhases);
@@ -159,7 +166,9 @@ export async function writePlanArtifacts(runtime: StageRuntime, output: string):
   const repo = runtime.services.artifactRepo;
   const sections = parseMarkdownSections(output);
   const fallbackSections = extractLoosePlanSections(output);
-  const plan = cleanArtifactMarkdown(sections["plan.md"] ?? sections["Implementation Plan"] ?? fallbackSections["plan.md"]);
+  const plan = cleanArtifactMarkdown(
+    sections["plan.md"] ?? sections["Implementation Plan"] ?? fallbackSections["plan.md"],
+  );
   const manifest = cleanArtifactMarkdown(sections["phase-manifest.md"] ?? fallbackSections["phase-manifest.md"]);
   if (!plan || !manifest) {
     throw new Error("Plan writer output is missing required sections.");
@@ -348,7 +357,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
       }
 
       const taskSpecId: ArtifactId = { kind: "baseTaskSpec", taskId: taskNumber };
-      const outlineContent = await repo.read({ kind: "taskOutlineFile", name: outlineFile }) ?? "";
+      const outlineContent = (await repo.read({ kind: "taskOutlineFile", name: outlineFile })) ?? "";
       const taskSpec = (await repo.read(taskSpecId)) ?? "";
       const review = await dispatchLeaf(
         runtime,
@@ -389,7 +398,10 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
         },
       );
 
-      const reviewId: ArtifactId = { kind: "reviewFile", name: `task-${taskNumber}-review-round-${String(reviewRound).padStart(2, "0")}.md` };
+      const reviewId: ArtifactId = {
+        kind: "reviewFile",
+        name: `task-${taskNumber}-review-round-${String(reviewRound).padStart(2, "0")}.md`,
+      };
       await repo.write(reviewId, review.text);
       written.push(repo.relPath(reviewId), repo.relPath(taskSpecId));
 
@@ -517,12 +529,5 @@ async function writeSimplePlan(runtime: StageRuntime, filePath: string, content:
   await repo.write(taskId, task);
   await writeArtifact(runtime, { kind: "baselineResults" }, baseline);
 
-  return [
-    "plan.md",
-    "phase-manifest.md",
-    repo.relPath(outlineId),
-    repo.relPath(taskId),
-    "baseline-results.md",
-  ];
+  return ["plan.md", "phase-manifest.md", repo.relPath(outlineId), repo.relPath(taskId), "baseline-results.md"];
 }
-

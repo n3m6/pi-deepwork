@@ -3,13 +3,7 @@
  */
 
 import type { TelemetrySink } from "../../application/port/index.js";
-import type {
-  RunState,
-  StageModule,
-  StageOutcome,
-  StageRuntime,
-  StageTelemetryContext,
-} from "../port/index.js";
+import type { RunState, StageModule, StageOutcome, StageRuntime, StageTelemetryContext } from "../port/index.js";
 
 export async function resolveStageFailure(
   stage: StageModule,

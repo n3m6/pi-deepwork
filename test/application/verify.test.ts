@@ -63,7 +63,11 @@ async function writeCoreArtifacts(harness: TestHarness): Promise<void> {
   const phaseDir = path.join(harness.artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
   await mkdir(phaseDir, { recursive: true });
   await writeFile(path.join(phaseDir, "execution-manifest.md"), "# Execution Manifest\n\nAll tasks PASS.", "utf8");
-  await writeFile(path.join(phaseDir, "stage8-summary.md"), "### Status — PASS\n\n# Stage 8 Summary\n\nAll tests passed.", "utf8");
+  await writeFile(
+    path.join(phaseDir, "stage8-summary.md"),
+    "### Status — PASS\n\n# Stage 8 Summary\n\nAll tests passed.",
+    "utf8",
+  );
 }
 
 function textResult(text: string): DispatchResult {
@@ -78,13 +82,17 @@ function makeVerifyDispatcher(verifyText: string): Dispatcher {
       }
       return textResult("### Status — PASS\n\n### Summary\nPass.");
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 }
 
@@ -130,7 +138,8 @@ test("verify stage returns PARTIAL with verify_status PARTIAL when verifier repo
   harness.state = markStageCompleted(harness.state, "accept", "verify");
   await writeCoreArtifacts(harness);
 
-  const verifyText = "### Overall Status — PARTIAL\n\n### Failures\n- Criterion 2 partial.\n\n### Stage Summary\nPartial.";
+  const verifyText =
+    "### Overall Status — PARTIAL\n\n### Failures\n- Criterion 2 partial.\n\n### Stage Summary\nPartial.";
   const dispatcher = makeVerifyDispatcher(verifyText);
 
   const result = await verifyStage.run({
@@ -161,13 +170,17 @@ test("verify stage uses simple exact-file fast path for quick-fix route with exa
       dispatchedNames.push(request.target.name ?? "generic");
       return textResult("### Overall Status — FAIL");
     },
-    async dispatchParallel(requests) { return Promise.all(requests.map((r) => this.dispatch(r))); },
+    async dispatchParallel(requests) {
+      return Promise.all(requests.map((r) => this.dispatch(r)));
+    },
     async dispatchChain(requests) {
       const results: DispatchResult[] = [];
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 
   const result = await verifyStage.run({

@@ -1,4 +1,10 @@
-import type { FailurePolicy, GateChoice, GateManager, GateOption, InteractionMode } from "../../src/application/port/index.js";
+import type {
+  FailurePolicy,
+  GateChoice,
+  GateManager,
+  GateOption,
+  InteractionMode,
+} from "../../src/application/port/index.js";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 
 export type ScriptedGateAnswer =

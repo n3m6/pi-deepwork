@@ -5,7 +5,13 @@
  * and will be removed when the ESLint boundary rule is enforced in Phase 7.
  */
 
-import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type {
+  AgentToolResult,
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+  ToolDefinition,
+} from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
 
 // ---------------------------------------------------------------------------
@@ -211,7 +217,10 @@ export interface Dispatcher {
   dispatch(request: DispatchRequest): Promise<DispatchResult>;
   dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]>;
   dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]>;
-  dispatchGenericCoding(prompt: string, options?: { cwd?: string; tools?: string[]; signal?: AbortSignal }): Promise<StageOutcome>;
+  dispatchGenericCoding(
+    prompt: string,
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+  ): Promise<StageOutcome>;
 }
 
 // ---------------------------------------------------------------------------
@@ -314,7 +323,9 @@ export interface ArtifactRepository {
   hasPhaseTaskSpecs(phase: number): Promise<boolean>;
   ensureDirectories(): Promise<void>;
   ensurePhaseLayout(currentPhase: number, totalPhases: number): Promise<void>;
-  archiveForBackwardLoop(classification: BackwardLoopClassification): Promise<{ targetStage: StageName; archived: string[] }>;
+  archiveForBackwardLoop(
+    classification: BackwardLoopClassification,
+  ): Promise<{ targetStage: StageName; archived: string[] }>;
   writeDeferredFeedback(phase: number, request: BackwardLoopRequest): Promise<void>;
   readWorkspaceFile(relativePath: string): Promise<string | undefined>;
   writeWorkspaceFile(relativePath: string, content: string): Promise<void>;
@@ -345,7 +356,11 @@ export interface VersionControl {
   checkpoint(stage: StageName, action: "complete" | "skipped" | "failed", signal?: AbortSignal): Promise<void>;
   resolveRepoRoot(signal?: AbortSignal): Promise<string>;
   prepareWorktree(phase: number, taskId: string, repoRoot: string, signal?: AbortSignal): Promise<TaskWorktreeHandle>;
-  squashMerge(worktree: TaskWorktreeHandle, commitMessage: string, signal?: AbortSignal): Promise<{ ok: boolean; conflictOutput?: string }>;
+  squashMerge(
+    worktree: TaskWorktreeHandle,
+    commitMessage: string,
+    signal?: AbortSignal,
+  ): Promise<{ ok: boolean; conflictOutput?: string }>;
   rebaseWorktree(worktree: TaskWorktreeHandle, signal?: AbortSignal): Promise<{ ok: boolean; output?: string }>;
   continueRebase(worktree: TaskWorktreeHandle, signal?: AbortSignal): Promise<{ ok: boolean; output?: string }>;
   commitWorktreeChanges(worktreeRoot: string, message: string, signal?: AbortSignal): Promise<void>;

@@ -45,7 +45,9 @@ export interface StageReturnPayload {
   };
 }
 
-export function createStageReturnTool(sink: StageReturnPayload[]): ToolDefinition<typeof stageReturnSchema, StageReturnPayload> {
+export function createStageReturnTool(
+  sink: StageReturnPayload[],
+): ToolDefinition<typeof stageReturnSchema, StageReturnPayload> {
   return defineTool({
     name: "stage_return",
     label: "Stage Return",
@@ -113,9 +115,10 @@ export function structuredToOutcome(payload: StageReturnPayload): StageOutcome {
 
 function coerceStageReturnPayload(input: unknown): StageReturnPayload {
   const value = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const backwardLoopValue = value.backwardLoop && typeof value.backwardLoop === "object"
-    ? (value.backwardLoop as Record<string, unknown>)
-    : undefined;
+  const backwardLoopValue =
+    value.backwardLoop && typeof value.backwardLoop === "object"
+      ? (value.backwardLoop as Record<string, unknown>)
+      : undefined;
 
   return {
     status: normalizeStatus(value.status),
@@ -124,12 +127,16 @@ function coerceStageReturnPayload(input: unknown): StageReturnPayload {
     ...(isString(value.route) ? { route: value.route } : {}),
     ...(typeof value.phase === "number" ? { phase: value.phase } : {}),
     ...(isString(value.reportContent) ? { reportContent: value.reportContent } : {}),
-    ...(value.telemetry && typeof value.telemetry === "object" ? { telemetry: value.telemetry as Record<string, unknown> } : {}),
+    ...(value.telemetry && typeof value.telemetry === "object"
+      ? { telemetry: value.telemetry as Record<string, unknown> }
+      : {}),
     ...(backwardLoopValue
       ? {
           backwardLoop: {
             classification: normalizeBackwardLoop(backwardLoopValue.classification),
-            summary: isString(backwardLoopValue.summary) ? backwardLoopValue.summary : "No backward-loop summary provided.",
+            summary: isString(backwardLoopValue.summary)
+              ? backwardLoopValue.summary
+              : "No backward-loop summary provided.",
             ...(isString(backwardLoopValue.guidance) ? { guidance: backwardLoopValue.guidance } : {}),
           },
         }

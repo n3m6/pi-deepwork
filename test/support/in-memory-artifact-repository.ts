@@ -4,7 +4,12 @@
  * Satisfies the ArtifactRepository port without touching the file system.
  */
 
-import type { ArtifactId, ArtifactRepository, BackwardLoopRequest, StageName } from "../../src/application/port/index.js";
+import type {
+  ArtifactId,
+  ArtifactRepository,
+  BackwardLoopRequest,
+  StageName,
+} from "../../src/application/port/index.js";
 
 export class InMemoryArtifactRepository implements ArtifactRepository {
   private readonly store = new Map<string, string>();

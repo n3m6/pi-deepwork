@@ -9,46 +9,50 @@ export const designStage: StageModule = {
     const requirements = await readArtifact(runtime, { kind: "requirements" });
     const research = await readArtifact(runtime, { kind: "researchSummary" });
 
-    return runSynthesizeReviewGate(runtime, {
-      stageName: "design",
-      synthesizerAgent: "qrspi-design-synthesizer",
-      reviewerAgent: "qrspi-design-reviewer",
-      artifactId: { kind: "design" },
-      artifactDisplayName: "design.md",
-      approveLabel: "Approve design",
-      feedbackLabel: "Provide design feedback",
-      feedbackQuestion: "Describe the required design revisions.",
-      buildSynthesizerPrompt: (ctx, feedbackHistory) =>
-        [
-          "=== GOALS ===",
-          goals,
-          "",
-          "=== REQUIREMENTS ===",
-          requirements,
-          "",
-          "=== RESEARCH SUMMARY ===",
-          research,
-          ...(typeof ctx["designDiscussion"] === "string"
-            ? ["", "=== DESIGN DISCUSSION ===", ctx["designDiscussion"]]
-            : []),
-          ...(feedbackHistory.length > 0 ? ["\n=== FEEDBACK HISTORY ===", feedbackHistory.join("\n\n")] : []),
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      buildReviewerPrompt: (_ctx, artifactText) =>
-        [
-          "=== GOALS ===",
-          goals,
-          "",
-          "=== REQUIREMENTS ===",
-          requirements,
-          "",
-          "=== RESEARCH SUMMARY ===",
-          research,
-          "",
-          "=== DESIGN ===",
-          artifactText,
-        ].join("\n"),
-    }, { runtime });
+    return runSynthesizeReviewGate(
+      runtime,
+      {
+        stageName: "design",
+        synthesizerAgent: "qrspi-design-synthesizer",
+        reviewerAgent: "qrspi-design-reviewer",
+        artifactId: { kind: "design" },
+        artifactDisplayName: "design.md",
+        approveLabel: "Approve design",
+        feedbackLabel: "Provide design feedback",
+        feedbackQuestion: "Describe the required design revisions.",
+        buildSynthesizerPrompt: (ctx, feedbackHistory) =>
+          [
+            "=== GOALS ===",
+            goals,
+            "",
+            "=== REQUIREMENTS ===",
+            requirements,
+            "",
+            "=== RESEARCH SUMMARY ===",
+            research,
+            ...(typeof ctx["designDiscussion"] === "string"
+              ? ["", "=== DESIGN DISCUSSION ===", ctx["designDiscussion"]]
+              : []),
+            ...(feedbackHistory.length > 0 ? ["\n=== FEEDBACK HISTORY ===", feedbackHistory.join("\n\n")] : []),
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        buildReviewerPrompt: (_ctx, artifactText) =>
+          [
+            "=== GOALS ===",
+            goals,
+            "",
+            "=== REQUIREMENTS ===",
+            requirements,
+            "",
+            "=== RESEARCH SUMMARY ===",
+            research,
+            "",
+            "=== DESIGN ===",
+            artifactText,
+          ].join("\n"),
+      },
+      { runtime },
+    );
   },
 };

@@ -29,7 +29,10 @@ export class CheckpointManager {
       if (!orphan.ok) {
         return orphan;
       }
-      return this.execGit([...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${runId}`], signal);
+      return this.execGit(
+        [...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${runId}`],
+        signal,
+      );
     }
 
     const base = await this.execGit(["rev-parse", "--verify", "main"], signal);
@@ -37,7 +40,11 @@ export class CheckpointManager {
     return this.execGit(["checkout", "-b", branch, targetBase], signal);
   }
 
-  async stageBoundaryCheckpoint(stage: StageName, action: "complete" | "skipped" | "failed", signal?: AbortSignal): Promise<GitOperationResult> {
+  async stageBoundaryCheckpoint(
+    stage: StageName,
+    action: "complete" | "skipped" | "failed",
+    signal?: AbortSignal,
+  ): Promise<GitOperationResult> {
     const status = await this.execGit(["status", "--short"], signal);
     if (!status.ok) {
       return status;
@@ -104,7 +111,13 @@ export function phaseBranchName(runId: string, phase: number, taskId: string): s
 }
 
 export function worktreeRootPath(runId: string, repoRoot: string, phase: number, taskId: string): string {
-  return path.join(path.dirname(repoRoot), ".qrspi-worktrees", runId, `phase-${String(phase).padStart(2, "0")}`, taskId);
+  return path.join(
+    path.dirname(repoRoot),
+    ".qrspi-worktrees",
+    runId,
+    `phase-${String(phase).padStart(2, "0")}`,
+    taskId,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +154,11 @@ export class WorktreeManager {
     await this.exec(["branch", "-D", worktree.branch], signal, true);
   }
 
-  async squashMerge(worktree: TaskWorktree, commitMessage: string, signal?: AbortSignal): Promise<{
+  async squashMerge(
+    worktree: TaskWorktree,
+    commitMessage: string,
+    signal?: AbortSignal,
+  ): Promise<{
     ok: boolean;
     conflictOutput?: string;
   }> {
@@ -188,7 +205,11 @@ export class WorktreeManager {
     if (add.code !== 0) {
       return { ok: false, output: [add.stdout, add.stderr].filter(Boolean).join("\n") };
     }
-    const rebase = await this.exec(["-C", worktree.worktreeRoot, "-c", "core.editor=true", "rebase", "--continue"], signal, true);
+    const rebase = await this.exec(
+      ["-C", worktree.worktreeRoot, "-c", "core.editor=true", "rebase", "--continue"],
+      signal,
+      true,
+    );
     return {
       ok: rebase.code === 0,
       output: [rebase.stdout, rebase.stderr].filter(Boolean).join("\n"),
@@ -219,7 +240,10 @@ export class WorktreeManager {
       if (orphan.code !== 0) {
         throw new Error(orphan.stderr.trim() || orphan.stdout.trim() || `git checkout --orphan ${runBranch} failed`);
       }
-      await this.exec([...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${this.runId}`], signal);
+      await this.exec(
+        [...commitIdentityArgs(), "commit", "--allow-empty", "-m", `qrspi: initialize ${this.runId}`],
+        signal,
+      );
       return;
     }
     await this.exec(["branch", runBranch, "HEAD"], signal);
@@ -253,7 +277,12 @@ export class GitVersionControl implements VersionControl {
     return this.checkpointMgr.resolveRepoRoot(signal);
   }
 
-  async prepareWorktree(phase: number, taskId: string, repoRoot: string, signal?: AbortSignal): Promise<TaskWorktreeHandle> {
+  async prepareWorktree(
+    phase: number,
+    taskId: string,
+    repoRoot: string,
+    signal?: AbortSignal,
+  ): Promise<TaskWorktreeHandle> {
     const mgr = this.buildWorktreeManager(repoRoot);
     const worktree = await mgr.prepare(phase, taskId, signal);
     return {
@@ -264,7 +293,11 @@ export class GitVersionControl implements VersionControl {
     };
   }
 
-  async squashMerge(worktree: TaskWorktreeHandle, commitMessage: string, signal?: AbortSignal): Promise<{ ok: boolean; conflictOutput?: string }> {
+  async squashMerge(
+    worktree: TaskWorktreeHandle,
+    commitMessage: string,
+    signal?: AbortSignal,
+  ): Promise<{ ok: boolean; conflictOutput?: string }> {
     const mgr = this.buildWorktreeManager(this.workspaceRoot);
     return mgr.squashMerge(worktree, commitMessage, signal);
   }
@@ -285,7 +318,11 @@ export class GitVersionControl implements VersionControl {
     if (add.code !== 0) {
       throw new Error(add.stderr.trim() || add.stdout.trim() || "git add -A failed");
     }
-    const commit = await this.pi.exec("git", ["-c", "user.name=qrspi", "-c", "user.email=qrspi@example.invalid", "commit", "-m", message], opts);
+    const commit = await this.pi.exec(
+      "git",
+      ["-c", "user.name=qrspi", "-c", "user.email=qrspi@example.invalid", "commit", "-m", message],
+      opts,
+    );
     if (commit.code !== 0) {
       throw new Error(commit.stderr.trim() || commit.stdout.trim() || "git commit failed");
     }

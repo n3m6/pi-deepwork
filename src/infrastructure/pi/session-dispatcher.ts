@@ -105,7 +105,11 @@ export class PiSessionDispatcher implements Dispatcher {
     const target = request.target;
     const isLeaf = target.kind === "leaf";
     const toolAllowlist = mergeToolAllowlist(target.tools, request.tools, customTools);
-    const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? (target as LeafAgentDefinition).modelName : undefined);
+    const model = resolveModel(
+      this.modelRegistry,
+      this.currentModel,
+      isLeaf ? (target as LeafAgentDefinition).modelName : undefined,
+    );
     const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
 
     try {
@@ -237,7 +241,9 @@ export function resolveModel(
 ): Model<any> | undefined {
   const all = modelRegistry.getAll();
   if (desiredModelName) {
-    const exact = all.find((model) => model.id === desiredModelName || `${model.provider}/${model.id}` === desiredModelName);
+    const exact = all.find(
+      (model) => model.id === desiredModelName || `${model.provider}/${model.id}` === desiredModelName,
+    );
     if (exact) {
       return exact;
     }
@@ -305,7 +311,12 @@ export function contentToText(content: unknown): string {
         if (typeof item === "string") {
           return item;
         }
-        if (item && typeof item === "object" && "text" in item && typeof (item as { text?: unknown }).text === "string") {
+        if (
+          item &&
+          typeof item === "object" &&
+          "text" in item &&
+          typeof (item as { text?: unknown }).text === "string"
+        ) {
           return (item as { text: string }).text;
         }
         return "";

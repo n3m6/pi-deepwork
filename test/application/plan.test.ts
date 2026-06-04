@@ -58,7 +58,10 @@ test("writePlanArtifacts recovers loose fenced artifact blocks", async () => {
   );
 
   assert.deepEqual(filesWritten, ["plan.md", "phase-manifest.md", "tasks/outlines/task-01.outline"]);
-  assert.equal(await readFile(harness.artifacts.planFile, "utf8"), "# Implementation Plan\n\n## Overview\nCreate one smoke marker file.\n");
+  assert.equal(
+    await readFile(harness.artifacts.planFile, "utf8"),
+    "# Implementation Plan\n\n## Overview\nCreate one smoke marker file.\n",
+  );
   assert.match(await readFile(harness.artifacts.phaseManifestFile, "utf8"), /^---\ntotal_phases: 1\n---/);
   assert.doesNotMatch(await readFile(`${harness.artifacts.outlinesDir}/task-01.outline`, "utf8"), /```/);
 });
@@ -98,7 +101,11 @@ class TaskReviewCapDispatcher implements Dispatcher {
         return textResult("### Status — PASS\n\n### Summary\nPlan is acceptable.");
       case "qrspi-task-spec-writer": {
         const taskNumber = request.prompt.match(/=== TASK NUMBER ===\n(\d+)/)?.[1] ?? "01";
-        await writeFile(path.join(this.artifacts.tasksDir, `task-${taskNumber}.md`), renderTaskSpec(taskNumber), "utf8");
+        await writeFile(
+          path.join(this.artifacts.tasksDir, `task-${taskNumber}.md`),
+          renderTaskSpec(taskNumber),
+          "utf8",
+        );
         return textResult("### Status — PASS\n\n### Summary\nTask spec written.");
       }
       case "qrspi-task-spec-reviewer":

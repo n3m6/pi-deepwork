@@ -1,6 +1,10 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { FileSystemArtifactRepository, ensureRunDirectories, getRunArtifacts } from "./infrastructure/fs/artifact-repository.js";
+import {
+  FileSystemArtifactRepository,
+  ensureRunDirectories,
+  getRunArtifacts,
+} from "./infrastructure/fs/artifact-repository.js";
 import { FileSystemRunStateRepository } from "./infrastructure/fs/state-repository.js";
 import { resumeOrInferState } from "./infrastructure/fs/state-reconstruction.js";
 import { GitVersionControl } from "./infrastructure/git/version-control.js";

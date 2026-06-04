@@ -112,8 +112,14 @@ test("squashMerge skips commit when only unstaged scratch files are dirty", asyn
     ["worktree", "remove", "--force", worktree.worktreeRoot],
     ["branch", "-D", worktree.branch],
   ]);
-  assert.equal(calls.some((args) => args.includes("commit")), false);
-  assert.equal(calls.some((args) => args[0] === "status"), false);
+  assert.equal(
+    calls.some((args) => args.includes("commit")),
+    false,
+  );
+  assert.equal(
+    calls.some((args) => args[0] === "status"),
+    false,
+  );
 });
 
 test("worktree rebase helpers report continue failures for abandon path", async () => {

@@ -2,7 +2,13 @@ import { cp, mkdir, readFile, readdir, rm, stat, symlink, writeFile } from "node
 import path from "node:path";
 
 import { backwardLoopTarget } from "../../domain/backward-loop/artifact-reset-policy.js";
-import type { ArtifactId, ArtifactRepository, BackwardLoopClassification, BackwardLoopRequest, StageName } from "../../application/port/index.js";
+import type {
+  ArtifactId,
+  ArtifactRepository,
+  BackwardLoopClassification,
+  BackwardLoopRequest,
+  StageName,
+} from "../../application/port/index.js";
 
 // ---------------------------------------------------------------------------
 // RunArtifacts — infrastructure-internal path bag (not part of the application port).
@@ -272,7 +278,9 @@ export class FileSystemArtifactRepository implements ArtifactRepository {
         return [];
       }
       const taskId = match[1];
-      return [phase !== undefined ? { kind: "taskSpec" as const, phase, taskId } : { kind: "taskOutline" as const, taskId }];
+      return [
+        phase !== undefined ? { kind: "taskSpec" as const, phase, taskId } : { kind: "taskOutline" as const, taskId },
+      ];
     });
   }
 
@@ -304,7 +312,9 @@ export class FileSystemArtifactRepository implements ArtifactRepository {
     }
   }
 
-  async archiveForBackwardLoop(classification: BackwardLoopClassification): Promise<{ targetStage: StageName; archived: string[] }> {
+  async archiveForBackwardLoop(
+    classification: BackwardLoopClassification,
+  ): Promise<{ targetStage: StageName; archived: string[] }> {
     return resetArtifactsForBackwardLoop(this._paths, classification);
   }
 
@@ -439,7 +449,12 @@ function pathsForTargetStage(artifacts: RunArtifacts, targetStage: StageName): s
   }
 }
 
-async function archiveAndDelete(runDir: string, archiveRoot: string, targetPath: string, archived: Set<string>): Promise<void> {
+async function archiveAndDelete(
+  runDir: string,
+  archiveRoot: string,
+  targetPath: string,
+  archived: Set<string>,
+): Promise<void> {
   if (!(await pathExists(targetPath))) {
     return;
   }

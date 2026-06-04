@@ -6,10 +6,18 @@ import { promisify } from "node:util";
 
 import type { AgentToolResult, ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 
 import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
-import { ensureRunDirectories, getRunArtifacts, type RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import {
+  ensureRunDirectories,
+  getRunArtifacts,
+  type RunArtifacts,
+} from "../../src/infrastructure/fs/artifact-repository.js";
 import { createRunId } from "../../src/infrastructure/system/id-generator.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
@@ -41,7 +49,13 @@ export interface HarnessOptions {
   totalPhases?: number;
   verificationStatus?: "PASS" | "PARTIAL" | "FAIL";
   acceptanceStatus?: "PASS" | "FAIL";
-  backwardLoopRecommendation?: "NO_LOOP" | "DEFER_REPLAN" | "LOOP_PLAN" | "LOOP_STRUCTURE" | "LOOP_DESIGN" | "LOOP_GOALS";
+  backwardLoopRecommendation?:
+    | "NO_LOOP"
+    | "DEFER_REPLAN"
+    | "LOOP_PLAN"
+    | "LOOP_STRUCTURE"
+    | "LOOP_DESIGN"
+    | "LOOP_GOALS";
   interactionMode?: InteractionMode;
   failurePolicy?: FailurePolicy;
 }
@@ -55,12 +69,7 @@ export class TestHarness {
   readonly services: PipelineServices;
   state: RunState;
 
-  private constructor(
-    workspaceRoot: string,
-    artifacts: RunArtifacts,
-    state: RunState,
-    services: PipelineServices,
-  ) {
+  private constructor(workspaceRoot: string, artifacts: RunArtifacts, state: RunState, services: PipelineServices) {
     this.workspaceRoot = workspaceRoot;
     this.artifacts = artifacts;
     this.state = state;
@@ -124,7 +133,11 @@ export class TestHarness {
       telemetrySink,
     };
 
-    await writeFile(artifacts.configFile, `created: 2026-06-01\nroute: ${options.route ?? "full"}\nrun_id: ${runId}\n`, "utf8");
+    await writeFile(
+      artifacts.configFile,
+      `created: 2026-06-01\nroute: ${options.route ?? "full"}\nrun_id: ${runId}\n`,
+      "utf8",
+    );
 
     return new TestHarness(workspaceRoot, artifacts, state, services);
   }
@@ -149,7 +162,12 @@ export class TestHarness {
 class MockDispatcher implements Dispatcher {
   constructor(
     private readonly artifacts: RunArtifacts,
-    private readonly options: Required<Pick<HarnessOptions, "route" | "totalPhases" | "verificationStatus" | "acceptanceStatus" | "backwardLoopRecommendation">>,
+    private readonly options: Required<
+      Pick<
+        HarnessOptions,
+        "route" | "totalPhases" | "verificationStatus" | "acceptanceStatus" | "backwardLoopRecommendation"
+      >
+    >,
   ) {}
 
   async dispatch(request: DispatchRequest): Promise<DispatchResult> {
@@ -219,34 +237,54 @@ class MockDispatcher implements Dispatcher {
         );
       case "qrspi-codebase-researcher":
         return textResult(
-          ["## Findings for Q1", "", "### Summary", "A current code path exists.", "", "### References", "- `src/example.ts:1` — placeholder reference."].join("\n"),
+          [
+            "## Findings for Q1",
+            "",
+            "### Summary",
+            "A current code path exists.",
+            "",
+            "### References",
+            "- `src/example.ts:1` — placeholder reference.",
+          ].join("\n"),
         );
       case "qrspi-web-researcher":
-        return textResult(["## Findings for Q1", "", "### Summary", "No relevant external sources found for this question."].join("\n"));
+        return textResult(
+          ["## Findings for Q1", "", "### Summary", "No relevant external sources found for this question."].join("\n"),
+        );
       case "qrspi-research-synthesizer": {
         await writeFile(
           this.artifacts.researchSummaryFile,
           "# Research Summary\n\n## Overview\nCurrent system facts were synthesized.\n",
           "utf8",
         );
-        return textResult("### Status — PASS\n### Files Written — research/summary.md\n### Summary — Synthesized findings.");
+        return textResult(
+          "### Status — PASS\n### Files Written — research/summary.md\n### Summary — Synthesized findings.",
+        );
       }
       case "qrspi-design-synthesizer":
         return textResult("# Design\n\n## Approach\nUse the existing repository layout.\n");
       case "qrspi-structure-mapper":
-        return textResult("# Structure\n\n## File Map\n\n### Slice 1: Core\n| File | Action | Purpose |\n|------|--------|---------|\n| `src/example.ts` | MODIFY | Example work |\n");
+        return textResult(
+          "# Structure\n\n## File Map\n\n### Slice 1: Core\n| File | Action | Purpose |\n|------|--------|---------|\n| `src/example.ts` | MODIFY | Example work |\n",
+        );
       case "qrspi-plan-writer":
         return textResult(renderPlanWriterOutput(this.options.route, this.options.totalPhases));
       case "qrspi-task-spec-writer": {
         const taskNumber = request.prompt.match(/=== TASK NUMBER ===\n(\d+)/)?.[1] ?? "01";
         const content = renderTaskSpec(taskNumber, this.options.route, taskNumber === "01" ? "1" : "2");
         await writeFile(path.join(this.artifacts.tasksDir, `task-${taskNumber}.md`), content, "utf8");
-        return textResult(`### Status — PASS\n\n**Task:** ${taskNumber}\n**Written:** \`.pipeline/${this.artifacts.runDir.split("/").at(-1)}/tasks/task-${taskNumber}.md\`\n\n### Summary\nWrote task spec.`);
+        return textResult(
+          `### Status — PASS\n\n**Task:** ${taskNumber}\n**Written:** \`.pipeline/${this.artifacts.runDir.split("/").at(-1)}/tasks/task-${taskNumber}.md\`\n\n### Summary\nWrote task spec.`,
+        );
       }
       case "qrspi-baseline-checker":
-        return textResult("### Baseline Status — CLEAN\n\n### Check Results\n| Check | Status | Command | Details |\n|-------|--------|---------|---------|\n| Build | PASS | `npm run build` | ok |\n| Tests | PASS | `npm run test` | ok |\n\n### Failure Inventory\nNone.\n\n### Stage Summary\nBaseline CLEAN.");
+        return textResult(
+          "### Baseline Status — CLEAN\n\n### Check Results\n| Check | Status | Command | Details |\n|-------|--------|---------|---------|\n| Build | PASS | `npm run build` | ok |\n| Tests | PASS | `npm run test` | ok |\n\n### Failure Inventory\nNone.\n\n### Stage Summary\nBaseline CLEAN.",
+        );
       case "qrspi-coverage-planner":
-        return textResult("### Coverage Plan\n- Criterion 1: Example\n  - Action: new\n  - Test Type: integration\n  - Trigger: run command\n  - Expected Outcome: observable success\n  - Relevant Files/Components: src/example.ts\n  - Planned Test File: test/example.test.ts\n  - Notes: None.\n\n### Summary\nPlanned coverage.");
+        return textResult(
+          "### Coverage Plan\n- Criterion 1: Example\n  - Action: new\n  - Test Type: integration\n  - Trigger: run command\n  - Expected Outcome: observable success\n  - Relevant Files/Components: src/example.ts\n  - Planned Test File: test/example.test.ts\n  - Notes: None.\n\n### Summary\nPlanned coverage.",
+        );
       case "qrspi-backward-loop-detector":
         return textResult(renderBackwardLoop(this.options.backwardLoopRecommendation));
       case "qrspi-verifier":
@@ -330,7 +368,10 @@ class MockDispatcher implements Dispatcher {
     }
 
     if (request.prompt.includes("Implement the production-code portion")) {
-      await touchFile(path.join(request.cwd, "src", "example.ts"), `export const task = "${path.basename(request.cwd)}";\n`);
+      await touchFile(
+        path.join(request.cwd, "src", "example.ts"),
+        `export const task = "${path.basename(request.cwd)}";\n`,
+      );
       return withStageReturn(request, {
         status: "PASS",
         filesWritten: ["src/example.ts"],
@@ -486,10 +527,10 @@ async function writeFixtureWorkspace(workspaceRoot: string, runId: string): Prom
         name: "fixture",
         type: "module",
         scripts: {
-          build: "node -e \"process.exit(0)\"",
-          typecheck: "node -e \"process.exit(0)\"",
-          test: "node -e \"process.exit(0)\"",
-          "test:e2e": "node -e \"process.exit(0)\"",
+          build: 'node -e "process.exit(0)"',
+          typecheck: 'node -e "process.exit(0)"',
+          test: 'node -e "process.exit(0)"',
+          "test:e2e": 'node -e "process.exit(0)"',
         },
       },
       null,
@@ -691,7 +732,13 @@ function renderBackwardLoop(recommendation: Required<HarnessOptions>["backwardLo
     "Mock rationale.",
     "",
     recommendation !== "NO_LOOP"
-      ? ["### Backward Loop Request", "**Criteria**: AC-1", "**Issue**: Mock issue", "**Affected Artifact**: plan", "**Recommendation**: Revisit planning."].join("\n")
+      ? [
+          "### Backward Loop Request",
+          "**Criteria**: AC-1",
+          "**Issue**: Mock issue",
+          "**Affected Artifact**: plan",
+          "**Recommendation**: Revisit planning.",
+        ].join("\n")
       : "",
   ]
     .filter(Boolean)
@@ -768,7 +815,13 @@ async function withStageReturn(request: DispatchRequest, payload: Record<string,
   const calls = [];
   const tool = request.customTools?.find((candidate) => candidate.name === "stage_return");
   if (tool) {
-    const result = (await tool.execute("tool-1", payload as never, undefined, undefined, {} as never)) as AgentToolResult<unknown>;
+    const result = (await tool.execute(
+      "tool-1",
+      payload as never,
+      undefined,
+      undefined,
+      {} as never,
+    )) as AgentToolResult<unknown>;
     calls.push({ name: "stage_return", result });
   }
   return {

@@ -30,10 +30,13 @@ function makeStructureDispatcher(options: { reviewResponses?: string[] }): Dispa
   return {
     async dispatch(request: DispatchRequest): Promise<DispatchResult> {
       if (request.target.name === "qrspi-structure-mapper") {
-        return textResult("# Structure\n\n## File Map\n| File | Action | Purpose |\n| `src/cli.ts` | CREATE | CLI entry |");
+        return textResult(
+          "# Structure\n\n## File Map\n| File | Action | Purpose |\n| `src/cli.ts` | CREATE | CLI entry |",
+        );
       }
       if (request.target.name === "qrspi-structure-reviewer") {
-        const response = reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
+        const response =
+          reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
         reviewCall += 1;
         return textResult(response);
       }
@@ -47,7 +50,9 @@ function makeStructureDispatcher(options: { reviewResponses?: string[] }): Dispa
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 }
 
@@ -112,10 +117,9 @@ test("structure stage passes in interactive mode when user approves", async () =
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  const gates = new ScriptedGateManager(
-    { interactionMode: "interactive", failurePolicy: "best-effort" },
-    [{ method: "choose", value: { value: "approve" } }],
-  );
+  const gates = new ScriptedGateManager({ interactionMode: "interactive", failurePolicy: "best-effort" }, [
+    { method: "choose", value: { value: "approve" } },
+  ]);
 
   const result = await structureStage.run({
     ...harness.runtime(),
@@ -128,17 +132,18 @@ test("structure stage passes in interactive mode when user approves", async () =
 });
 
 test("structure stage fails in interactive fail-closed mode with empty feedback", async () => {
-  const harness = await TestHarness.create({ route: "full", interactionMode: "interactive", failurePolicy: "fail-closed" });
+  const harness = await TestHarness.create({
+    route: "full",
+    interactionMode: "interactive",
+    failurePolicy: "fail-closed",
+  });
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  const gates = new ScriptedGateManager(
-    { interactionMode: "interactive", failurePolicy: "fail-closed" },
-    [
-      { method: "choose", value: { value: "feedback" } },
-      { method: "askText", value: undefined },
-    ],
-  );
+  const gates = new ScriptedGateManager({ interactionMode: "interactive", failurePolicy: "fail-closed" }, [
+    { method: "choose", value: { value: "feedback" } },
+    { method: "askText", value: undefined },
+  ]);
 
   const result = await structureStage.run({
     ...harness.runtime(),

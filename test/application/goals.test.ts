@@ -10,7 +10,14 @@ import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
 import { createInitialState } from "../../src/domain/run/index.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
-import type { DispatchRequest, DispatchResult, Dispatcher, GateManager, PipelineServices, ProgressReporter } from "../../src/application/port/index.js";
+import type {
+  DispatchRequest,
+  DispatchResult,
+  Dispatcher,
+  GateManager,
+  PipelineServices,
+  ProgressReporter,
+} from "../../src/application/port/index.js";
 
 test("goals reports child dispatch session errors before parsing sections", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-goals-"));
@@ -72,7 +79,12 @@ class FailingDispatcher implements Dispatcher {
   }
 
   async dispatchGenericCoding(_prompt: string) {
-    return { status: "FAIL" as const, filesWritten: [], summary: this.message, telemetry: { dispatch_end_reason: "session_error" } };
+    return {
+      status: "FAIL" as const,
+      filesWritten: [],
+      summary: this.message,
+      telemetry: { dispatch_end_reason: "session_error" },
+    };
   }
 }
 

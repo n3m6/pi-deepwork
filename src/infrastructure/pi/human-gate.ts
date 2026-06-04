@@ -28,15 +28,17 @@ export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   return options;
 }
 
-export function determineInteractionMode(ctx: ExtensionCommandContext, args: string): {
+export function determineInteractionMode(
+  ctx: ExtensionCommandContext,
+  args: string,
+): {
   interactionMode: InteractionMode;
   failurePolicy: FailurePolicy;
   explicit: ExplicitRunOptions;
 } {
   const explicit = parseExplicitRunOptions(args);
   const interactionMode = explicit.mode ?? (hasReplyCapability(ctx) ? "interactive" : "automated");
-  const failurePolicy =
-    explicit.failurePolicy ?? (interactionMode === "interactive" ? "fail-closed" : "best-effort");
+  const failurePolicy = explicit.failurePolicy ?? (interactionMode === "interactive" ? "fail-closed" : "best-effort");
 
   return {
     interactionMode,
@@ -69,7 +71,8 @@ export class DefaultGateManager implements GateManager {
       return undefined;
     }
     const rendered = options.map((option) => `${option.value}: ${option.label}`);
-    const select = (this.ctx.ui as { select?: (prompt: string, options: string[]) => Promise<string | undefined> }).select;
+    const select = (this.ctx.ui as { select?: (prompt: string, options: string[]) => Promise<string | undefined> })
+      .select;
     if (!select) {
       return chooseWithConfirmFallback(this, title, options, message);
     }
@@ -141,8 +144,13 @@ export function createAskHumanTool(gates: GateManager): ToolDefinition<typeof as
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx) {
       let answer: string | undefined;
       if (params.options && params.options.length > 0) {
-        answer = (await gates.choose(params.title, params.options.map((option) => ({ value: option, label: option })), params.question))
-          ?.value;
+        answer = (
+          await gates.choose(
+            params.title,
+            params.options.map((option) => ({ value: option, label: option })),
+            params.question,
+          )
+        )?.value;
       } else {
         answer = await gates.askText(params.title, params.question);
       }

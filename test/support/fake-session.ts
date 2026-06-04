@@ -20,10 +20,7 @@ export class FakeSession implements AgentSession {
     private readonly behavior: FakeSessionBehavior,
     text = "",
   ) {
-    this.messages =
-      text
-        ? [{ role: "assistant", content: text }]
-        : [];
+    this.messages = text ? [{ role: "assistant", content: text }] : [];
   }
 
   subscribe(handler: (event: { type: string }) => void): () => void {
@@ -93,7 +90,10 @@ export function makeFakeModelRegistry(
   };
 }
 
-export function makeSessionFactory(behavior: FakeSessionBehavior, text = ""): {
+export function makeSessionFactory(
+  behavior: FakeSessionBehavior,
+  text = "",
+): {
   factory: SessionFactory;
   sessions: FakeSession[];
 } {

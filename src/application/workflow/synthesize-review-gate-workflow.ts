@@ -54,16 +54,19 @@ export async function runSynthesizeReviewGate(
   while (true) {
     const designDiscussion =
       cfg.stageName === "design" && runtime.services.gates.interactionMode === "interactive"
-        ? (await runtime.services.gates.askText(
+        ? ((await runtime.services.gates.askText(
             "Design discussion",
             "Share any preferred architecture, patterns, or trade-offs before design synthesis.",
-          )) ?? "No additional design discussion."
+          )) ?? "No additional design discussion.")
         : undefined;
 
     const synthesis = await dispatchLeaf(
       runtime,
       cfg.synthesizerAgent,
-      cfg.buildSynthesizerPrompt({ ...ctx, runtime, ...(designDiscussion ? { designDiscussion } : {}) }, feedbackHistory),
+      cfg.buildSynthesizerPrompt(
+        { ...ctx, runtime, ...(designDiscussion ? { designDiscussion } : {}) },
+        feedbackHistory,
+      ),
       { customTools: [runtime.services.gates.createAskHumanTool()] },
     );
     await writeArtifact(runtime, artifactId, synthesis.text);
@@ -116,7 +119,12 @@ export async function runSynthesizeReviewGate(
     gateWaitTimeSeconds += secondsBetween(presentedAt, respondedAt);
 
     if (!decision || decision.value === "approve") {
-      gateRoundDetails.push({ round: gateRounds, decision: "approved", presented_at: presentedAt, responded_at: respondedAt });
+      gateRoundDetails.push({
+        round: gateRounds,
+        decision: "approved",
+        presented_at: presentedAt,
+        responded_at: respondedAt,
+      });
       return {
         status: "PASS",
         filesWritten: [artifactDisplayName, ...review.filesWritten],
@@ -133,18 +141,28 @@ export async function runSynthesizeReviewGate(
       };
     }
 
-    gateRoundDetails.push({ round: gateRounds, decision: "rejected", presented_at: presentedAt, responded_at: respondedAt });
-    const feedback = await runtime.services.gates.askText(`${capitalise(cfg.stageName)} feedback`, cfg.feedbackQuestion);
+    gateRoundDetails.push({
+      round: gateRounds,
+      decision: "rejected",
+      presented_at: presentedAt,
+      responded_at: respondedAt,
+    });
+    const feedback = await runtime.services.gates.askText(
+      `${capitalise(cfg.stageName)} feedback`,
+      cfg.feedbackQuestion,
+    );
     const latestArtifact = await readArtifact(runtime, artifactId);
-    feedbackHistory.push([
-      `## Round ${gateRounds} Feedback`,
-      "",
-      "### User Feedback",
-      feedback?.trim() || "No additional feedback supplied.",
-      "",
-      "### Rejected Artifact",
-      latestArtifact.trim(),
-    ].join("\n"));
+    feedbackHistory.push(
+      [
+        `## Round ${gateRounds} Feedback`,
+        "",
+        "### User Feedback",
+        feedback?.trim() || "No additional feedback supplied.",
+        "",
+        "### Rejected Artifact",
+        latestArtifact.trim(),
+      ].join("\n"),
+    );
 
     if (!feedback && runtime.services.gates.failurePolicy === "fail-closed") {
       return {
@@ -182,7 +200,10 @@ async function runReviewLoop(
       { customTools: [runtime.services.gates.createAskHumanTool()] },
     );
 
-    const reviewId: ArtifactId = { kind: "reviewFile", name: `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md` };
+    const reviewId: ArtifactId = {
+      kind: "reviewFile",
+      name: `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md`,
+    };
     await writeArtifact(runtime, reviewId, review.text);
     filesWritten.push(artifactRelPath(runtime, reviewId));
 

@@ -7,7 +7,15 @@ import { parseKeyValueLines } from "../codec/markdown-codec.js";
 import { fileExists, getRunArtifacts } from "./artifact-repository.js";
 import { loadState } from "./state-repository.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
-import type { FailurePolicy, InteractionMode, PhaseHistoryEntry, Route, RunState, StageName, VerifyStatus } from "../../application/port/index.js";
+import type {
+  FailurePolicy,
+  InteractionMode,
+  PhaseHistoryEntry,
+  Route,
+  RunState,
+  StageName,
+  VerifyStatus,
+} from "../../application/port/index.js";
 import type { RunArtifacts } from "./artifact-repository.js";
 
 const STAGE_MARKERS: Array<{ stage: StageName; path: (artifacts: RunArtifacts) => string }> = [
@@ -47,9 +55,10 @@ export async function inferStateFromArtifacts(
   let last: StageName | undefined;
   let verifyStatus: VerifyStatus | undefined;
 
-  const topLevelStages = route === "quick-fix"
-    ? STAGE_MARKERS.filter((marker) => marker.stage !== "design" && marker.stage !== "structure")
-    : STAGE_MARKERS;
+  const topLevelStages =
+    route === "quick-fix"
+      ? STAGE_MARKERS.filter((marker) => marker.stage !== "design" && marker.stage !== "structure")
+      : STAGE_MARKERS;
 
   for (const marker of topLevelStages) {
     if (marker.stage === "verify" || marker.stage === "report") {
@@ -79,7 +88,15 @@ export async function inferStateFromArtifacts(
     }
   }
 
-  if (await pushCompletedMarker("report", artifacts.stage10SummaryFile, completed, phaseHistory, Math.max(currentPhase, 1))) {
+  if (
+    await pushCompletedMarker(
+      "report",
+      artifacts.stage10SummaryFile,
+      completed,
+      phaseHistory,
+      Math.max(currentPhase, 1),
+    )
+  ) {
     last = "report";
   }
 
@@ -127,13 +144,25 @@ async function inferPhaseLoop(
   for (let phase = 1; phase <= maxPhase; phase += 1) {
     currentPhase = phase;
     const phaseDir = path.join(artifacts.phasesDir, `phase-${String(phase).padStart(2, "0")}`);
-    const implementDone = await pushCompletedMarker("implement", path.join(phaseDir, "stage7-summary.md"), completed, phaseHistory, phase);
+    const implementDone = await pushCompletedMarker(
+      "implement",
+      path.join(phaseDir, "stage7-summary.md"),
+      completed,
+      phaseHistory,
+      phase,
+    );
     if (!implementDone) {
       return { last, currentPhase };
     }
     last = "implement";
 
-    const acceptDone = await pushCompletedMarker("accept", path.join(phaseDir, "stage8-summary.md"), completed, phaseHistory, phase);
+    const acceptDone = await pushCompletedMarker(
+      "accept",
+      path.join(phaseDir, "stage8-summary.md"),
+      completed,
+      phaseHistory,
+      phase,
+    );
     if (!acceptDone) {
       return { last, currentPhase };
     }
@@ -198,8 +227,9 @@ async function maxExistingPhase(artifacts: RunArtifacts): Promise<number> {
 }
 
 function parseVerifyStatus(content: string): VerifyStatus | undefined {
-  const status = content.match(/###\s+Overall\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase()
-    ?? content.match(/###\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase();
+  const status =
+    content.match(/###\s+Overall\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase() ??
+    content.match(/###\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase();
   return status === "PASS" || status === "PARTIAL" || status === "FAIL" ? status : undefined;
 }
 

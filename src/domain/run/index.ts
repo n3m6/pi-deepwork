@@ -130,7 +130,11 @@ export class Run {
   }
 
   incrementAcceptFixAttempts(): void {
-    this._state = { ...this._state, acceptFixAttempts: this._state.acceptFixAttempts + 1, updatedAt: new Date().toISOString() };
+    this._state = {
+      ...this._state,
+      acceptFixAttempts: this._state.acceptFixAttempts + 1,
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   resetAcceptFixAttempts(): void {
@@ -138,7 +142,11 @@ export class Run {
   }
 
   incrementVerifyFixAttempts(): void {
-    this._state = { ...this._state, verifyFixAttempts: this._state.verifyFixAttempts + 1, updatedAt: new Date().toISOString() };
+    this._state = {
+      ...this._state,
+      verifyFixAttempts: this._state.verifyFixAttempts + 1,
+      updatedAt: new Date().toISOString(),
+    };
   }
 
   resetVerifyFixAttempts(): void {

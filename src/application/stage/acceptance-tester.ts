@@ -1,6 +1,13 @@
 import { isPipelineArtifact, isTestFile } from "../../domain/stage/boundary-policy.js";
 import type { ArtifactId, DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
-import { artifactRelPath, dispatchGenericCoding, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import {
+  artifactRelPath,
+  dispatchGenericCoding,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  writeArtifact,
+} from "./utils.js";
 
 const ACCEPTANCE_PLAN_REVIEWERS = [
   "qrspi-review-accept-spec",
@@ -67,7 +74,9 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
         telemetry: {
           planner_review_cycles: plannerReviewCycles,
           terminal_review_state: "unclean-cap",
-          child_agent_calls: Object.fromEntries(ACCEPTANCE_PLAN_REVIEWERS.map((reviewer) => [reviewer, plannerReviewCycles])),
+          child_agent_calls: Object.fromEntries(
+            ACCEPTANCE_PLAN_REVIEWERS.map((reviewer) => [reviewer, plannerReviewCycles]),
+          ),
         },
       };
     }
@@ -98,25 +107,25 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
   let round = 1;
   while (round <= 3) {
     implementation = await dispatchGenericCoding(
-    runtime,
-    [
-      "You are running Stage 7 acceptance testing for the current phase.",
-      "Only create or update acceptance/integration/e2e test files. Do not modify production code.",
-      "Use the coverage plan, task specs, goals, and phase manifest as the contract.",
-      "Run the relevant project tests needed to validate the current phase, then return with stage_return.",
-      "",
-      "Required outputs:",
-      "- Write any needed test files under the workspace.",
-      "- Summarize the results in `.pipeline/<run-id>/phases/phase-NN/acceptance-results.md` and `.pipeline/<run-id>/phases/phase-NN/stage8-summary.md` if they do not already exist.",
-      "",
-      `Run ID: ${runtime.state.runId}`,
-      `Phase: ${phase}`,
-      `Coverage plan path: ${coveragePlanPath}`,
-      `Phase directory: ${phaseDir}`,
-      "",
-      "Return telemetry.evidence_quality with counts for deterministic, flaky, harnessNoisy, ambiguous, redundant, noTestTasks, and noTestAuditOverrides.",
-    ].join("\n"),
-    { cwd: runtime.workspaceRoot },
+      runtime,
+      [
+        "You are running Stage 7 acceptance testing for the current phase.",
+        "Only create or update acceptance/integration/e2e test files. Do not modify production code.",
+        "Use the coverage plan, task specs, goals, and phase manifest as the contract.",
+        "Run the relevant project tests needed to validate the current phase, then return with stage_return.",
+        "",
+        "Required outputs:",
+        "- Write any needed test files under the workspace.",
+        "- Summarize the results in `.pipeline/<run-id>/phases/phase-NN/acceptance-results.md` and `.pipeline/<run-id>/phases/phase-NN/stage8-summary.md` if they do not already exist.",
+        "",
+        `Run ID: ${runtime.state.runId}`,
+        `Phase: ${phase}`,
+        `Coverage plan path: ${coveragePlanPath}`,
+        `Phase directory: ${phaseDir}`,
+        "",
+        "Return telemetry.evidence_quality with counts for deterministic, flaky, harnessNoisy, ambiguous, redundant, noTestTasks, and noTestAuditOverrides.",
+      ].join("\n"),
+      { cwd: runtime.workspaceRoot },
     );
     if (implementation.status === "PASS" || round === 3) {
       break;
@@ -126,16 +135,16 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
   const boundaryViolations = await detectBoundaryViolations(runtime, beforeAcceptanceFiles);
   if (boundaryViolations.length > 0) {
     const boundaryId: ArtifactId = { kind: "phaseFile", phase, name: "boundary-violations.md" };
-    await writeArtifact(runtime, boundaryId, ["# Boundary Violations", "", ...boundaryViolations.map((file) => `- ${file}`)].join("\n"));
+    await writeArtifact(
+      runtime,
+      boundaryId,
+      ["# Boundary Violations", "", ...boundaryViolations.map((file) => `- ${file}`)].join("\n"),
+    );
     const phaseLabel = `phase-${String(phase).padStart(2, "0")}`;
     return {
       status: "FAIL",
       phase,
-      filesWritten: [
-        `phases/${phaseLabel}/coverage-plan.md`,
-        ...reviewArtifacts,
-        artifactRelPath(runtime, boundaryId),
-      ],
+      filesWritten: [`phases/${phaseLabel}/coverage-plan.md`, ...reviewArtifacts, artifactRelPath(runtime, boundaryId)],
       summary: "Acceptance modified non-test files.",
       telemetry: {
         boundary_violation: true,
@@ -156,7 +165,11 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
       );
     }
     if (!(await repo.exists(stageSummaryId))) {
-      await writeArtifact(runtime, stageSummaryId, `### Status — PASS\n\n# Stage 8 Summary\n\n${implementation.summary}\n`);
+      await writeArtifact(
+        runtime,
+        stageSummaryId,
+        `### Status — PASS\n\n# Stage 8 Summary\n\n${implementation.summary}\n`,
+      );
     }
   }
 
@@ -175,11 +188,7 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
   const phaseLabel = `phase-${String(phase).padStart(2, "0")}`;
   return {
     ...implementation,
-    filesWritten: [
-      `phases/${phaseLabel}/coverage-plan.md`,
-      ...reviewArtifacts,
-      ...implementation.filesWritten,
-    ],
+    filesWritten: [`phases/${phaseLabel}/coverage-plan.md`, ...reviewArtifacts, ...implementation.filesWritten],
     telemetry: {
       ...implementation.telemetry,
       acceptance_loop_rounds: round,
@@ -242,7 +251,9 @@ async function dispatchCoveragePlanner(
       String(options.round),
       options.reviewFeedback ? "\n=== PLAN REVIEW FEEDBACK ===" : "",
       options.reviewFeedback ?? "",
-    ].filter(Boolean).join("\n"),
+    ]
+      .filter(Boolean)
+      .join("\n"),
   );
 }
 

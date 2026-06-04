@@ -1,6 +1,10 @@
 import path from "node:path";
 
-import { parseAffectedArtifact, parseMarkdownSections, parseTaskSpecMetadata } from "../../infrastructure/codec/markdown-codec.js";
+import {
+  parseAffectedArtifact,
+  parseMarkdownSections,
+  parseTaskSpecMetadata,
+} from "../../infrastructure/codec/markdown-codec.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import { buildWaves } from "../../domain/stage/wave-planner.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime, TaskWorktreeHandle } from "../port/index.js";
@@ -46,7 +50,12 @@ export const implementStage: StageModule = {
       const prepared = await Promise.all(
         wave.map(async (task) => ({
           task,
-          worktree: await runtime.services.versionControl.prepareWorktree(phase, task.taskId, repoRoot, runtime.services.eventContext.signal),
+          worktree: await runtime.services.versionControl.prepareWorktree(
+            phase,
+            task.taskId,
+            repoRoot,
+            runtime.services.eventContext.signal,
+          ),
         })),
       );
 
@@ -84,7 +93,9 @@ export const implementStage: StageModule = {
         };
       }
 
-      for (const { task, worktree } of results.sort((left, right) => left.task.taskId.localeCompare(right.task.taskId))) {
+      for (const { task, worktree } of results.sort((left, right) =>
+        left.task.taskId.localeCompare(right.task.taskId),
+      )) {
         await commitWorktreeChanges(runtime, worktree.worktreeRoot, phase, task.taskId, task.title);
         const merge = await runtime.services.versionControl.squashMerge(
           worktree,
@@ -92,9 +103,18 @@ export const implementStage: StageModule = {
           runtime.services.eventContext.signal,
         );
         if (!merge.ok) {
-          const resolved = await resolveSquashConflict(runtime, worktree, phase, task.taskId, task.title, merge.conflictOutput ?? "merge conflict");
+          const resolved = await resolveSquashConflict(
+            runtime,
+            worktree,
+            phase,
+            task.taskId,
+            task.title,
+            merge.conflictOutput ?? "merge conflict",
+          );
           if (!resolved.ok) {
-            manifestRows.push(`| ${task.taskId} | ${task.title} | ${waveIndex + 1} | FAIL | ${resolved.summary.replaceAll("|", "/")} |`);
+            manifestRows.push(
+              `| ${task.taskId} | ${task.title} | ${waveIndex + 1} | FAIL | ${resolved.summary.replaceAll("|", "/")} |`,
+            );
             const manifestId: ArtifactId = { kind: "phaseFile", phase, name: "execution-manifest.md" };
             await writeArtifact(runtime, manifestId, renderExecutionManifest(manifestRows));
             return {
@@ -127,7 +147,11 @@ export const implementStage: StageModule = {
     filesWritten.push(artifactRelPath(runtime, integrationId));
 
     const integrationGate = await runIntegrationChecker(runtime, phase, manifestRows.join("\n"), baseline.summary);
-    await writeArtifact(runtime, integrationId, renderIntegrationResults(e2e.markdown, baseline.summary, integrationGate.text));
+    await writeArtifact(
+      runtime,
+      integrationId,
+      renderIntegrationResults(e2e.markdown, baseline.summary, integrationGate.text),
+    );
     if (parseReviewStatus(integrationGate.text) === "FAIL") {
       const sections = parseMarkdownSections(integrationGate.text);
       const backwardLoopRequest = sections["Backward Loop Request"];
@@ -167,14 +191,21 @@ export const implementStage: StageModule = {
     filesWritten.push(artifactRelPath(runtime, stageSummaryId));
 
     const integrationSummaryId: ArtifactId = { kind: "phaseFile", phase, name: "stage7-integration-summary.md" };
-    await writeArtifact(runtime, integrationSummaryId, renderStage7IntegrationSummary(e2e.outcome.summary, baseline.summary));
+    await writeArtifact(
+      runtime,
+      integrationSummaryId,
+      renderStage7IntegrationSummary(e2e.outcome.summary, baseline.summary),
+    );
     filesWritten.push(artifactRelPath(runtime, integrationSummaryId));
 
     return {
       status: baseline.status === "FAIL" ? "PARTIAL" : "PASS",
       phase,
       filesWritten,
-      summary: baseline.status === "FAIL" ? "Implementation completed with regression findings." : "Implementation completed successfully.",
+      summary:
+        baseline.status === "FAIL"
+          ? "Implementation completed with regression findings."
+          : "Implementation completed successfully.",
       telemetry: {
         child_agent_calls: {
           "generic-coding": tasks.length * AGENT_CALLS_PER_TASK,
@@ -184,7 +215,12 @@ export const implementStage: StageModule = {
   },
 };
 
-async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number, filePath: string, content: string): Promise<string[]> {
+async function implementSimpleExactFileTask(
+  runtime: StageRuntime,
+  phase: number,
+  filePath: string,
+  content: string,
+): Promise<string[]> {
   const repo = runtime.services.artifactRepo;
   await repo.writeWorkspaceFile(filePath, content);
 
@@ -206,7 +242,11 @@ async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number
       `| 01 | Create ${filePath} | 1 | PASS | Exact file written |`,
     ].join("\n"),
   );
-  await writeArtifact(runtime, e2eId, "### Status — PASS\n### E2E — NOT CONFIGURED\nNo e2e script is required for this simple exact-file task.");
+  await writeArtifact(
+    runtime,
+    e2eId,
+    "### Status — PASS\n### E2E — NOT CONFIGURED\nNo e2e script is required for this simple exact-file task.",
+  );
   await writeArtifact(
     runtime,
     regressionId,
@@ -215,7 +255,10 @@ async function implementSimpleExactFileTask(runtime: StageRuntime, phase: number
   await writeArtifact(
     runtime,
     integrationId,
-    renderIntegrationResults("### Status — PASS", `Created \`${filePath}\` with exact byte length ${Buffer.byteLength(content, "utf8")}.`),
+    renderIntegrationResults(
+      "### Status — PASS",
+      `Created \`${filePath}\` with exact byte length ${Buffer.byteLength(content, "utf8")}.`,
+    ),
   );
   await writeArtifact(
     runtime,
@@ -325,7 +368,11 @@ async function commitWorktreeChanges(
   if (changed.length === 0) {
     return;
   }
-  await vc.commitWorktreeChanges(worktreeRoot, `qrspi: phase ${phase} task ${taskId} ${title}`, runtime.services.eventContext.signal);
+  await vc.commitWorktreeChanges(
+    worktreeRoot,
+    `qrspi: phase ${phase} task ${taskId} ${title}`,
+    runtime.services.eventContext.signal,
+  );
 }
 
 async function resolveSquashConflict(
@@ -362,7 +409,10 @@ async function resolveSquashConflict(
         summary: `Implementation abandoned task ${taskId}; conflict fix failed: ${fix.summary}`,
       };
     }
-    const continued = await runtime.services.versionControl.continueRebase(worktree, runtime.services.eventContext.signal);
+    const continued = await runtime.services.versionControl.continueRebase(
+      worktree,
+      runtime.services.eventContext.signal,
+    );
     if (!continued.ok) {
       return {
         ok: false,
@@ -418,7 +468,7 @@ async function runIntegrationChecker(
       "Per-task code review fanout completed before squash merge; see reviews/code-review-task-*.md.",
       "",
       "=== DESIGN CONTEXT ===",
-      runtime.state.route === "full" ? (await repo.read({ kind: "design" })) ?? "N/A" : "N/A",
+      runtime.state.route === "full" ? ((await repo.read({ kind: "design" })) ?? "N/A") : "N/A",
     ].join("\n"),
   );
 }
@@ -434,11 +484,13 @@ async function completedPhaseSummaries(runtime: StageRuntime, currentPhase: numb
   const repo = runtime.services.artifactRepo;
   const blocks: string[] = [];
   for (let phase = 1; phase < currentPhase; phase += 1) {
-    blocks.push([
-      `## Phase ${phase}`,
-      (await repo.read({ kind: "phaseFile", phase, name: "stage7-summary.md" })) ?? "",
-      (await repo.read({ kind: "phaseFile", phase, name: "stage8-summary.md" })) ?? "",
-    ].join("\n"));
+    blocks.push(
+      [
+        `## Phase ${phase}`,
+        (await repo.read({ kind: "phaseFile", phase, name: "stage7-summary.md" })) ?? "",
+        (await repo.read({ kind: "phaseFile", phase, name: "stage8-summary.md" })) ?? "",
+      ].join("\n"),
+    );
   }
   return blocks.length > 0 ? blocks.join("\n\n") : "None.";
 }

@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 
 test("stage_return captures structured payloads", async () => {
   const sink: StageReturnPayload[] = [];

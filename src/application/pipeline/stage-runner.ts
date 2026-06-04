@@ -57,9 +57,7 @@ export async function executeStage(
       if (runtime.services.commandContext.signal?.aborted) {
         throw error;
       }
-      const shouldRetry =
-        runtime.services.gates.failurePolicy === "best-effort" &&
-        automaticRetries === 0;
+      const shouldRetry = runtime.services.gates.failurePolicy === "best-effort" && automaticRetries === 0;
       if (!shouldRetry) {
         throw error;
       }

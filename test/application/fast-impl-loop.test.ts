@@ -5,7 +5,11 @@ import path from "node:path";
 
 import { runFastImplLoopSubstage } from "../../src/application/stage/fast-impl-loop.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
-import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "../../src/infrastructure/pi/stage-return-tool.js";
+import {
+  createStageReturnTool,
+  normalizeStageReturn,
+  type StageReturnPayload,
+} from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
@@ -78,7 +82,15 @@ function makeLoopDispatcher(options: {
             filesWritten: behavior === "PASS" ? ["test/example.test.ts"] : [],
             summary: behavior === "PASS" ? "Tests done." : "Tests failed.",
             telemetry: {
-              evidence_quality: { deterministic: 1, flaky: 0, harnessNoisy: 0, ambiguous: 0, redundant: 0, noTestTasks: 0, noTestAuditOverrides: 0 },
+              evidence_quality: {
+                deterministic: 1,
+                flaky: 0,
+                harnessNoisy: 0,
+                ambiguous: 0,
+                redundant: 0,
+                noTestTasks: 0,
+                noTestAuditOverrides: 0,
+              },
             },
           });
         }
@@ -102,7 +114,9 @@ function makeLoopDispatcher(options: {
         const behavior = reviewAttempts[reviewCall] ?? "PASS";
         reviewCall += 1;
         const status = behavior === "PASS" ? "PASS" : "FAIL";
-        return textResult(`### Status — ${status}\n\n### Findings\n${status === "FAIL" ? "| 1 | HIGH | file | 1 | bug | issue | fix |" : "None."}`);
+        return textResult(
+          `### Status — ${status}\n\n### Findings\n${status === "FAIL" ? "| 1 | HIGH | file | 1 | bug | issue | fix |" : "None."}`,
+        );
       }
 
       return textResult("### Status — PASS\n\n### Summary\nPass.");
@@ -117,7 +131,12 @@ function makeLoopDispatcher(options: {
     },
     async dispatchGenericCoding(prompt, options) {
       const sink: StageReturnPayload[] = [];
-      const result = await this.dispatch({ target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" }, prompt, cwd: options?.cwd ?? ".", customTools: [createStageReturnTool(sink)] });
+      const result = await this.dispatch({
+        target: { kind: "generic", name: "generic-coding", tools: options?.tools ?? [], thinkingLevel: "high" },
+        prompt,
+        cwd: options?.cwd ?? ".",
+        customTools: [createStageReturnTool(sink)],
+      });
       return normalizeStageReturn(result);
     },
   };

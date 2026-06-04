@@ -46,10 +46,7 @@ test("resolveModel falls back to currentModel when desiredModelName not found", 
 });
 
 test("resolveModel falls back to getAvailable()[0] when no currentModel", () => {
-  const registry = makeFakeModelRegistry(
-    [{ id: "slow", provider: "x" }],
-    [{ id: "fast", provider: "x" }],
-  );
+  const registry = makeFakeModelRegistry([{ id: "slow", provider: "x" }], [{ id: "fast", provider: "x" }]);
   const model = resolveModel(registry as never, undefined, undefined);
   assert.equal(model?.id, "fast");
 });
@@ -120,7 +117,7 @@ test("contentToText returns empty string for non-string non-array", () => {
 });
 
 test("instrumentCustomTools records calls in sink and invokes callback", async () => {
-  const sink: import('../../src/application/port/index.js').DispatchCustomToolCall[] = [];
+  const sink: import("../../src/application/port/index.js").DispatchCustomToolCall[] = [];
   const callbackNames: string[] = [];
   const tool: import("@earendil-works/pi-coding-agent").ToolDefinition<string, unknown, unknown> = {
     name: "my_tool",
@@ -284,7 +281,9 @@ test("PiSessionDispatcher captures customToolCalls via instrumentCustomTools", a
 test("dispatchChain substitutes {previous} in subsequent prompts", async () => {
   const registry = makeFakeModelRegistry([], []);
   const capturedPrompts: string[] = [];
-  const factory = async (request: DispatchRequest): Promise<import('../../src/infrastructure/pi/session-dispatcher.js').AgentSession> => {
+  const factory = async (
+    request: DispatchRequest,
+  ): Promise<import("../../src/infrastructure/pi/session-dispatcher.js").AgentSession> => {
     capturedPrompts.push(request.prompt);
     return new FakeSession({ kind: "agent_end" }, `response-to: ${request.prompt}`);
   };
@@ -303,7 +302,9 @@ test("dispatchChain substitutes {previous} in subsequent prompts", async () => {
 
 test("dispatchParallel runs all requests and returns results in order", async () => {
   const registry = makeFakeModelRegistry([], []);
-  const factory = async (request: DispatchRequest): Promise<import('../../src/infrastructure/pi/session-dispatcher.js').AgentSession> => {
+  const factory = async (
+    request: DispatchRequest,
+  ): Promise<import("../../src/infrastructure/pi/session-dispatcher.js").AgentSession> => {
     return new FakeSession({ kind: "agent_end" }, `answer-${request.prompt}`);
   };
   const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never);

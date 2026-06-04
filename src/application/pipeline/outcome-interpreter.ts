@@ -12,13 +12,7 @@ import { isImplementationRepairableAcceptFailure } from "../../domain/stage/fix-
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
 import type { VerifyStatus } from "../../domain/value/index.js";
 import type { TelemetrySink } from "../../application/port/index.js";
-import type {
-  ArtifactRepository,
-  RunState,
-  StageName,
-  StageModule,
-  StageOutcome,
-} from "../port/index.js";
+import type { ArtifactRepository, RunState, StageName, StageModule, StageOutcome } from "../port/index.js";
 
 function extractVerifyStatus(outcome: StageOutcome, fallback: VerifyStatus | undefined): VerifyStatus | undefined {
   const raw = outcome.telemetry?.verify_status;
@@ -35,7 +29,11 @@ export async function applyStageTransition(
   switch (stage) {
     case "goals": {
       const route = outcome.route === "quick-fix" ? "quick-fix" : "full";
-      run.completeStage("goals", nextStageFor("goals", { route, currentPhase: run.state.currentPhase, totalPhases: run.state.totalPhases }), { route });
+      run.completeStage(
+        "goals",
+        nextStageFor("goals", { route, currentPhase: run.state.currentPhase, totalPhases: run.state.totalPhases }),
+        { route },
+      );
       return run.toSnapshot();
     }
     case "research": {
@@ -51,11 +49,13 @@ export async function applyStageTransition(
       return run.toSnapshot();
     }
     case "plan": {
-      const manifestContent = artifactRepo
-        ? ((await artifactRepo.read({ kind: "phaseManifest" })) ?? "")
-        : "";
+      const manifestContent = artifactRepo ? ((await artifactRepo.read({ kind: "phaseManifest" })) ?? "") : "";
       const totalPhases = parseTotalPhases(manifestContent);
-      run.completeStage("plan", nextStageFor("plan", { route: run.state.route, currentPhase: run.state.currentPhase, totalPhases }), { totalPhases });
+      run.completeStage(
+        "plan",
+        nextStageFor("plan", { route: run.state.route, currentPhase: run.state.currentPhase, totalPhases }),
+        { totalPhases },
+      );
       return run.toSnapshot();
     }
     case "implement": {
@@ -76,7 +76,12 @@ export async function applyStageTransition(
       const verifyStatus = extractVerifyStatus(outcome, state.verifyStatus);
       run.completeStage(
         "verify",
-        nextStageFor("verify", { route: run.state.route, currentPhase: run.state.currentPhase, totalPhases: run.state.totalPhases, ...(verifyStatus ? { verifyStatus } : {}) }),
+        nextStageFor("verify", {
+          route: run.state.route,
+          currentPhase: run.state.currentPhase,
+          totalPhases: run.state.totalPhases,
+          ...(verifyStatus ? { verifyStatus } : {}),
+        }),
         verifyStatus ? { verifyStatus } : undefined,
       );
       if (verifyStatus === "PASS") {
@@ -186,7 +191,8 @@ export async function maybeRouteVerifyFix(
       verify_fix_attempts: state.verifyFixAttempts + 1,
     },
   });
-  const safeVerifyStatus: VerifyStatus = verifyStatus === "PASS" || verifyStatus === "PARTIAL" || verifyStatus === "FAIL" ? verifyStatus : "FAIL";
+  const safeVerifyStatus: VerifyStatus =
+    verifyStatus === "PASS" || verifyStatus === "PARTIAL" || verifyStatus === "FAIL" ? verifyStatus : "FAIL";
   run.completeStage("verify", "implement", { verifyStatus: safeVerifyStatus });
   run.resetCurrentPhase();
   run.incrementVerifyFixAttempts();

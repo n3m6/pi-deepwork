@@ -23,10 +23,7 @@ async function writeCoreArtifacts(harness: TestHarness): Promise<void> {
   await writeFile(harness.artifacts.researchSummaryFile, "# Research Summary\n\nNo blocking findings.", "utf8");
 }
 
-function makeDesignDispatcher(options: {
-  reviewResponses?: string[];
-  synthesisText?: string;
-}): Dispatcher {
+function makeDesignDispatcher(options: { reviewResponses?: string[]; synthesisText?: string }): Dispatcher {
   let reviewCall = 0;
   const reviewResponses = options.reviewResponses ?? ["### Status — PASS\n\n### Summary\nPass."];
   const synthesisText = options.synthesisText ?? "# Design\n\nUse existing patterns.";
@@ -37,7 +34,8 @@ function makeDesignDispatcher(options: {
         return textResult(synthesisText);
       }
       if (request.target.name === "qrspi-design-reviewer") {
-        const response = reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
+        const response =
+          reviewResponses[reviewCall] ?? reviewResponses.at(-1) ?? "### Status — PASS\n\n### Summary\nPass.";
         reviewCall += 1;
         return textResult(response);
       }
@@ -51,7 +49,9 @@ function makeDesignDispatcher(options: {
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 }
 
@@ -121,10 +121,9 @@ test("design stage passes in interactive mode when user approves", async () => {
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  const gates = new ScriptedGateManager(
-    { interactionMode: "interactive", failurePolicy: "best-effort" },
-    [{ method: "choose", value: { value: "approve" } }],
-  );
+  const gates = new ScriptedGateManager({ interactionMode: "interactive", failurePolicy: "best-effort" }, [
+    { method: "choose", value: { value: "approve" } },
+  ]);
 
   const result = await designStage.run({
     ...harness.runtime(),
@@ -146,14 +145,11 @@ test("design stage re-synthesizes when user provides feedback then approves", as
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  const gates = new ScriptedGateManager(
-    { interactionMode: "interactive", failurePolicy: "best-effort" },
-    [
-      { method: "choose", value: { value: "feedback" } },
-      { method: "askText", value: "Please add error handling section." },
-      { method: "choose", value: { value: "approve" } },
-    ],
-  );
+  const gates = new ScriptedGateManager({ interactionMode: "interactive", failurePolicy: "best-effort" }, [
+    { method: "choose", value: { value: "feedback" } },
+    { method: "askText", value: "Please add error handling section." },
+    { method: "choose", value: { value: "approve" } },
+  ]);
 
   let synthesisCallCount = 0;
   const dispatcher: Dispatcher = {
@@ -175,7 +171,9 @@ test("design stage re-synthesizes when user provides feedback then approves", as
       for (const r of requests) results.push(await this.dispatch(r));
       return results;
     },
-    async dispatchGenericCoding(_prompt) { return { status: "PASS" as const, filesWritten: [], summary: "" }; },
+    async dispatchGenericCoding(_prompt) {
+      return { status: "PASS" as const, filesWritten: [], summary: "" };
+    },
   };
 
   const result = await designStage.run({
@@ -189,17 +187,18 @@ test("design stage re-synthesizes when user provides feedback then approves", as
 });
 
 test("design stage fails in interactive fail-closed mode when user rejects without feedback", async () => {
-  const harness = await TestHarness.create({ route: "full", interactionMode: "interactive", failurePolicy: "fail-closed" });
+  const harness = await TestHarness.create({
+    route: "full",
+    interactionMode: "interactive",
+    failurePolicy: "fail-closed",
+  });
   harnesses.push(harness);
   await writeCoreArtifacts(harness);
 
-  const gates = new ScriptedGateManager(
-    { interactionMode: "interactive", failurePolicy: "fail-closed" },
-    [
-      { method: "choose", value: { value: "feedback" } },
-      { method: "askText", value: undefined }, // empty feedback
-    ],
-  );
+  const gates = new ScriptedGateManager({ interactionMode: "interactive", failurePolicy: "fail-closed" }, [
+    { method: "choose", value: { value: "feedback" } },
+    { method: "askText", value: undefined }, // empty feedback
+  ]);
 
   const result = await designStage.run({
     ...harness.runtime(),

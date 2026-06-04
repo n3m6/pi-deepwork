@@ -5,7 +5,12 @@ import { fileURLToPath } from "node:url";
 
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 
-import type { AgentCatalog, GenericCodingTarget, LeafAgentDefinition, ThinkingLevelName } from "../../application/port/index.js";
+import type {
+  AgentCatalog,
+  GenericCodingTarget,
+  LeafAgentDefinition,
+  ThinkingLevelName,
+} from "../../application/port/index.js";
 
 type RawFrontmatter = Record<string, unknown> & {
   name?: string;
@@ -112,7 +117,14 @@ function toThinkingLevel(value: string | undefined): ThinkingLevelName | undefin
     return undefined;
   }
   const normalized = value.trim().toLowerCase();
-  if (normalized === "off" || normalized === "minimal" || normalized === "low" || normalized === "medium" || normalized === "high" || normalized === "xhigh") {
+  if (
+    normalized === "off" ||
+    normalized === "minimal" ||
+    normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high" ||
+    normalized === "xhigh"
+  ) {
     return normalized;
   }
   return undefined;

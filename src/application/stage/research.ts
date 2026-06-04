@@ -28,7 +28,9 @@ export const researchStage: StageModule = {
       return {
         status: "FAIL",
         filesWritten: questions.filesWritten,
-        summary: questions.summary ?? "Question generation/review did not converge; research cannot continue without approved questions.",
+        summary:
+          questions.summary ??
+          "Question generation/review did not converge; research cannot continue without approved questions.",
         telemetry: {
           review_rounds: questions.reviewRounds,
         },
@@ -74,7 +76,11 @@ export const researchStage: StageModule = {
   },
 };
 
-async function writeSimpleResearchArtifacts(runtime: StageRuntime, filePath: string, content: string): Promise<string[]> {
+async function writeSimpleResearchArtifacts(
+  runtime: StageRuntime,
+  filePath: string,
+  content: string,
+): Promise<string[]> {
   const question = [
     "# Research Questions",
     "",

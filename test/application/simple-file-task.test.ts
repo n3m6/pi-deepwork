@@ -29,7 +29,10 @@ test("parseSimpleExactFileTask detects safe exact file creation requests", () =>
       content: "Deepwork smoke test.",
     },
   );
-  assert.equal(parseSimpleExactFileTask("create a ../SMOKE.md file containing exactly one sentence: Deepwork smoke test."), undefined);
+  assert.equal(
+    parseSimpleExactFileTask("create a ../SMOKE.md file containing exactly one sentence: Deepwork smoke test."),
+    undefined,
+  );
 });
 
 test("simple exact-file quick-fix stages complete without dispatch fanout", async () => {

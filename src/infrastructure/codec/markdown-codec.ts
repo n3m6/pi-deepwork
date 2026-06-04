@@ -73,11 +73,17 @@ export function parseKeyValueLines(markdown: string): Record<string, string> {
 }
 
 export function asOneLine(text: string): string {
-  return normalizeNewlines(text).split("\n").map((line) => line.trim()).filter(Boolean).join(" ");
+  return normalizeNewlines(text)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function extractStatusLine(markdown: string): string | undefined {
-  return normalizeNewlines(markdown).match(/^### Status\s+[—-]\s+(.+)$/m)?.[1]?.trim();
+  return normalizeNewlines(markdown)
+    .match(/^### Status\s+[—-]\s+(.+)$/m)?.[1]
+    ?.trim();
 }
 
 export function extractSummary(markdown: string): string {
@@ -98,7 +104,12 @@ export function parsePipeTable(markdown: string): string[][] {
 
   return rows
     .filter((line) => !/^(\|\s*-+\s*)+\|$/.test(line))
-    .map((line) => line.slice(1, -1).split("|").map((cell) => cell.trim()));
+    .map((line) =>
+      line
+        .slice(1, -1)
+        .split("|")
+        .map((cell) => cell.trim()),
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -119,8 +130,9 @@ export function parseOverallStatus(markdown: string): "PASS" | "PARTIAL" | "FAIL
 }
 
 export function parseVerifyStatus(markdown: string): VerifyStatus | undefined {
-  const status = markdown.match(/###\s+Overall\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase()
-    ?? markdown.match(/###\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase();
+  const status =
+    markdown.match(/###\s+Overall\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase() ??
+    markdown.match(/###\s+Status\s+[—-]\s+(PASS|PARTIAL|FAIL)\b/i)?.[1]?.toUpperCase();
   return status === "PASS" || status === "PARTIAL" || status === "FAIL" ? status : undefined;
 }
 

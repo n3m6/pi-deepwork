@@ -182,7 +182,7 @@ test("extractSummary truncates to 240 characters when no Summary section and tex
 // ---------------------------------------------------------------------------
 
 test("extractCodeBlock returns the content of the first code block", () => {
-  const md = "Some text\n\n```json\n{ \"key\": \"value\" }\n```\n\nMore text.";
+  const md = 'Some text\n\n```json\n{ "key": "value" }\n```\n\nMore text.';
   assert.equal(extractCodeBlock(md), '{ "key": "value" }');
 });
 
