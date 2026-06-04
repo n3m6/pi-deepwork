@@ -10,6 +10,7 @@ import { parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
 import { Run, MAX_ACCEPT_FIX_ATTEMPTS, MAX_VERIFY_FIX_ATTEMPTS } from "../../domain/run/index.js";
 import { isImplementationRepairableAcceptFailure } from "../../domain/stage/fix-routing-policy.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";
+import type { StageContext } from "../../domain/event/index.js";
 import type { VerifyStatus } from "../../domain/value/index.js";
 import type { TelemetrySink } from "../../application/port/index.js";
 import type { ArtifactRepository, RunState, StageName, StageModule, StageOutcome } from "../port/index.js";
@@ -105,17 +106,14 @@ export async function maybeRouteAcceptFix(
   stage: StageModule,
   stageInstance: number,
 ): Promise<RunState | undefined> {
+  const stageCtx: StageContext = { stage: stage.stage, phase: state.currentPhase, stageInstance, route: state.route };
+
   if (!isImplementationRepairableAcceptFailure(outcome)) {
     await telemetrySink.record({
       type: "stage.failed",
-      stage: stage.stage,
-      phase: state.currentPhase,
-      stageInstance,
-      route: state.route,
+      ...stageCtx,
       summary: "Acceptance failed outside the implementation repair path; stopping the run.",
-      context: {
-        accept_summary: outcome.summary,
-      },
+      context: { accept_summary: outcome.summary },
     });
     return undefined;
   }
@@ -124,29 +122,18 @@ export async function maybeRouteAcceptFix(
   if (run.isAcceptFixCapHit()) {
     await telemetrySink.record({
       type: "stage.failed",
-      stage: stage.stage,
-      phase: state.currentPhase,
-      stageInstance,
-      route: state.route,
+      ...stageCtx,
       summary: `Acceptance fix cap (${MAX_ACCEPT_FIX_ATTEMPTS}) reached; stopping the run.`,
-      context: {
-        accept_fix_attempts: state.acceptFixAttempts,
-      },
+      context: { accept_fix_attempts: state.acceptFixAttempts },
     });
     return undefined;
   }
 
   await telemetrySink.record({
     type: "stage.retried",
-    stage: stage.stage,
-    phase: state.currentPhase,
-    stageInstance,
-    route: state.route,
+    ...stageCtx,
     summary: "Routing failed acceptance back to implement.",
-    context: {
-      accept_summary: outcome.summary,
-      accept_fix_attempts: state.acceptFixAttempts + 1,
-    },
+    context: { accept_summary: outcome.summary, accept_fix_attempts: state.acceptFixAttempts + 1 },
   });
   run.completeStage("accept", "implement");
   run.incrementAcceptFixAttempts();
@@ -162,34 +149,23 @@ export async function maybeRouteVerifyFix(
 ): Promise<RunState | undefined> {
   const verifyStatus = extractVerifyStatus(outcome, outcome.status as VerifyStatus | undefined) ?? outcome.status;
   const run = Run.rehydrate(state);
+  const stageCtx: StageContext = { stage: stage.stage, phase: state.currentPhase, stageInstance, route: state.route };
 
   if (run.isVerifyFixCapHit()) {
     await telemetrySink.record({
       type: "stage.failed",
-      stage: stage.stage,
-      phase: state.currentPhase,
-      stageInstance,
-      route: state.route,
+      ...stageCtx,
       summary: `Verification fix cap (${MAX_VERIFY_FIX_ATTEMPTS}) reached; stopping the run.`,
-      context: {
-        verify_status: verifyStatus,
-        verify_fix_attempts: state.verifyFixAttempts,
-      },
+      context: { verify_status: verifyStatus, verify_fix_attempts: state.verifyFixAttempts },
     });
     return undefined;
   }
 
   await telemetrySink.record({
     type: "stage.retried",
-    stage: stage.stage,
-    phase: state.currentPhase,
-    stageInstance,
-    route: state.route,
+    ...stageCtx,
     summary: `Routing non-PASS verification (${verifyStatus}) back to implement.`,
-    context: {
-      verify_status: verifyStatus,
-      verify_fix_attempts: state.verifyFixAttempts + 1,
-    },
+    context: { verify_status: verifyStatus, verify_fix_attempts: state.verifyFixAttempts + 1 },
   });
   const safeVerifyStatus: VerifyStatus =
     verifyStatus === "PASS" || verifyStatus === "PARTIAL" || verifyStatus === "FAIL" ? verifyStatus : "FAIL";
@@ -205,12 +181,15 @@ export async function emitQuickFixSkips(
   stageInstance: number,
 ): Promise<void> {
   for (const skippedStage of ["design", "structure"] as const) {
-    await telemetrySink.record({
-      type: "stage.skipped",
+    const stageCtx: StageContext = {
       stage: skippedStage,
       phase: state.currentPhase,
       stageInstance,
       route: state.route,
+    };
+    await telemetrySink.record({
+      type: "stage.skipped",
+      ...stageCtx,
       summary: `${skippedStage} skipped for quick-fix route.`,
     });
   }

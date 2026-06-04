@@ -9,6 +9,17 @@ import type {
   StageOutcome,
 } from "../value/index.js";
 
+/**
+ * Common stage-level fields shared by all stage/gate/backward-loop events.
+ * Callers build one StageContext and spread it to avoid repeating the quartet.
+ */
+export interface StageContext {
+  stage: StageName;
+  phase: number;
+  stageInstance: number;
+  route: Route;
+}
+
 export type DomainEvent =
   | RunStarted
   | RunResumed

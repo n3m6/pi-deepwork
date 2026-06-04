@@ -3,6 +3,7 @@
  */
 
 import { Run, MAX_BACKWARD_LOOPS } from "../../domain/run/index.js";
+import type { StageContext } from "../../domain/event/index.js";
 import { acceptStage } from "../stage/accept.js";
 import { designStage } from "../stage/design.js";
 import { goalsStage } from "../stage/goals.js";
@@ -85,27 +86,21 @@ export async function runPipeline(options: {
         stageInstances,
       );
 
+      // Capture stage context before any phase mutations.
+      const stageCtx: StageContext = {
+        stage: stage.stage,
+        phase: run.state.currentPhase,
+        stageInstance,
+        route: run.state.route,
+      };
+
       if (outcome.backwardLoop) {
-        await sink.record({
-          type: "backward_loop.requested",
-          stage: stage.stage,
-          phase: run.state.currentPhase,
-          stageInstance,
-          route: run.state.route,
-          request: outcome.backwardLoop,
-        });
+        await sink.record({ type: "backward_loop.requested", ...stageCtx, request: outcome.backwardLoop });
 
         if (outcome.backwardLoop.classification === "DEFER_REPLAN") {
           await services.artifactRepo.writeDeferredFeedback(run.state.currentPhase, outcome.backwardLoop);
           run.setNextStage("replan");
-          await sink.record({
-            type: "backward_loop.deferred",
-            stage: stage.stage,
-            phase: run.state.currentPhase,
-            stageInstance,
-            route: run.state.route,
-            request: outcome.backwardLoop,
-          });
+          await sink.record({ type: "backward_loop.deferred", ...stageCtx, request: outcome.backwardLoop });
           await services.stateRepo.save(run);
           continue;
         }
@@ -113,10 +108,7 @@ export async function runPipeline(options: {
         if (run.isBackwardLoopCapHit()) {
           await sink.record({
             type: "backward_loop.failed",
-            stage: stage.stage,
-            phase: run.state.currentPhase,
-            stageInstance,
-            route: run.state.route,
+            ...stageCtx,
             classification: outcome.backwardLoop.classification,
             maxLoops: MAX_BACKWARD_LOOPS,
           });
@@ -128,21 +120,17 @@ export async function runPipeline(options: {
         run.incrementBackwardLoops();
         run.resetCurrentPhase();
         run.setNextStage(reset.targetStage);
+        // Re-capture phase after reset — these events record the new phase.
+        const resetCtx: StageContext = { ...stageCtx, phase: run.state.currentPhase };
         await sink.record({
           type: "backward_loop.decided",
-          stage: stage.stage,
-          phase: run.state.currentPhase,
-          stageInstance,
-          route: run.state.route,
+          ...resetCtx,
           targetStage: reset.targetStage,
           request: outcome.backwardLoop,
         });
         await sink.record({
           type: "backward_loop.reset",
-          stage: stage.stage,
-          phase: run.state.currentPhase,
-          stageInstance,
-          route: run.state.route,
+          ...resetCtx,
           targetStage: reset.targetStage,
           archived: reset.archived,
         });

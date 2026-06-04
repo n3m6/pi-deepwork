@@ -1,7 +1,26 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { DomainEvent } from "../../domain/event/index.js";
+import type {
+  DomainEvent,
+  RunStarted,
+  RunResumed,
+  RunCompleted,
+  RunAborted,
+  StageStarted,
+  StageCompleted,
+  StageFailed,
+  StageSkipped,
+  StageRetried,
+  GatePresented,
+  GateApproved,
+  GateRejected,
+  BackwardLoopRequested,
+  BackwardLoopDecided,
+  BackwardLoopDeferred,
+  BackwardLoopReset,
+  BackwardLoopFailed,
+} from "../../domain/event/index.js";
 import type { Clock, TelemetrySink } from "../../application/port/index.js";
 import type { Route, RunState, StageName, TelemetryEvent } from "../../application/port/index.js";
 import type { RunArtifacts } from "../fs/artifact-repository.js";
@@ -121,32 +140,14 @@ export class JsonlTelemetrySink implements TelemetrySink {
 // ---------------------------------------------------------------------------
 
 export function renderRunLog(runId: string, state: RunState, events: TelemetryEvent[]): string {
-  const route = state.route;
   const started = events.find((event) => event.event_type === "run.started")?.ts ?? state.startedAt;
   const finished = [...events]
     .reverse()
-    .find((event) => event.event_type === "run.completed" || event.event_type === "run.aborted")?.ts;
+    .find((e) => e.event_type === "run.completed" || e.event_type === "run.aborted")?.ts;
   const resumes = events.filter((event) => event.event_type === "run.resumed").length;
-  const currentStatus = finished
-    ? finished && events.some((event) => event.event_type === "run.aborted")
-      ? "aborted"
-      : "completed"
-    : "in-progress";
-
-  const timelineRows = events.map((event) => {
-    const scope = event.stage ? `stage:${event.stage}` : "run";
-    const artifacts = event.artifacts && event.artifacts.length > 0 ? event.artifacts.join(", ") : "—";
-    return `| ${timeOnly(event.ts)} | ${event.sequence} | ${scope} | ${event.event_type} | ${event.status} | ${event.summary} | ${artifacts} |`;
-  });
-
-  const failureRows = events
-    .filter((event) => event.event_type.startsWith("backward_loop") || event.event_type === "stage.failed")
-    .map((event) => {
-      const type = event.event_type.startsWith("backward_loop") ? "backward_loop" : event.event_type;
-      const artifact = event.artifacts?.[0] ?? "—";
-      return `| ${type} | ${event.stage ?? "—"} | ${event.phase ?? "—"} | ${event.review_round ?? "—"} | ${event.summary} | ${artifact} |`;
-    });
-
+  const currentStatus = resolveRunStatus(events, finished);
+  const timelineRows = events.map(renderTimelineRow);
+  const failureRows = events.filter(isFailureOrLoopEvent).map(renderFailureRow);
   const currentSignal =
     state.nextStage === "done"
       ? "Run complete."
@@ -158,7 +159,7 @@ export function renderRunLog(runId: string, state: RunState, events: TelemetryEv
     "## Run Overview",
     "",
     `- **Run ID:** ${runId}`,
-    `- **Route:** ${route}`,
+    `- **Route:** ${state.route}`,
     `- **Status:** ${currentStatus}`,
     `- **Started:** ${started}`,
     `- **Completed / Aborted:** ${finished ?? "—"}`,
@@ -180,8 +181,8 @@ export function renderRunLog(runId: string, state: RunState, events: TelemetryEv
     "",
     `- **Current phase:** ${state.currentPhase} of ${Math.max(state.totalPhases, 1)}`,
     `- **Current stage:** ${state.nextStage === "done" ? "done" : state.nextStage}`,
-    `- **Waves completed:** ${events.filter((event) => event.stage === "implement" && event.event_type === "stage.completed").length}`,
-    `- **Acceptance state:** ${events.some((event) => event.stage === "accept" && event.event_type === "stage.completed") ? "complete" : "pending"}`,
+    `- **Waves completed:** ${events.filter((e) => e.stage === "implement" && e.event_type === "stage.completed").length}`,
+    `- **Acceptance state:** ${events.some((e) => e.stage === "accept" && e.event_type === "stage.completed") ? "complete" : "pending"}`,
     `- **Outstanding blockers:** ${failureRows.length > 0 ? failureRows.length : "none"}`,
     "",
     "## Failure and Loop Index",
@@ -200,6 +201,27 @@ export function renderRunLog(runId: string, state: RunState, events: TelemetryEv
     "- `telemetry/events.jsonl` — full event stream",
     "",
   ].join("\n");
+}
+
+function resolveRunStatus(events: TelemetryEvent[], finished: string | undefined): string {
+  if (!finished) return "in-progress";
+  return events.some((e) => e.event_type === "run.aborted") ? "aborted" : "completed";
+}
+
+function isFailureOrLoopEvent(event: TelemetryEvent): boolean {
+  return event.event_type.startsWith("backward_loop") || event.event_type === "stage.failed";
+}
+
+function renderTimelineRow(event: TelemetryEvent): string {
+  const scope = event.stage ? `stage:${event.stage}` : "run";
+  const artifacts = event.artifacts && event.artifacts.length > 0 ? event.artifacts.join(", ") : "—";
+  return `| ${timeOnly(event.ts)} | ${event.sequence} | ${scope} | ${event.event_type} | ${event.status} | ${event.summary} | ${artifacts} |`;
+}
+
+function renderFailureRow(event: TelemetryEvent): string {
+  const type = event.event_type.startsWith("backward_loop") ? "backward_loop" : event.event_type;
+  const artifact = event.artifacts?.[0] ?? "—";
+  return `| ${type} | ${event.stage ?? "—"} | ${event.phase ?? "—"} | ${event.review_round ?? "—"} | ${event.summary} | ${artifact} |`;
 }
 
 export function renderMetricsSummary(runId: string, state: RunState, events: TelemetryEvent[]): string {
@@ -297,7 +319,45 @@ type TelemetryEventPartial = Omit<
   "schema_version" | "event_id" | "sequence" | "ts" | "run_id" | "writer_agent" | "writer_scope"
 >;
 
+type RunEvent = RunStarted | RunResumed | RunCompleted | RunAborted;
+type StageEvent = StageStarted | StageCompleted | StageFailed | StageSkipped | StageRetried;
+type GateEvent = GatePresented | GateApproved | GateRejected;
+type BackwardLoopEvent =
+  | BackwardLoopRequested
+  | BackwardLoopDecided
+  | BackwardLoopDeferred
+  | BackwardLoopReset
+  | BackwardLoopFailed;
+
 function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial | undefined {
+  switch (event.type) {
+    case "run.started":
+    case "run.resumed":
+    case "run.completed":
+    case "run.aborted":
+      return mapRunEvent(event);
+    case "stage.started":
+    case "stage.completed":
+    case "stage.failed":
+    case "stage.skipped":
+    case "stage.retried":
+      return mapStageEvent(event);
+    case "gate.presented":
+    case "gate.approved":
+    case "gate.rejected":
+      return mapGateEvent(event);
+    case "backward_loop.requested":
+    case "backward_loop.decided":
+    case "backward_loop.deferred":
+    case "backward_loop.reset":
+    case "backward_loop.failed":
+      return mapBackwardLoopEvent(event);
+    default:
+      return undefined;
+  }
+}
+
+function mapRunEvent(event: RunEvent): TelemetryEventPartial {
   switch (event.type) {
     case "run.started":
       return {
@@ -331,14 +391,25 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         summary: event.error,
         error: { message: event.error },
       };
+  }
+}
+
+type StageLevelEvent = StageEvent | GateEvent | BackwardLoopEvent;
+
+function stageEventFields(
+  event: StageLevelEvent,
+): Pick<TelemetryEventPartial, "route" | "stage" | "phase" | "stage_instance"> {
+  return { route: event.route, stage: event.stage, phase: event.phase, stage_instance: event.stageInstance };
+}
+
+function mapStageEvent(event: StageEvent): TelemetryEventPartial {
+  const base = stageEventFields(event);
+  switch (event.type) {
     case "stage.started":
       return {
         event_type: "stage.started",
         status: "RUNNING",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: `Stage ${event.stage} started. Route: ${event.route}.`,
       };
     case "stage.completed": {
@@ -351,16 +422,10 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       return {
         event_type: resolvedEventType,
         status: event.outcome.status,
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: event.outcome.summary,
         artifacts: event.outcome.filesWritten,
-        timing: {
-          started_at: event.startedAt,
-          ended_at: event.endedAt,
-        },
+        timing: { started_at: event.startedAt, ended_at: event.endedAt },
         ...(event.outcome.telemetry ? { context: event.outcome.telemetry } : {}),
       };
     }
@@ -368,73 +433,44 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       return {
         event_type: "stage.failed",
         status: "FAIL",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: event.summary,
         ...(event.context ? { context: event.context } : {}),
         ...(event.error ? { error: { message: event.error } } : {}),
       };
     case "stage.skipped":
-      return {
-        event_type: "stage.skipped",
-        status: "SKIP",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
-        summary: event.summary,
-      };
+      return { event_type: "stage.skipped", status: "SKIP", ...base, summary: event.summary };
     case "stage.retried":
       return {
         event_type: "stage.retried",
         status: "RETRY",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: event.summary,
         ...(event.context ? { context: event.context } : {}),
       };
+  }
+}
+
+function mapGateEvent(event: GateEvent): TelemetryEventPartial {
+  const base = stageEventFields(event);
+  switch (event.type) {
     case "gate.presented":
-      return {
-        event_type: "gate.presented",
-        status: "RUNNING",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
-        summary: event.summary,
-      };
+      return { event_type: "gate.presented", status: "RUNNING", ...base, summary: event.summary };
     case "gate.approved":
-      return {
-        event_type: "gate.approved",
-        status: "PASS",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
-        summary: event.summary,
-      };
+      return { event_type: "gate.approved", status: "PASS", ...base, summary: event.summary };
     case "gate.rejected":
-      return {
-        event_type: "gate.rejected",
-        status: "FAIL",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
-        summary: event.summary,
-      };
+      return { event_type: "gate.rejected", status: "FAIL", ...base, summary: event.summary };
+  }
+}
+
+function mapBackwardLoopEvent(event: BackwardLoopEvent): TelemetryEventPartial {
+  const base = stageEventFields(event);
+  switch (event.type) {
     case "backward_loop.requested":
       return {
         event_type: "backward_loop.requested",
         status: "FAIL",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: event.request.summary,
         context: {
           classification: event.request.classification,
@@ -445,24 +481,15 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       return {
         event_type: "backward_loop.decided",
         status: "PASS",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: `Looping back to ${event.targetStage}.`,
-        context: {
-          classification: event.request.classification,
-          target_stage: event.targetStage,
-        },
+        context: { classification: event.request.classification, target_stage: event.targetStage },
       };
     case "backward_loop.deferred":
       return {
         event_type: "backward_loop.deferred",
         status: "PASS",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: `Deferred remediation to replan for phase ${event.phase}.`,
         context: {
           classification: event.request.classification,
@@ -473,10 +500,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       return {
         event_type: "backward_loop.reset",
         status: "PASS",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: `Archived and deleted stale artifacts for ${event.targetStage}.`,
         artifacts: event.archived,
       };
@@ -484,17 +508,10 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
       return {
         event_type: "backward_loop.failed",
         status: "FAIL",
-        route: event.route,
-        stage: event.stage,
-        phase: event.phase,
-        stage_instance: event.stageInstance,
+        ...base,
         summary: `Backward-loop cap (${event.maxLoops}) reached; stopping the run.`,
-        context: {
-          classification: event.classification,
-        },
+        context: { classification: event.classification },
       };
-    default:
-      return undefined;
   }
 }
 

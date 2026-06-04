@@ -5,14 +5,8 @@
  * synthesize → review (up to N rounds) → human gate → feedback → repeat.
  */
 
-import {
-  artifactRelPath,
-  dispatchLeaf,
-  parseReviewStatus,
-  readArtifact,
-  secondsBetween,
-  writeArtifact,
-} from "../stage/utils.js";
+import { artifactRelPath, dispatchLeaf, readArtifact, secondsBetween, writeArtifact } from "../stage/utils.js";
+import { runAgentReviewLoop } from "./agent-review-loop.js";
 import type { ArtifactId, GateRoundDetail, StageOutcome, StageRuntime } from "../port/index.js";
 
 export interface SynthesizeReviewGateConfig {
@@ -196,41 +190,28 @@ async function runReviewLoop(
   ctx: SynthesisContext,
   maxRounds: number,
 ): Promise<{ status: "PASS" | "FAIL"; reviewRounds: number; filesWritten: string[] }> {
-  const filesWritten: string[] = [];
-
-  for (let round = 1; round <= maxRounds; round++) {
-    const artifactText = await readArtifact(runtime, cfg.artifactId);
-    const review = await dispatchLeaf(
-      runtime,
-      cfg.reviewerAgent,
-      cfg.buildReviewerPrompt({ ...ctx, runtime }, artifactText),
-      { customTools: [runtime.services.gates.createAskHumanTool()] },
-    );
-
-    const reviewId: ArtifactId = {
-      kind: "reviewFile",
-      name: `${cfg.stageName}-review-round-${String(round).padStart(2, "0")}.md`,
-    };
-    await writeArtifact(runtime, reviewId, review.text);
-    filesWritten.push(artifactRelPath(runtime, reviewId));
-
-    if (parseReviewStatus(review.text) === "PASS") {
-      return { status: "PASS", reviewRounds: round, filesWritten };
-    }
-
-    if (round === maxRounds) {
-      return { status: "FAIL", reviewRounds: round, filesWritten };
-    }
-
-    const rewritten = await dispatchLeaf(
-      runtime,
-      cfg.synthesizerAgent,
-      cfg.buildSynthesizerPrompt({ ...ctx, runtime }, [`Review feedback:\n${review.text}`]),
-    );
-    await writeArtifact(runtime, cfg.artifactId, rewritten.text);
-  }
-
-  return { status: "FAIL", reviewRounds: maxRounds, filesWritten };
+  return runAgentReviewLoop(runtime, {
+    maxRounds,
+    stageName: cfg.stageName,
+    runReview: async () => {
+      const artifactText = await readArtifact(runtime, cfg.artifactId);
+      const review = await dispatchLeaf(
+        runtime,
+        cfg.reviewerAgent,
+        cfg.buildReviewerPrompt({ ...ctx, runtime }, artifactText),
+        { customTools: [runtime.services.gates.createAskHumanTool()] },
+      );
+      return { text: review.text };
+    },
+    onFail: async (reviewText) => {
+      const rewritten = await dispatchLeaf(
+        runtime,
+        cfg.synthesizerAgent,
+        cfg.buildSynthesizerPrompt({ ...ctx, runtime }, [`Review feedback:\n${reviewText}`]),
+      );
+      await writeArtifact(runtime, cfg.artifactId, rewritten.text);
+    },
+  });
 }
 
 function capitalise(s: string): string {

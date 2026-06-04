@@ -2,13 +2,13 @@ import { QUESTION_SET, inferFromTask } from "../../domain/goals/interview-policy
 import { MAX_GOALS_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js";
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
+import { runAgentReviewLoop } from "../workflow/agent-review-loop.js";
 import type { DispatchResult } from "../port/index.js";
 import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {
   artifactRelPath,
   dispatchFailureSummary,
   dispatchLeaf,
-  parseReviewStatus,
   readArtifact,
   requireMarkdownSection,
   secondsBetween,
@@ -117,7 +117,56 @@ export const goalsStage: StageModule = {
       await writeArtifact(runtime, { kind: "goals" }, goalsMarkdown);
       await writeArtifact(runtime, { kind: "config" }, configMarkdown);
 
-      const review = await runReviewLoop(runtime, interview.entries);
+      const interviewRecord = renderInterviewRecord(interview.entries);
+      const requirements = await readArtifact(runtime, { kind: "requirements" });
+      const review = await runAgentReviewLoop(runtime, {
+        maxRounds: MAX_GOALS_REVIEW_ROUNDS,
+        stageName: "goals",
+        runReview: async () => {
+          const goals = await readArtifact(runtime, { kind: "goals" });
+          const result = await dispatchLeaf(
+            runtime,
+            "qrspi-goals-reviewer",
+            [
+              "=== REQUIREMENTS ===",
+              requirements,
+              "",
+              "=== INTERVIEW RECORD ===",
+              interviewRecord,
+              "",
+              "=== GOALS ===",
+              goals,
+            ].join("\n"),
+          );
+          const failure = dispatchFailureSummary(result, "Goals review failed");
+          if (failure) return { failure };
+          return { text: result.text };
+        },
+        onFail: async (reviewText) => {
+          const rewritten = await dispatchLeaf(
+            runtime,
+            "qrspi-goals-synthesizer",
+            [
+              "=== RUN ID ===",
+              runtime.state.runId,
+              "",
+              "=== USER TASK ===",
+              runtime.state.userTask ?? requirements,
+              "",
+              "=== INTERVIEW RECORD ===",
+              interviewRecord,
+              "",
+              "=== REVIEW FEEDBACK ===",
+              reviewText,
+            ].join("\n"),
+            { customTools: [runtime.services.gates.createAskHumanTool()] },
+          );
+          const rewriteFailure = dispatchFailureSummary(rewritten, "Goals rewrite failed");
+          if (rewriteFailure) return { failure: rewriteFailure };
+          await writeArtifact(runtime, { kind: "goals" }, requireMarkdownSection(rewritten.text, "goals.md"));
+          await writeArtifact(runtime, { kind: "config" }, requireMarkdownSection(rewritten.text, "config.md"));
+        },
+      });
       if (review.status === "FAIL") {
         const telemetry = {
           review_rounds: review.reviewRounds,
@@ -302,113 +351,6 @@ async function collectInterview(
   }
 
   return { entries };
-}
-
-async function runReviewLoop(
-  runtime: StageRuntime,
-  interviewEntries: InterviewEntry[],
-): Promise<{
-  status: "PASS" | "FAIL";
-  reviewRounds: number;
-  filesWritten: string[];
-  summary?: string;
-  dispatchFailure?: boolean;
-}> {
-  const filesWritten: string[] = [];
-  const interviewRecord = renderInterviewRecord(interviewEntries);
-  const requirements = await readArtifact(runtime, { kind: "requirements" });
-
-  let reviewRound = 1;
-  while (reviewRound <= MAX_GOALS_REVIEW_ROUNDS) {
-    const goals = await readArtifact(runtime, { kind: "goals" });
-    const review = await dispatchLeaf(
-      runtime,
-      "qrspi-goals-reviewer",
-      [
-        "=== REQUIREMENTS ===",
-        requirements,
-        "",
-        "=== INTERVIEW RECORD ===",
-        interviewRecord,
-        "",
-        "=== GOALS ===",
-        goals,
-      ].join("\n"),
-    );
-    const reviewFailure = dispatchFailureSummary(review, "Goals review failed");
-    if (reviewFailure) {
-      return {
-        status: "FAIL",
-        reviewRounds: reviewRound,
-        filesWritten,
-        summary: reviewFailure,
-        dispatchFailure: true,
-      };
-    }
-
-    const reviewId = {
-      kind: "reviewFile" as const,
-      name: `goals-review-round-${String(reviewRound).padStart(2, "0")}.md`,
-    };
-    await writeArtifact(runtime, reviewId, review.text);
-    filesWritten.push(artifactRelPath(runtime, reviewId));
-
-    if (parseReviewStatus(review.text) === "PASS") {
-      return {
-        status: "PASS",
-        reviewRounds: reviewRound,
-        filesWritten,
-      };
-    }
-
-    if (reviewRound === MAX_GOALS_REVIEW_ROUNDS) {
-      return {
-        status: "FAIL",
-        reviewRounds: reviewRound,
-        filesWritten,
-      };
-    }
-
-    const rewritten = await dispatchLeaf(
-      runtime,
-      "qrspi-goals-synthesizer",
-      [
-        "=== RUN ID ===",
-        runtime.state.runId,
-        "",
-        "=== USER TASK ===",
-        runtime.state.userTask ?? requirements,
-        "",
-        "=== INTERVIEW RECORD ===",
-        interviewRecord,
-        "",
-        "=== REVIEW FEEDBACK ===",
-        review.text,
-      ].join("\n"),
-      {
-        customTools: [runtime.services.gates.createAskHumanTool()],
-      },
-    );
-    const rewriteFailure = dispatchFailureSummary(rewritten, "Goals rewrite failed");
-    if (rewriteFailure) {
-      return {
-        status: "FAIL",
-        reviewRounds: reviewRound,
-        filesWritten,
-        summary: rewriteFailure,
-        dispatchFailure: true,
-      };
-    }
-    await writeArtifact(runtime, { kind: "goals" }, requireMarkdownSection(rewritten.text, "goals.md"));
-    await writeArtifact(runtime, { kind: "config" }, requireMarkdownSection(rewritten.text, "config.md"));
-    reviewRound += 1;
-  }
-
-  return {
-    status: "FAIL",
-    reviewRounds: MAX_GOALS_REVIEW_ROUNDS,
-    filesWritten,
-  };
 }
 
 function goalsDispatchFailureOutcome(

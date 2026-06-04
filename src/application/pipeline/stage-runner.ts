@@ -2,6 +2,7 @@
  * StageRunner — executes a single stage with retry logic.
  */
 
+import type { StageContext } from "../../domain/event/index.js";
 import type { TelemetrySink } from "../../application/port/index.js";
 import type { RunState, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import { resolveStageFailure } from "./review-gate-coordinator.js";
@@ -19,14 +20,9 @@ export async function executeStage(
   while (true) {
     const stageInstance = (stageInstances.get(stageKey) ?? 0) + 1;
     stageInstances.set(stageKey, stageInstance);
+    const stageCtx: StageContext = { stage: stage.stage, phase: state.currentPhase, stageInstance, route: state.route };
     const startedAt = (runtime.services.clock?.now() ?? new Date()).toISOString();
-    await telemetrySink.record({
-      type: "stage.started",
-      stage: stage.stage,
-      phase: state.currentPhase,
-      stageInstance,
-      route: state.route,
-    });
+    await telemetrySink.record({ type: "stage.started", ...stageCtx });
 
     try {
       const initialOutcome = await stage.run(runtime);
@@ -34,10 +30,7 @@ export async function executeStage(
       if (resolution === "retry") {
         await telemetrySink.record({
           type: "stage.retried",
-          stage: stage.stage,
-          phase: state.currentPhase,
-          stageInstance,
-          route: state.route,
+          ...stageCtx,
           summary: `Retrying ${stage.stage} after operator escalation.`,
         });
         continue;
@@ -45,15 +38,7 @@ export async function executeStage(
       return { outcome: resolution, stageInstance, startedAt };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      await telemetrySink.record({
-        type: "stage.failed",
-        stage: stage.stage,
-        phase: state.currentPhase,
-        stageInstance,
-        route: state.route,
-        summary: msg,
-        error: msg,
-      });
+      await telemetrySink.record({ type: "stage.failed", ...stageCtx, summary: msg, error: msg });
       if (runtime.services.commandContext.signal?.aborted) {
         throw error;
       }
@@ -64,10 +49,7 @@ export async function executeStage(
       automaticRetries += 1;
       await telemetrySink.record({
         type: "stage.retried",
-        stage: stage.stage,
-        phase: state.currentPhase,
-        stageInstance,
-        route: state.route,
+        ...stageCtx,
         summary: `Retrying ${stage.stage} after an unexpected error.`,
       });
     }
