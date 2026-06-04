@@ -1,4 +1,5 @@
 import { parseMarkdownSections } from "../../infrastructure/codec/markdown-codec.js";
+import { MAX_REPLAN_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
@@ -10,7 +11,7 @@ export const replanStage: StageModule = {
     const repo = runtime.services.artifactRepo;
 
     let reviewRound = 1;
-    while (reviewRound <= 3) {
+    while (reviewRound <= MAX_REPLAN_REVIEW_ROUNDS) {
       const writer = await dispatchLeaf(
         runtime,
         "qrspi-replan-writer",
@@ -139,7 +140,7 @@ export const replanStage: StageModule = {
         };
       }
 
-      if (reviewRound === 3) {
+      if (reviewRound === MAX_REPLAN_REVIEW_ROUNDS) {
         return {
           status: "FAIL",
           phase,

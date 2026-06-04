@@ -1,4 +1,5 @@
 import { parseMarkdownSections, parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
+import { MAX_PLAN_REVIEW_ROUNDS, MAX_PLAN_TASK_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
@@ -40,7 +41,7 @@ export const planStage: StageModule = {
 
     let reviewRound = 1;
     let latestPlanWriterOutput = "";
-    while (reviewRound <= 5) {
+    while (reviewRound <= MAX_PLAN_REVIEW_ROUNDS) {
       latestPlanWriterOutput = await runPlanWriter(runtime, {
         goals,
         requirements,
@@ -130,7 +131,7 @@ export const planStage: StageModule = {
         };
       }
 
-      if (reviewRound === 5) {
+      if (reviewRound === MAX_PLAN_REVIEW_ROUNDS) {
         return {
           status: "FAIL",
           filesWritten,
@@ -324,7 +325,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
 
     let reviewRound = 1;
     let reviewFeedback = "";
-    while (reviewRound <= 3) {
+    while (reviewRound <= MAX_PLAN_TASK_REVIEW_ROUNDS) {
       const writer = await dispatchLeaf(
         runtime,
         "qrspi-task-spec-writer",
@@ -409,7 +410,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
         break;
       }
 
-      if (reviewRound === 3) {
+      if (reviewRound === MAX_PLAN_TASK_REVIEW_ROUNDS) {
         return {
           status: "FAIL",
           filesWritten: written,

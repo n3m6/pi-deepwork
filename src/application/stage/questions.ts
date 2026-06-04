@@ -1,4 +1,5 @@
 import { normalizeNewlines } from "../../infrastructure/codec/markdown-codec.js";
+import { MAX_QUESTIONS_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { LeafAgentDefinition, StageRuntime } from "../port/index.js";
 import { dispatchFailureSummary, parseReviewStatus, readArtifact, readOnlyTools, writeArtifact } from "./utils.js";
 
@@ -22,7 +23,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
 
   let reviewRound = 1;
   let feedback = "";
-  while (reviewRound <= 3) {
+  while (reviewRound <= MAX_QUESTIONS_REVIEW_ROUNDS) {
     const generatorTarget = createFastQuestionTarget(runtime, "qrspi-question-generator");
     const signal = runtime.services.eventContext.signal;
     const generated = await runtime.services.dispatcher.dispatch({

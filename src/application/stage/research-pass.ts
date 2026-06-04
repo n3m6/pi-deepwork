@@ -1,5 +1,6 @@
-import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
+import { MAX_RESEARCH_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
+import { dispatchFailureSummary, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "./utils.js";
 
 const RESEARCH_AGENT_TIMEOUT_MS = 600_000;
 
@@ -82,7 +83,7 @@ export async function runResearchPassSubstage(
   }
 
   let reviewRounds = 1;
-  while (reviewRounds <= 3) {
+  while (reviewRounds <= MAX_RESEARCH_REVIEW_ROUNDS) {
     const questionArtifacts = await readQuestionArtifacts(runtime, questions);
     const review = await dispatchLeaf(
       runtime,
@@ -134,7 +135,7 @@ export async function runResearchPassSubstage(
       };
     }
 
-    if (reviewRounds === 3) {
+    if (reviewRounds === MAX_RESEARCH_REVIEW_ROUNDS) {
       return {
         status: "FAIL",
         filesWritten,

@@ -16,6 +16,15 @@ export const MAX_BACKWARD_LOOPS = 3;
 export const MAX_ACCEPT_FIX_ATTEMPTS = 2;
 export const MAX_VERIFY_FIX_ATTEMPTS = 3;
 
+/** Review-loop caps per stage. */
+export const MAX_GOALS_REVIEW_ROUNDS = 5;
+export const MAX_PLAN_REVIEW_ROUNDS = 5;
+export const MAX_PLAN_TASK_REVIEW_ROUNDS = 3;
+export const MAX_RESEARCH_REVIEW_ROUNDS = 3;
+export const MAX_QUESTIONS_REVIEW_ROUNDS = 3;
+export const MAX_REPLAN_REVIEW_ROUNDS = 3;
+export const MAX_ACCEPTANCE_ROUNDS = 3;
+
 export interface StartRunOptions {
   runId: string;
   userTask?: string;

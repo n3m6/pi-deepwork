@@ -1,4 +1,5 @@
 import { isPipelineArtifact, isTestFile } from "../../domain/stage/boundary-policy.js";
+import { MAX_ACCEPTANCE_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
 import {
   artifactRelPath,
@@ -127,7 +128,7 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
       ].join("\n"),
       { cwd: runtime.workspaceRoot },
     );
-    if (implementation.status === "PASS" || round === 3) {
+    if (implementation.status === "PASS" || round === MAX_ACCEPTANCE_ROUNDS) {
       break;
     }
     round += 1;

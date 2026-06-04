@@ -1,4 +1,5 @@
 import { QUESTION_SET, inferFromTask } from "../../domain/goals/interview-policy.js";
+import { MAX_GOALS_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js";
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { DispatchResult } from "../port/index.js";
@@ -317,7 +318,7 @@ async function runReviewLoop(
   const requirements = await readArtifact(runtime, { kind: "requirements" });
 
   let reviewRound = 1;
-  while (reviewRound <= 5) {
+  while (reviewRound <= MAX_GOALS_REVIEW_ROUNDS) {
     const goals = await readArtifact(runtime, { kind: "goals" });
     const review = await dispatchLeaf(
       runtime,
@@ -359,7 +360,7 @@ async function runReviewLoop(
       };
     }
 
-    if (reviewRound === 5) {
+    if (reviewRound === MAX_GOALS_REVIEW_ROUNDS) {
       return {
         status: "FAIL",
         reviewRounds: reviewRound,
@@ -404,7 +405,7 @@ async function runReviewLoop(
 
   return {
     status: "FAIL",
-    reviewRounds: 5,
+    reviewRounds: MAX_GOALS_REVIEW_ROUNDS,
     filesWritten,
   };
 }
