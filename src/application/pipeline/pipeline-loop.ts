@@ -158,7 +158,7 @@ export async function runPipeline(options: {
         route: outcome.route ?? run.state.route,
         outcome,
         startedAt,
-        endedAt: new Date().toISOString(),
+        endedAt: (services.clock?.now() ?? new Date()).toISOString(),
       });
 
       const reroute = await handleReroute(run, outcome, sink, stage, stageInstance, services);

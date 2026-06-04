@@ -19,7 +19,7 @@ export async function executeStage(
   while (true) {
     const stageInstance = (stageInstances.get(stageKey) ?? 0) + 1;
     stageInstances.set(stageKey, stageInstance);
-    const startedAt = new Date().toISOString();
+    const startedAt = (runtime.services.clock?.now() ?? new Date()).toISOString();
     await telemetrySink.record({
       type: "stage.started",
       stage: stage.stage,

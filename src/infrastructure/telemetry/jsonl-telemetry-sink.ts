@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { DomainEvent } from "../../domain/event/index.js";
-import type { TelemetrySink } from "../../application/port/index.js";
+import type { Clock, TelemetrySink } from "../../application/port/index.js";
 import type { Route, RunState, StageName, TelemetryEvent } from "../../application/port/index.js";
 import type { RunArtifacts } from "../fs/artifact-repository.js";
 
@@ -18,6 +18,7 @@ export class TelemetryRecorder {
   constructor(
     private readonly artifacts: RunArtifacts,
     private readonly runId: string,
+    private readonly clock?: Clock,
   ) {}
 
   async initialize(): Promise<void> {
@@ -52,7 +53,7 @@ export class TelemetryRecorder {
       schema_version: SCHEMA_VERSION,
       event_id: `${this.runId}-${this.sequence}`,
       sequence: this.sequence,
-      ts: new Date().toISOString(),
+      ts: (this.clock?.now() ?? new Date()).toISOString(),
       run_id: this.runId,
       writer_agent: "deepwork",
       writer_scope: "orchestrator",
@@ -87,8 +88,8 @@ export class TelemetryRecorder {
 export class JsonlTelemetrySink implements TelemetrySink {
   constructor(private readonly recorder: TelemetryRecorder) {}
 
-  static create(artifacts: RunArtifacts, runId: string): JsonlTelemetrySink {
-    return new JsonlTelemetrySink(new TelemetryRecorder(artifacts, runId));
+  static create(artifacts: RunArtifacts, runId: string, clock?: Clock): JsonlTelemetrySink {
+    return new JsonlTelemetrySink(new TelemetryRecorder(artifacts, runId, clock));
   }
 
   async initialize(): Promise<void> {

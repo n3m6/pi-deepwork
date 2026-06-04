@@ -14,7 +14,8 @@ import { DefaultGateManager, determineInteractionMode } from "./infrastructure/p
 import { UiProgressReporter } from "./infrastructure/pi/progress-reporter.js";
 import { PiSessionDispatcher } from "./infrastructure/pi/session-dispatcher.js";
 import { JsonlTelemetrySink } from "./infrastructure/telemetry/jsonl-telemetry-sink.js";
-import { createRunId } from "./infrastructure/system/id-generator.js";
+import { TimestampIdGenerator } from "./infrastructure/system/id-generator.js";
+import { SystemClock } from "./infrastructure/system/clock.js";
 import { Run } from "./domain/run/index.js";
 import { runPipeline } from "./application/pipeline/run-pipeline.js";
 import type { PipelineServices } from "./application/port/index.js";
@@ -25,7 +26,8 @@ export default function (pi: ExtensionAPI): void {
     handler: async (args, ctx) => {
       await ctx.waitForIdle();
       const interaction = determineInteractionMode(ctx, args);
-      const runId = interaction.explicit.resumeRunId ?? createRunId();
+      const clock = new SystemClock();
+      const runId = interaction.explicit.resumeRunId ?? new TimestampIdGenerator().runId();
       const userTask = interaction.explicit.resumeRunId ? undefined : stripCommandFlags(args).trim();
 
       const agentCatalog = await MarkdownAgentCatalog.load();
@@ -58,7 +60,7 @@ export default function (pi: ExtensionAPI): void {
       const artifactRepo = FileSystemArtifactRepository.fromPaths(artifacts);
       const versionControl = new GitVersionControl(pi, ctx.cwd, runId);
       const buildTool = new NpmBuildTool(pi);
-      const telemetrySink = JsonlTelemetrySink.create(artifacts, runId);
+      const telemetrySink = JsonlTelemetrySink.create(artifacts, runId, clock);
       const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
 
       const services: PipelineServices = {
@@ -68,6 +70,7 @@ export default function (pi: ExtensionAPI): void {
         agentDefinitions,
         gates,
         progress,
+        clock,
         artifactRepo,
         versionControl,
         buildTool,

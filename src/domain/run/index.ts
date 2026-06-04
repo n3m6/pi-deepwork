@@ -192,4 +192,3 @@ function mergePhaseHistory(history: PhaseHistoryEntry[], phase: number, stage: S
     entry.phase === phase ? { ...entry, completedStages: appendUniqueStage(entry.completedStages, stage) } : entry,
   );
 }
-

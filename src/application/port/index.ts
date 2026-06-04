@@ -286,6 +286,7 @@ export interface PipelineServices {
   agentDefinitions: Map<string, LeafAgentDefinition>;
   gates: GateManager;
   progress: ProgressReporter;
+  clock?: Clock;
   /** Port-based infrastructure — wired by the composition root. */
   versionControl: VersionControl;
   buildTool: BuildToolPort;

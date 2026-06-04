@@ -20,6 +20,7 @@ import {
 } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createRunId } from "../../src/infrastructure/system/id-generator.js";
 import { Run } from "../../src/domain/run/index.js";
+import { SystemClock } from "../../src/infrastructure/system/clock.js";
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
 import { FileSystemRunStateRepository } from "../../src/infrastructure/fs/state-repository.js";
 import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
@@ -116,7 +117,8 @@ export class TestHarness {
     const buildTool = new NpmBuildTool(pi);
     const artifactRepo = FileSystemArtifactRepository.fromPaths(artifacts);
     const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
-    const telemetrySink = JsonlTelemetrySink.create(artifacts, runId);
+    const clock = new SystemClock();
+    const telemetrySink = JsonlTelemetrySink.create(artifacts, runId, clock);
     await telemetrySink.initialize();
 
     const services: PipelineServices = {
@@ -126,6 +128,7 @@ export class TestHarness {
       agentDefinitions,
       gates,
       progress,
+      clock,
       versionControl,
       buildTool,
       artifactRepo,
