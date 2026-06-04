@@ -8,7 +8,7 @@ import { renderAcceptanceRepairContext } from "../../src/application/stage/accep
 import { runFastImplCodeSubstage } from "../../src/application/stage/fast-impl-code.js";
 import { runFastImplTestSubstage } from "../../src/application/stage/fast-impl-test.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import type {
   CustomToolResult,
   DispatchRequest,
@@ -40,12 +40,12 @@ test("renderAcceptanceRepairContext returns empty string when acceptFixAttempts 
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
 
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
 
   const services = {
     commandContext: { signal: undefined },
@@ -72,12 +72,12 @@ test("renderAcceptanceRepairContext returns repair context when acceptFixAttempt
   await writeFile(path.join(phaseDir, "stage8-summary.md"), "# Stage 8 Summary\n\nTests failed.", "utf8");
 
   const state = {
-    ...createInitialState({
+    ...Run.start({
       runId: "qrspi-20260601-000001",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     acceptFixAttempts: 1,
   };
 
@@ -101,12 +101,12 @@ test("renderAcceptanceRepairContext uses None. for missing artifact files", asyn
   await ensureRunDirectories(artifacts);
 
   const state = {
-    ...createInitialState({
+    ...Run.start({
       runId: "qrspi-20260601-000002",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     acceptFixAttempts: 2,
   };
 

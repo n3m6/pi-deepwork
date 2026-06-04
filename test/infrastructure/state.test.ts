@@ -7,7 +7,7 @@ import path from "node:path";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { loadState, saveState } from "../../src/infrastructure/fs/state-repository.js";
 import { createRunId } from "../../src/infrastructure/system/id-generator.js";
-import { createInitialState, markStageCompleted } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 
 test("createRunId formats deterministic qrspi ids", () => {
   const runId = createRunId(new Date(2026, 5, 1, 8, 9, 10));
@@ -19,14 +19,15 @@ test("state round-trips through state.json", async () => {
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
 
-  const initial = createInitialState({
+  const initialRun = Run.start({
     runId: "qrspi-20260601-000000",
     userTask: "Ship it.",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
   });
-  const completed = markStageCompleted(initial, "goals", "research", { route: "quick-fix" });
+  initialRun.completeStage("goals", "research", { route: "quick-fix" });
+  const completed = initialRun.toSnapshot();
   await saveState(artifacts.stateFile, completed);
 
   const loaded = await loadState(artifacts.stateFile);

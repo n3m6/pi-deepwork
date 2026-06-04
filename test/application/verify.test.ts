@@ -6,7 +6,6 @@ import path from "node:path";
 import { parseOverallStatus, verifyStage } from "../../src/application/stage/verify.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
 import { TestHarness } from "../support/harness.js";
-import { markStageCompleted } from "../../src/domain/run/index.js";
 
 const harnesses: TestHarness[] = [];
 
@@ -99,7 +98,7 @@ function makeVerifyDispatcher(verifyText: string): Dispatcher {
 test("verify stage returns PASS with verify_status PASS when verifier reports PASS", async () => {
   const harness = await TestHarness.create({ route: "full" });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
   await writeCoreArtifacts(harness);
 
   const verifyText = "### Overall Status — PASS\n\n### Stage Summary\nAll acceptance criteria met.";
@@ -117,7 +116,7 @@ test("verify stage returns PASS with verify_status PASS when verifier reports PA
 test("verify stage returns FAIL with verify_status FAIL when verifier reports FAIL", async () => {
   const harness = await TestHarness.create({ route: "full" });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
   await writeCoreArtifacts(harness);
 
   const verifyText = "### Overall Status — FAIL\n\n### Failures\n- Criterion 1 not met.\n\n### Stage Summary\nFailed.";
@@ -135,7 +134,7 @@ test("verify stage returns FAIL with verify_status FAIL when verifier reports FA
 test("verify stage returns PARTIAL with verify_status PARTIAL when verifier reports PARTIAL", async () => {
   const harness = await TestHarness.create({ route: "full" });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
   await writeCoreArtifacts(harness);
 
   const verifyText =
@@ -154,7 +153,7 @@ test("verify stage returns PARTIAL with verify_status PARTIAL when verifier repo
 test("verify stage uses simple exact-file fast path for quick-fix route with exact-content task", async () => {
   const harness = await TestHarness.create({ route: "quick-fix" });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
   // Set userTask to a pattern that detectSimpleExactFileTask can parse
   harness.state = {
     ...harness.state,

@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import {
   TelemetryRecorder,
   renderMetricsSummary,
@@ -16,12 +16,12 @@ test("telemetry recorder appends jsonl and renders summaries", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-telemetry-"));
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
   const recorder = new TelemetryRecorder(artifacts, state.runId);
   await recorder.initialize();
   await recorder.append({
@@ -58,12 +58,12 @@ test("telemetry recorder appends jsonl and renders summaries", async () => {
 });
 
 test("metrics summary marks stopped runs as partial", () => {
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000001",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
   const stoppedState = {
     ...state,
     route: "full" as const,

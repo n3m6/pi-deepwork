@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
 import { getRunArtifacts, ensureRunDirectories } from "../../src/infrastructure/fs/artifact-repository.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import { runCodeReviewSubstage } from "../../src/application/stage/code-review.js";
 import type {
   DispatchRequest,
@@ -158,12 +158,12 @@ function makeRuntime(
     });
   }
   return {
-    state: createInitialState({
+    state: Run.start({
       runId: "qrspi-20260601-030000",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     workspaceRoot: workspace,
     services: {
       pi: {

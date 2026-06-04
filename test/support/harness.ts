@@ -19,7 +19,7 @@ import {
   type RunArtifacts,
 } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createRunId } from "../../src/infrastructure/system/id-generator.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
 import { FileSystemRunStateRepository } from "../../src/infrastructure/fs/state-repository.js";
 import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
@@ -92,13 +92,13 @@ export class TestHarness {
     const artifacts = getRunArtifacts(workspaceRoot, runId);
     await ensureRunDirectories(artifacts);
 
-    const state = createInitialState({
+    const state = Run.start({
       runId,
       userTask: "Implement a deterministic deepwork pipeline.",
       interactionMode: options.interactionMode ?? "automated",
       failurePolicy: options.failurePolicy ?? "best-effort",
       route: options.route ?? "full",
-    });
+    }).toSnapshot();
 
     const agentDefinitions = await loadAgentDefinitions();
     const pi = createExecOnlyPi(workspaceRoot);
@@ -148,6 +148,12 @@ export class TestHarness {
       workspaceRoot: this.workspaceRoot,
       services: this.services,
     };
+  }
+
+  completeStage(...args: Parameters<Run["completeStage"]>): void {
+    const run = Run.rehydrate(this.state);
+    run.completeStage(...args);
+    this.state = run.toSnapshot();
   }
 
   async dispose(): Promise<void> {

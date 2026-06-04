@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { markStageCompleted } from "../../src/domain/run/index.js";
 import { parseSimpleExactFileTask } from "../../src/application/workflow/simple-exact-file-workflow.js";
 import { acceptStage } from "../../src/application/stage/accept.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
@@ -46,28 +45,28 @@ test("simple exact-file quick-fix stages complete without dispatch fanout", asyn
   const goals = await goalsStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(goals.status, "PASS");
   assert.equal(goals.route, "quick-fix");
-  harness.state = markStageCompleted(harness.state, "goals", "research", { route: goals.route ?? "quick-fix" });
+  harness.completeStage("goals", "research", { route: goals.route ?? "quick-fix" });
 
   const research = await researchStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(research.status, "PASS");
-  harness.state = markStageCompleted(harness.state, "research", "plan");
+  harness.completeStage("research", "plan");
 
   const plan = await planStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(plan.status, "PASS");
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
 
   const implement = await implementStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(implement.status, "PASS");
   assert.equal(await readFile(path.join(harness.workspaceRoot, "SMOKE.md"), "utf8"), "Deepwork smoke test.");
-  harness.state = markStageCompleted(harness.state, "implement", "accept");
+  harness.completeStage("implement", "accept");
 
   const accept = await acceptStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(accept.status, "PASS");
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
 
   const verify = await verifyStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(verify.status, "PASS");
-  harness.state = markStageCompleted(harness.state, "verify", "report");
+  harness.completeStage("verify", "report");
 
   const report = await reportStage.run(runtimeWithThrowingDispatcher(harness));
   assert.equal(report.status, "PASS");

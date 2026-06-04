@@ -7,7 +7,7 @@ import path from "node:path";
 import { resumeOrInferState } from "../../src/infrastructure/fs/state-reconstruction.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { saveState } from "../../src/infrastructure/fs/state-repository.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 
 test("resumeOrInferState prefers persisted state.json", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-resume-state-"));
@@ -15,12 +15,12 @@ test("resumeOrInferState prefers persisted state.json", async () => {
   const artifacts = getRunArtifacts(workspace, runId);
   await ensureRunDirectories(artifacts);
 
-  const state = createInitialState({
+  const state = Run.start({
     runId,
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "quick-fix",
-  });
+  }).toSnapshot();
   await saveState(artifacts.stateFile, state);
 
   const resumed = await resumeOrInferState({

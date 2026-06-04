@@ -8,7 +8,7 @@ import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.
 import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
 import type {
   DispatchRequest,
@@ -24,12 +24,12 @@ test("goals reports child dispatch session errors before parsing sections", asyn
   try {
     const artifacts = getRunArtifacts(workspace, "qrspi-20260602-000000");
     await ensureRunDirectories(artifacts);
-    const state = createInitialState({
+    const state = Run.start({
       runId: "qrspi-20260602-000000",
       userTask: "Create a SMOKE.md file containing one sentence.",
       interactionMode: "automated",
       failurePolicy: "best-effort",
-    });
+    }).toSnapshot();
 
     const runtime = {
       state,

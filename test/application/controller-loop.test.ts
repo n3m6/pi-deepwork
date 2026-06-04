@@ -4,7 +4,6 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { runPipeline } from "../../src/application/pipeline/run-pipeline.js";
-import { markStageCompleted } from "../../src/domain/run/index.js";
 import { TestHarness } from "../support/harness.js";
 import type { DispatchRequest, DispatchResult, Dispatcher, TelemetryEvent } from "../../src/application/port/index.js";
 
@@ -38,7 +37,7 @@ test("runPipeline emits run.started and run.completed telemetry on a trivial run
   harnesses.push(harness);
 
   // Advance state so we only need to run `report`, and write what report reads
-  harness.state = markStageCompleted(harness.state, "verify", "report");
+  harness.completeStage("verify", "report");
   harness.state = { ...harness.state, nextStage: "report" };
   await writeReportArtifacts(harness);
 
@@ -79,7 +78,7 @@ test("runPipeline emits run.resumed (not run.started) when isResumed is true", a
   const harness = await TestHarness.create({ route: "full" });
   harnesses.push(harness);
 
-  harness.state = markStageCompleted(harness.state, "verify", "report");
+  harness.completeStage("verify", "report");
   harness.state = { ...harness.state, nextStage: "report" };
   await writeReportArtifacts(harness);
 
@@ -109,10 +108,10 @@ test("runPipeline emits backward_loop events when implement returns integration-
   harnesses.push(harness);
 
   // Advance state to implement
-  harness.state = markStageCompleted(harness.state, "research", "design");
-  harness.state = markStageCompleted(harness.state, "design", "structure");
-  harness.state = markStageCompleted(harness.state, "structure", "plan");
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("research", "design");
+  harness.completeStage("design", "structure");
+  harness.completeStage("structure", "plan");
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
   harness.state = { ...harness.state, nextStage: "implement" };
 
   // Write artifacts implement and plan need (plan stage runs after backward loop)
@@ -198,7 +197,7 @@ test("runPipeline emits backward_loop.failed when implement backward loop hits c
   harnesses.push(harness);
 
   // Set backwardLoops at MAX (3) so next backward loop triggers cap
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
   harness.state = { ...harness.state, nextStage: "implement", backwardLoops: 3 };
 
   await writeFile(harness.artifacts.planFile, "# Plan\n\n## Overview\nOne phase.", "utf8");
@@ -286,7 +285,7 @@ test("runPipeline emits stage.skipped for design and structure in quick-fix rout
     "utf8",
   ).catch(() => undefined);
 
-  harness.state = markStageCompleted(harness.state, "goals", "research");
+  harness.completeStage("goals", "research");
   harness.state = { ...harness.state, nextStage: "research", route: "quick-fix" };
 
   const finalState = await runPipeline({
@@ -321,7 +320,7 @@ test("runPipeline reroutes to implement when verify returns PARTIAL", async () =
   const harness = await TestHarness.create({ route: "full", verificationStatus: "PARTIAL" });
   harnesses.push(harness);
 
-  harness.state = markStageCompleted(harness.state, "accept", "verify");
+  harness.completeStage("accept", "verify");
   harness.state = { ...harness.state, nextStage: "verify", verifyFixAttempts: 0 };
 
   // Write artifacts that verify and subsequent stages (implement, accept) need

@@ -18,7 +18,6 @@ import {
 } from "../../src/infrastructure/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import { implementStage } from "../../src/application/stage/implement.js";
-import { markStageCompleted } from "../../src/domain/run/index.js";
 
 const harnesses: TestHarness[] = [];
 
@@ -266,7 +265,7 @@ async function writePlanAndManifest(artifacts: RunArtifacts): Promise<void> {
 test("implement stage returns FAIL when a task's fast-impl-code fails", async () => {
   const harness = await TestHarness.create({ route: "full", totalPhases: 1 });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
 
   await writePlanAndManifest(harness.artifacts);
   await writeTaskSpec(harness.artifacts, "01", "1");
@@ -284,7 +283,7 @@ test("implement stage returns FAIL when a task's fast-impl-code fails", async ()
 test("implement stage returns FAIL with backward loop when integration checker requests one", async () => {
   const harness = await TestHarness.create({ route: "full", totalPhases: 1 });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
 
   await writePlanAndManifest(harness.artifacts);
   await writeTaskSpec(harness.artifacts, "01", "1");
@@ -306,7 +305,7 @@ test("implement stage returns FAIL with backward loop when integration checker r
 test("implement stage returns PARTIAL when baseline regression fails", async () => {
   const harness = await TestHarness.create({ route: "full", totalPhases: 1 });
   harnesses.push(harness);
-  harness.state = markStageCompleted(harness.state, "plan", "implement", { totalPhases: 1 });
+  harness.completeStage("plan", "implement", { totalPhases: 1 });
 
   await writePlanAndManifest(harness.artifacts);
   await writeTaskSpec(harness.artifacts, "01", "1");

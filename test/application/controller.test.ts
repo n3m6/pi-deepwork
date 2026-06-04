@@ -11,17 +11,17 @@ import {
 } from "../../src/application/pipeline/run-pipeline.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createInitialState } from "../../src/domain/run/index.js";
+import { Run } from "../../src/domain/run/index.js";
 import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 import type { GateManager, PipelineServices, StageModule, StageRuntime } from "../../src/application/port/index.js";
 
 test("verify failures route back to implement", async () => {
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
 
   const next = await applyStageTransition(state, "verify", {
     status: "FAIL",
@@ -36,12 +36,12 @@ test("verify failures route back to implement", async () => {
 
 test("verify pass resets verify-fix attempts", async () => {
   const state = {
-    ...createInitialState({
+    ...Run.start({
       runId: "qrspi-20260601-000001",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     verifyFixAttempts: 2,
   };
 
@@ -61,12 +61,12 @@ test("accept failures route back to implement with the same phase", async () => 
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000002");
   await ensureRunDirectories(artifacts);
   const state = {
-    ...createInitialState({
+    ...Run.start({
       runId: "qrspi-20260601-000002",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     currentPhase: 2,
     totalPhases: 3,
   };
@@ -102,12 +102,12 @@ test("accept failures stop after the implementation repair cap", async () => {
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000003");
   await ensureRunDirectories(artifacts);
   const state = {
-    ...createInitialState({
+    ...Run.start({
       runId: "qrspi-20260601-000003",
       interactionMode: "automated",
       failurePolicy: "best-effort",
       route: "full",
-    }),
+    }).toSnapshot(),
     acceptFixAttempts: 2,
   };
   const telemetry = JsonlTelemetrySink.create(artifacts, state.runId);
@@ -137,12 +137,12 @@ test("accept review-cap failures are not auto-approved in best-effort mode", asy
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000004");
   await ensureRunDirectories(artifacts);
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000004",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
   const gates: GateManager = {
     interactionMode: "automated",
     failurePolicy: "best-effort",
@@ -193,12 +193,12 @@ test("executeStage auto-approves unclean-cap failures in automated best-effort m
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
 
   const gates: GateManager = {
     interactionMode: "automated",
@@ -251,12 +251,12 @@ test("executeStage does not auto-approve infrastructure failures in best-effort 
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
 
   const gates: GateManager = {
     interactionMode: "automated",
@@ -310,12 +310,12 @@ test("executeStage retries once after an unexpected error in best-effort mode", 
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-controller-"));
   const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000000");
   await ensureRunDirectories(artifacts);
-  const state = createInitialState({
+  const state = Run.start({
     runId: "qrspi-20260601-000000",
     interactionMode: "automated",
     failurePolicy: "best-effort",
     route: "full",
-  });
+  }).toSnapshot();
 
   const gates: GateManager = {
     interactionMode: "automated",
