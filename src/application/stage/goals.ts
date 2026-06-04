@@ -1,16 +1,16 @@
 import { QUESTION_SET, inferFromTask } from "../../domain/goals/interview-policy.js";
 import { MAX_GOALS_REVIEW_ROUNDS } from "../../domain/run/index.js";
-import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js";
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import { runAgentReviewLoop } from "../workflow/agent-review-loop.js";
-import type { DispatchResult } from "../port/index.js";
-import type { GateRoundDetail, Route, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
+import type { DispatchResult, GoalsReturnPayload } from "../port/index.js";
+import { readGoalsReturn } from "../port/index.js";
+import type { GateRoundDetail, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {
   artifactRelPath,
   dispatchFailureSummary,
   dispatchLeaf,
+  isTransientDispatchFailure,
   readArtifact,
-  requireMarkdownSection,
   secondsBetween,
   subStageContext,
   writeArtifact,
@@ -100,7 +100,7 @@ export const goalsStage: StageModule = {
           .filter(Boolean)
           .join("\n"),
         {
-          customTools: [runtime.services.gates.createAskHumanTool()],
+          customTools: [runtime.services.gates.createAskHumanTool(), runtime.services.gates.createGoalsReturnTool()],
         },
       );
 
@@ -113,9 +113,23 @@ export const goalsStage: StageModule = {
       if (synthesisFailure) {
         return synthesisFailure;
       }
-      const goalsMarkdown = requireMarkdownSection(synthesized.text, "goals.md");
-      const configMarkdown = requireMarkdownSection(synthesized.text, "config.md");
-      await writeArtifact(runtime, { kind: "goals" }, goalsMarkdown);
+      const goalsReturn = readGoalsReturn(synthesized);
+      if (!goalsReturn) {
+        return {
+          status: "FAIL",
+          filesWritten: ["requirements.md"],
+          summary: "Goals synthesis did not call goals_return.",
+          telemetry: {
+            gate_status: "none",
+            review_rounds: 0,
+            gate_rounds: 0,
+            gate_wait_time_s: 0,
+            gate_round_details: [],
+          },
+        };
+      }
+      await writeArtifact(runtime, { kind: "goals" }, goalsReturn.goalsMarkdown);
+      const configMarkdown = renderGoalsConfig(runtime.state.runId, goalsReturn);
       await writeArtifact(runtime, { kind: "config" }, configMarkdown);
 
       const interviewRecord = renderInterviewRecord(interview.entries);
@@ -140,7 +154,7 @@ export const goalsStage: StageModule = {
             ].join("\n"),
           );
           const failure = dispatchFailureSummary(result, "Goals review failed");
-          if (failure) return { failure };
+          if (failure) return { failure, transient: isTransientDispatchFailure(result) };
           return { text: result.text };
         },
         onFail: async (reviewText) => {
@@ -160,12 +174,19 @@ export const goalsStage: StageModule = {
               "=== REVIEW FEEDBACK ===",
               reviewText,
             ].join("\n"),
-            { customTools: [runtime.services.gates.createAskHumanTool()] },
+            {
+              customTools: [
+                runtime.services.gates.createAskHumanTool(),
+                runtime.services.gates.createGoalsReturnTool(),
+              ],
+            },
           );
           const rewriteFailure = dispatchFailureSummary(rewritten, "Goals rewrite failed");
-          if (rewriteFailure) return { failure: rewriteFailure };
-          await writeArtifact(runtime, { kind: "goals" }, requireMarkdownSection(rewritten.text, "goals.md"));
-          await writeArtifact(runtime, { kind: "config" }, requireMarkdownSection(rewritten.text, "config.md"));
+          if (rewriteFailure) return { failure: rewriteFailure, transient: isTransientDispatchFailure(rewritten) };
+          const rewriteReturn = readGoalsReturn(rewritten);
+          if (!rewriteReturn) return { failure: "Goals rewrite did not call goals_return." };
+          await writeArtifact(runtime, { kind: "goals" }, rewriteReturn.goalsMarkdown);
+          await writeArtifact(runtime, { kind: "config" }, renderGoalsConfig(runtime.state.runId, rewriteReturn));
         },
       });
       if (review.status === "FAIL") {
@@ -186,7 +207,7 @@ export const goalsStage: StageModule = {
       }
 
       if (runtime.services.gates.interactionMode === "automated") {
-        const route = parseRoute(configMarkdown);
+        const route = goalsReturn.route;
         return {
           status: "PASS",
           filesWritten: ["requirements.md", "goals.md", "config.md", ...review.filesWritten],
@@ -239,7 +260,7 @@ export const goalsStage: StageModule = {
           route: goalsCtx.route,
           summary: "Goals gate approved.",
         });
-        const route = parseRoute(configMarkdown);
+        const route = goalsReturn.route;
         return {
           status: "PASS",
           filesWritten: ["requirements.md", "goals.md", "config.md", ...review.filesWritten],
@@ -303,7 +324,7 @@ export const goalsStage: StageModule = {
         feedback?.trim() || "No additional feedback supplied.",
         "",
         "### Rejected Artifact",
-        goalsMarkdown.trim(),
+        goalsReturn.goalsMarkdown.trim(),
         "",
       ].join("\n");
       await writeArtifact(runtime, feedbackId, feedbackBlock);
@@ -407,9 +428,19 @@ function renderInterviewRecord(entries: InterviewEntry[]): string {
     .join("\n");
 }
 
-function parseRoute(configMarkdown: string): Route {
-  const values = parseKeyValueLines(configMarkdown);
-  return values.route === "quick-fix" ? "quick-fix" : "full";
+function renderGoalsConfig(runId: string, payload: GoalsReturnPayload): string {
+  return [
+    "---",
+    `created: ${new Date().toISOString().slice(0, 10)}`,
+    `route: ${payload.route}`,
+    `run_id: ${runId}`,
+    ...(typeof payload.coverageThreshold === "number" ? [`coverage_threshold: ${payload.coverageThreshold}`] : []),
+    ...(payload.testGlobs && payload.testGlobs.length > 0
+      ? [`test_globs: [${payload.testGlobs.map((g) => `"${g}"`).join(", ")}]`]
+      : []),
+    "---",
+    "",
+  ].join("\n");
 }
 
 function renderSimpleGoals(filePath: string, content: string): string {

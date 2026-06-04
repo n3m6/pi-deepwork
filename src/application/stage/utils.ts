@@ -149,6 +149,14 @@ export function dispatchFailureSummary(result: DispatchResult, label: string): s
 
 export { parseReviewStatus, extractFixGuidance, parseMarkdownSections };
 
+/**
+ * Returns true for dispatch failures that are safe to retry (transient infrastructure issues).
+ * `timeout` and `session_error` are transient; `aborted` and `max_turns` are not.
+ */
+export function isTransientDispatchFailure(result: DispatchResult): boolean {
+  return result.endReason === "timeout" || result.endReason === "session_error";
+}
+
 export function readOnlyTools(tools: string[]): string[] {
   return tools.filter((tool) => tool !== "write" && tool !== "edit");
 }

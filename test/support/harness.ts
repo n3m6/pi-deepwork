@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
 import {
   createStageReturnTool,
   normalizeStageReturn,
@@ -223,7 +224,7 @@ class MockDispatcher implements Dispatcher {
   private async handleLeaf(request: DispatchRequest): Promise<DispatchResult> {
     switch (request.target.name) {
       case "qrspi-goals-synthesizer":
-        return textResult(renderGoalsSynth(this.options.route, this.artifacts.runDir.split("/").at(-1) ?? "run"));
+        return withGoalsReturn(request, this.options.route);
       case "qrspi-goals-reviewer":
       case "qrspi-question-leakage-reviewer":
       case "qrspi-question-quality-reviewer":
@@ -422,6 +423,10 @@ class StaticGateManager implements GateManager {
   createAskHumanTool() {
     return createAskHumanTool(this);
   }
+
+  createGoalsReturnTool() {
+    return createGoalsReturnTool();
+  }
 }
 
 class NoopProgressReporter implements ProgressReporter {
@@ -563,10 +568,25 @@ async function writeFixtureWorkspace(workspaceRoot: string, runId: string): Prom
   await pi.exec("git", ["checkout", "main"], { cwd: workspaceRoot, timeout: 60_000 });
 }
 
-function renderGoalsSynth(route: "full" | "quick-fix", runId: string): string {
+async function withGoalsReturn(request: DispatchRequest, route: "full" | "quick-fix"): Promise<DispatchResult> {
+  const calls: Array<{ name: string; result: CustomToolResult }> = [];
+  const tool = request.customTools?.find((candidate) => candidate.name === "goals_return");
+  if (tool) {
+    const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+    const result = await callTool.execute(
+      "tool-1",
+      { goalsMarkdown: renderGoalsMarkdown(), route },
+      undefined,
+      undefined,
+      {},
+    );
+    calls.push({ name: "goals_return", result });
+  }
+  return { text: "", messages: [], customToolCalls: calls };
+}
+
+function renderGoalsMarkdown(): string {
   return [
-    "### goals.md",
-    "",
     "# Goals",
     "",
     "## Intent",
@@ -589,12 +609,6 @@ function renderGoalsSynth(route: "full" | "quick-fix", runId: string): string {
     "",
     "## Acceptance Criteria",
     "1. The pipeline can run end-to-end.",
-    "",
-    "### config.md",
-    "",
-    `created: 2026-06-01`,
-    `route: ${route}`,
-    `run_id: ${runId}`,
     "",
   ].join("\n");
 }

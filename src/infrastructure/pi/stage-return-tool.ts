@@ -5,6 +5,7 @@ import { Type } from "typebox";
 import type {
   BackwardLoopClassification,
   DispatchResult,
+  GoalsReturnPayload,
   StageOutcome,
   StageStatus,
 } from "../../application/port/index.js";
@@ -157,6 +158,43 @@ function normalizeBackwardLoop(value: unknown): BackwardLoopClassification {
     value === "NO_LOOP"
     ? value
     : "NO_LOOP";
+}
+
+// ---------------------------------------------------------------------------
+// Goals return tool — structured delivery of goals.md content + config fields
+// ---------------------------------------------------------------------------
+
+const goalsReturnSchema = Type.Object({
+  goalsMarkdown: Type.String({ description: "Full content of goals.md." }),
+  route: StringEnum(["full", "quick-fix"] as const, { description: "Pipeline route." }),
+  coverageThreshold: Type.Optional(Type.Integer({ description: "Coverage gate percentage (0–100)." })),
+  testGlobs: Type.Optional(Type.Array(Type.String(), { description: "Non-default test glob patterns." })),
+});
+
+export function createGoalsReturnTool(): ToolDefinition<typeof goalsReturnSchema, GoalsReturnPayload> {
+  return defineTool({
+    name: "goals_return",
+    label: "Goals Return",
+    description:
+      "Submit the synthesized goals document and route determination. Call this once when synthesis is complete.",
+    promptSnippet: "Submit the synthesized goals content and route.",
+    parameters: goalsReturnSchema,
+    // eslint-disable-next-line @typescript-eslint/require-await -- SDK interface requires async signature
+    async execute(_toolCallId, params, _signal, _onUpdate, _ctx): Promise<AgentToolResult<GoalsReturnPayload>> {
+      const payload: GoalsReturnPayload = {
+        goalsMarkdown: isString(params.goalsMarkdown) ? params.goalsMarkdown : "",
+        route: params.route === "quick-fix" ? "quick-fix" : "full",
+        ...(typeof params.coverageThreshold === "number"
+          ? { coverageThreshold: Math.round(params.coverageThreshold) }
+          : {}),
+        ...(Array.isArray(params.testGlobs) ? { testGlobs: params.testGlobs.filter(isString) } : {}),
+      };
+      return {
+        content: [{ type: "text", text: "Recorded goals synthesis result." }],
+        details: payload,
+      };
+    },
+  });
 }
 
 function isString(value: unknown): value is string {

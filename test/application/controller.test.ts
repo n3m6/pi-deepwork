@@ -11,6 +11,7 @@ import {
 } from "../../src/application/pipeline/run-pipeline.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
 import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
 import { Run } from "../../src/domain/run/index.js";
 import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
 import type { GateManager, PipelineServices, StageModule, StageRuntime } from "../../src/application/port/index.js";
@@ -158,6 +159,9 @@ test("accept review-cap failures are not auto-approved in best-effort mode", asy
     createAskHumanTool() {
       return createAskHumanTool(this);
     },
+    createGoalsReturnTool() {
+      return createGoalsReturnTool();
+    },
   };
   const runtime: StageRuntime = {
     state,
@@ -214,6 +218,9 @@ test("executeStage auto-approves unclean-cap failures in automated best-effort m
     },
     createAskHumanTool() {
       return createAskHumanTool(this);
+    },
+    createGoalsReturnTool() {
+      return createGoalsReturnTool();
     },
   };
   const services = {
@@ -273,6 +280,9 @@ test("executeStage does not auto-approve infrastructure failures in best-effort 
     createAskHumanTool() {
       return createAskHumanTool(this);
     },
+    createGoalsReturnTool() {
+      return createGoalsReturnTool();
+    },
   };
   const services = {
     commandContext: { signal: new AbortController().signal },
@@ -331,6 +341,9 @@ test("executeStage retries once after an unexpected error in best-effort mode", 
     },
     createAskHumanTool() {
       return createAskHumanTool(this);
+    },
+    createGoalsReturnTool() {
+      return createGoalsReturnTool();
     },
   };
   const services = {

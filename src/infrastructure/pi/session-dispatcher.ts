@@ -22,7 +22,7 @@ import type {
 import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "./stage-return-tool.js";
 
 const DEFAULT_GENERIC_MAX_TURNS = 40;
-const DEFAULT_LEAF_TIMEOUT_MS = 180_000;
+const DEFAULT_LEAF_TIMEOUT_MS = 3_600_000;
 const DEFAULT_GENERIC_TIMEOUT_MS = 600_000;
 type DispatchEndReason = NonNullable<DispatchResult["endReason"]>;
 
@@ -102,7 +102,7 @@ export class PiSessionDispatcher implements Dispatcher {
     // Cast opaque CustomTool[] to SDK ToolDefinition[] at the infrastructure boundary
     const sdkTools = (request.customTools ?? []) as unknown as ToolDefinition[];
     const customTools = instrumentCustomTools(sdkTools, customToolCalls, (toolName) => {
-      if (toolName === "stage_return") {
+      if (toolName === "stage_return" || toolName === "goals_return") {
         resolveStageReturn?.();
       }
     });

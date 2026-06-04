@@ -274,6 +274,41 @@ export interface GateManager {
   choose(title: string, options: GateOption[], message?: string): Promise<GateChoice | undefined>;
   confirm(title: string, message: string): Promise<boolean>;
   createAskHumanTool(): CustomTool;
+  createGoalsReturnTool(): CustomTool;
+}
+
+// ---------------------------------------------------------------------------
+// GoalsReturnPayload — structured output contract for qrspi-goals-synthesizer
+// ---------------------------------------------------------------------------
+
+export interface GoalsReturnPayload {
+  goalsMarkdown: string;
+  route: "full" | "quick-fix";
+  coverageThreshold?: number;
+  testGlobs?: string[];
+}
+
+/**
+ * Reads the goals_return tool call recorded in a dispatch result.
+ * Returns undefined if the synthesizer did not call the tool.
+ */
+export function readGoalsReturn(result: DispatchResult): GoalsReturnPayload | undefined {
+  const call = result.customToolCalls.find((c) => c.name === "goals_return");
+  if (!call?.result.details) {
+    return undefined;
+  }
+  const value = call.result.details as Record<string, unknown>;
+  if (typeof value.goalsMarkdown !== "string" || !value.goalsMarkdown) {
+    return undefined;
+  }
+  return {
+    goalsMarkdown: value.goalsMarkdown,
+    route: value.route === "quick-fix" ? "quick-fix" : "full",
+    ...(typeof value.coverageThreshold === "number" ? { coverageThreshold: Math.round(value.coverageThreshold) } : {}),
+    ...(Array.isArray(value.testGlobs)
+      ? { testGlobs: (value.testGlobs as unknown[]).filter((x): x is string => typeof x === "string") }
+      : {}),
+  };
 }
 
 export interface ProgressReporter {

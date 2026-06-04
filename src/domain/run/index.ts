@@ -16,6 +16,9 @@ export const MAX_BACKWARD_LOOPS = 3;
 export const MAX_ACCEPT_FIX_ATTEMPTS = 2;
 export const MAX_VERIFY_FIX_ATTEMPTS = 3;
 
+/** Maximum per-round retries for transient dispatch failures (timeout, session_error). */
+export const MAX_TRANSIENT_DISPATCH_RETRIES = 1;
+
 /** Review-loop caps per stage. */
 export const MAX_GOALS_REVIEW_ROUNDS = 5;
 export const MAX_PLAN_REVIEW_ROUNDS = 5;

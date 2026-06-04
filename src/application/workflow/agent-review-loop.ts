@@ -6,6 +6,7 @@
  * and status aggregation.
  */
 
+import { MAX_TRANSIENT_DISPATCH_RETRIES } from "../../domain/run/index.js";
 import { parseReviewStatus, subStageContext, writeArtifact, artifactRelPath } from "../stage/utils.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
 
@@ -29,14 +30,21 @@ export interface AgentReviewLoopConfig {
   /**
    * Run one review round. Return `{ text }` with the reviewer's output, or
    * `{ failure }` with an error summary if the dispatcher returned a session error.
+   * Set `transient: true` to allow the round to be retried on transient failures.
    */
-  runReview: (round: number) => Promise<{ text: string } | { failure: string }>;
+  runReview: (round: number) => Promise<{ text: string } | { failure: string; transient?: boolean }>;
   /**
    * Called when the reviewer returns FAIL and there are remaining rounds.
    * Should rewrite the artifact being reviewed (e.g. re-synthesize with feedback).
    * Return `{ failure }` to abort the loop early with a dispatch failure.
+   * Set `transient: true` to allow the rewrite to be retried on transient failures.
    */
-  onFail?: (reviewText: string, round: number) => Promise<void | { failure: string }>;
+  onFail?: (reviewText: string, round: number) => Promise<void | { failure: string; transient?: boolean }>;
+  /**
+   * Maximum number of per-round retries for transient dispatch failures.
+   * Defaults to `MAX_TRANSIENT_DISPATCH_RETRIES`.
+   */
+  maxTransientRetries?: number;
 }
 
 export async function runAgentReviewLoop(
@@ -46,6 +54,7 @@ export async function runAgentReviewLoop(
   const filesWritten: string[] = [];
   const ctx = subStageContext(runtime);
   const stage = ctx.stage ?? (config.stageName as import("../port/index.js").StageName);
+  const maxTransientRetries = config.maxTransientRetries ?? MAX_TRANSIENT_DISPATCH_RETRIES;
 
   for (let round = 1; round <= config.maxRounds; round++) {
     await runtime.services.telemetrySink.record({
@@ -57,7 +66,13 @@ export async function runAgentReviewLoop(
       maxRounds: config.maxRounds,
     });
 
-    const reviewResult = await config.runReview(round);
+    // Attempt the review, retrying on transient failures up to maxTransientRetries times.
+    let reviewResult: Awaited<ReturnType<typeof config.runReview>>;
+    for (let attempt = 0; ; attempt++) {
+      reviewResult = await config.runReview(round);
+      if (!("failure" in reviewResult)) break;
+      if (!reviewResult.transient || attempt >= maxTransientRetries) break;
+    }
 
     if ("failure" in reviewResult) {
       await runtime.services.telemetrySink.record({
@@ -105,7 +120,13 @@ export async function runAgentReviewLoop(
     }
 
     if (config.onFail) {
-      const failResult = await config.onFail(reviewResult.text, round);
+      // Attempt the rewrite, retrying on transient failures up to maxTransientRetries times.
+      let failResult: Awaited<ReturnType<NonNullable<typeof config.onFail>>>;
+      for (let attempt = 0; ; attempt++) {
+        failResult = await config.onFail(reviewResult.text, round);
+        if (!failResult || !("failure" in failResult)) break;
+        if (!failResult.transient || attempt >= maxTransientRetries) break;
+      }
       if (failResult && "failure" in failResult) {
         return {
           status: "FAIL",
