@@ -5,7 +5,14 @@
  * synthesize → review (up to N rounds) → human gate → feedback → repeat.
  */
 
-import { artifactRelPath, dispatchLeaf, parseReviewStatus, readArtifact, writeArtifact } from "../stage/utils.js";
+import {
+  artifactRelPath,
+  dispatchLeaf,
+  parseReviewStatus,
+  readArtifact,
+  secondsBetween,
+  writeArtifact,
+} from "../stage/utils.js";
 import type { ArtifactId, GateRoundDetail, StageOutcome, StageRuntime } from "../port/index.js";
 
 export interface SynthesizeReviewGateConfig {
@@ -228,8 +235,4 @@ async function runReviewLoop(
 
 function capitalise(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function secondsBetween(start: string, end: string): number {
-  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
 }

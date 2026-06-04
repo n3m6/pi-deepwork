@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import {
   parseAffectedArtifact,
   parseMarkdownSections,
@@ -494,6 +492,3 @@ async function completedPhaseSummaries(runtime: StageRuntime, currentPhase: numb
   }
   return blocks.length > 0 ? blocks.join("\n\n") : "None.";
 }
-
-// Re-export for backward compatibility with tests
-export { path };

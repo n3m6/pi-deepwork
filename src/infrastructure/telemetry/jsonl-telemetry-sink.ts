@@ -113,11 +113,6 @@ export class JsonlTelemetrySink implements TelemetrySink {
   async readEvents(): Promise<TelemetryEvent[]> {
     return this.recorder.readEvents();
   }
-
-  /** Direct access to the underlying recorder for migration compat. */
-  get raw(): TelemetryRecorder {
-    return this.recorder;
-  }
 }
 
 // ---------------------------------------------------------------------------

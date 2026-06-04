@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import {
   extractFixGuidance,
   parseMarkdownSections,
@@ -107,6 +105,7 @@ export function readOnlyTools(tools: string[]): string[] {
   return tools.filter((tool) => tool !== "write" && tool !== "edit");
 }
 
-// Re-export path utilities for stages that need path.relative / path.join
-// without a direct node:path import.
-export { path };
+/** Returns the elapsed time in whole seconds between two ISO-8601 timestamps (clamped to ≥ 0). */
+export function secondsBetween(start: string, end: string): number {
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
+}

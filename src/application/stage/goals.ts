@@ -11,6 +11,7 @@ import {
   parseReviewStatus,
   readArtifact,
   requireMarkdownSection,
+  secondsBetween,
   writeArtifact,
 } from "./utils.js";
 
@@ -484,8 +485,4 @@ function renderSimpleConfig(runId: string): string {
     "---",
     "",
   ].join("\n");
-}
-
-function secondsBetween(start: string, end: string): number {
-  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000));
 }

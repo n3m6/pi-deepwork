@@ -261,10 +261,6 @@ export interface ProgressReporter {
   clear(): void;
 }
 
-export interface ShellExecutor {
-  exec: ExtensionAPI["exec"];
-}
-
 // ---------------------------------------------------------------------------
 // Pipeline services + stage runtime (infrastructure-coupled, migration compat)
 // ---------------------------------------------------------------------------
