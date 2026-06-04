@@ -44,7 +44,7 @@ test("ask_human returns no answer when the gate manager cannot prompt", async ()
     {
       title: "Clarify",
       question: "What should happen?",
-    } as never,
+    },
     undefined,
     undefined,
     {} as never,

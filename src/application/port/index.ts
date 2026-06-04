@@ -1,10 +1,15 @@
 /**
  * Application port definitions — the source of truth for all shared types.
  * Infrastructure adapters implement the interfaces defined here.
- * The domain layer is imported for pure value types; pi/node imports are temporary
- * and will be removed when the ESLint boundary rule is enforced in Phase 7.
+ *
+ * TODO(phase-7): Remove the SDK imports below. Replace with opaque local types:
+ *   - ExtensionCommandContext / ExtensionContext → { readonly signal?: AbortSignal }
+ *   - ToolDefinition / AgentToolResult → CustomTool / CustomToolResult
+ *   - Model<any> → ModelHandle
+ * After that, add @earendil-works/ to the no-restricted-imports rule for application/*.
  */
 
+/* eslint-disable no-restricted-imports -- Phase 7: SDK types still needed here until decoupling is complete */
 import type {
   AgentToolResult,
   ExtensionAPI,
@@ -13,6 +18,7 @@ import type {
   ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";
+/* eslint-enable no-restricted-imports */
 
 // ---------------------------------------------------------------------------
 // Re-export pure domain value types
@@ -170,6 +176,7 @@ export interface GenericCodingTarget {
   kind: "generic";
   name: "generic-coding";
   tools: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque ModelHandle
   model?: Model<any>;
   thinkingLevel?: ThinkingLevelName;
 }
@@ -196,6 +203,7 @@ export interface DispatchRequest {
   cwd: string;
   signal?: AbortSignal;
   tools?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque CustomTool[]
   customTools?: Array<ToolDefinition<any, any, any>>;
   timeoutMs?: number;
 }
@@ -243,6 +251,7 @@ export interface GateManager {
   askText(title: string, question: string, placeholder?: string): Promise<string | undefined>;
   choose(title: string, options: GateOption[], message?: string): Promise<GateChoice | undefined>;
   confirm(title: string, message: string): Promise<boolean>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Phase 7: replace with opaque CustomTool
   createAskHumanTool(): ToolDefinition<any, any>;
 }
 

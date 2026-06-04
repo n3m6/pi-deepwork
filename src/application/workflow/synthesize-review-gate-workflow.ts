@@ -44,7 +44,7 @@ export async function runSynthesizeReviewGate(
   ctx: SynthesisContext,
 ): Promise<StageOutcome> {
   const maxReviewRounds = cfg.maxReviewRounds ?? 5;
-  let feedbackHistory: string[] = [];
+  const feedbackHistory: string[] = [];
   let gateRounds = 0;
   let gateWaitTimeSeconds = 0;
   const gateRoundDetails: GateRoundDetail[] = [];

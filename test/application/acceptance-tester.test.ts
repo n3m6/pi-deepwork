@@ -90,7 +90,7 @@ async function stageReturnResult(request: DispatchRequest, payload: Record<strin
   if (!tool) {
     return { text: "", messages: [], customToolCalls: [] };
   }
-  const result = await tool.execute("tool-1", payload as never, undefined, undefined, {} as never);
+  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 
@@ -168,7 +168,7 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
 
   let changedFilesCallCount = 0;
   const mockVersionControl: VersionControl = {
-    ...harness.services.versionControl!,
+    ...harness.services.versionControl,
     async changedFiles(_cwd: string): Promise<string[]> {
       changedFilesCallCount += 1;
       // Second call (after acceptance) adds a production file
@@ -229,7 +229,7 @@ test("runAcceptanceTesterSubstage returns boundary_violation when non-test files
           });
           return normalizeStageReturn(result);
         },
-      } as Dispatcher,
+      },
     },
   };
 

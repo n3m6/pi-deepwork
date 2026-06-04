@@ -38,6 +38,7 @@ export type SessionFactory = (
   request: DispatchRequest,
   customTools: ToolDefinition[],
   toolAllowlist: string[],
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK Model generic; Phase 7 will wrap with opaque ModelHandle
   model: Model<any> | undefined,
 ) => Promise<AgentSession>;
 
@@ -46,6 +47,7 @@ export class PiSessionDispatcher implements Dispatcher {
 
   constructor(
     private readonly modelRegistry: ModelRegistry,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK Model generic; Phase 7 will wrap with opaque ModelHandle
     private readonly currentModel?: Model<any>,
     sessionFactory?: SessionFactory,
   ) {
@@ -79,7 +81,7 @@ export class PiSessionDispatcher implements Dispatcher {
         agentDir: getAgentDir(),
         modelRegistry: this.modelRegistry,
         thinkingLevel: (request.target.thinkingLevel ?? "high") as never,
-        maxTurns: isLeaf ? (target as LeafAgentDefinition).maxTurns : DEFAULT_GENERIC_MAX_TURNS,
+        maxTurns: isLeaf ? target.maxTurns : DEFAULT_GENERIC_MAX_TURNS,
         tools: toolAllowlist,
         customTools,
         resourceLoader: loader,
@@ -104,13 +106,11 @@ export class PiSessionDispatcher implements Dispatcher {
     });
     const target = request.target;
     const isLeaf = target.kind === "leaf";
+    /* eslint-disable @typescript-eslint/no-unsafe-argument -- customTools typed as any[] at SDK boundary; Phase 7 will introduce opaque CustomTool */
     const toolAllowlist = mergeToolAllowlist(target.tools, request.tools, customTools);
-    const model = resolveModel(
-      this.modelRegistry,
-      this.currentModel,
-      isLeaf ? (target as LeafAgentDefinition).modelName : undefined,
-    );
+    const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? target.modelName : undefined);
     const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
+    /* eslint-enable @typescript-eslint/no-unsafe-argument */
 
     try {
       const endReason = await waitForPromptCompletion(
@@ -219,7 +219,7 @@ export async function waitForPromptCompletion(
     return await Promise.race([
       session.prompt(prompt, { source: "extension" }).then(() => "agent_end" as const),
       done,
-      stageReturn.then(async () => {
+      stageReturn.then(() => {
         void session.abort().catch(() => undefined);
         return "stage_return" as const;
       }),
@@ -234,6 +234,7 @@ export async function waitForPromptCompletion(
   }
 }
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- resolveModel works with SDK Model generic; Phase 7 will introduce opaque ModelHandle */
 export function resolveModel(
   modelRegistry: ModelRegistry,
   currentModel: Model<any> | undefined,
@@ -250,6 +251,7 @@ export function resolveModel(
   }
   return currentModel ?? modelRegistry.getAvailable()[0] ?? all[0];
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function mergeToolAllowlist(
   targetTools: string[],

@@ -213,7 +213,7 @@ async function stageReturnResult(request: DispatchRequest, payload: Record<strin
   if (!tool) {
     return { text: "", messages: [], customToolCalls: [] };
   }
-  const result = await tool.execute("tool-1", payload as never, undefined, undefined, {} as never);
+  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 

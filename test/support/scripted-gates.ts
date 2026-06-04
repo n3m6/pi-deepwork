@@ -41,7 +41,7 @@ export class ScriptedGateManager implements GateManager {
     const answer = this.queue.find((a) => a.method === "askText");
     if (answer) {
       this.queue.splice(this.queue.indexOf(answer), 1);
-      return (answer as Extract<ScriptedGateAnswer, { method: "askText" }>).value;
+      return answer.value;
     }
     return undefined;
   }
@@ -51,7 +51,7 @@ export class ScriptedGateManager implements GateManager {
     const answer = this.queue.find((a) => a.method === "choose");
     if (answer) {
       this.queue.splice(this.queue.indexOf(answer), 1);
-      return (answer as Extract<ScriptedGateAnswer, { method: "choose" }>).value;
+      return answer.value;
     }
     return undefined;
   }
@@ -61,7 +61,7 @@ export class ScriptedGateManager implements GateManager {
     const answer = this.queue.find((a) => a.method === "confirm");
     if (answer) {
       this.queue.splice(this.queue.indexOf(answer), 1);
-      return (answer as Extract<ScriptedGateAnswer, { method: "confirm" }>).value;
+      return answer.value;
     }
     return false;
   }

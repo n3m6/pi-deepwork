@@ -817,7 +817,7 @@ async function withStageReturn(request: DispatchRequest, payload: Record<string,
   if (tool) {
     const result = (await tool.execute(
       "tool-1",
-      payload as never,
+      payload,
       undefined,
       undefined,
       {} as never,

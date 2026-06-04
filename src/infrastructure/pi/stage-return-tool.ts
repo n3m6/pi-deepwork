@@ -7,7 +7,6 @@ import type {
   DispatchResult,
   StageOutcome,
   StageStatus,
-  StageTelemetryContext,
 } from "../../application/port/index.js";
 
 export const backwardLoopSchema = Type.Object({
@@ -54,6 +53,7 @@ export function createStageReturnTool(
     description: "Terminate a structured stage-like sub-run with a deterministic result payload.",
     promptSnippet: "Return the final structured result for this stage-like task.",
     parameters: stageReturnSchema,
+    // eslint-disable-next-line @typescript-eslint/require-await -- SDK interface requires async signature
     async execute(_toolCallId, params, _signal, _onUpdate, _ctx): Promise<AgentToolResult<StageReturnPayload>> {
       const payload = coerceStageReturnPayload(params);
       sink.push(payload);
@@ -87,7 +87,7 @@ export function normalizeStageReturn(result: DispatchResult, errorMessage?: stri
 
 export function structuredToOutcome(payload: StageReturnPayload): StageOutcome {
   const outcome: StageOutcome = {
-    status: payload.status as StageStatus,
+    status: payload.status,
     filesWritten: payload.filesWritten,
     summary: payload.summary,
   };
@@ -101,7 +101,7 @@ export function structuredToOutcome(payload: StageReturnPayload): StageOutcome {
     outcome.reportContent = payload.reportContent;
   }
   if (payload.telemetry) {
-    outcome.telemetry = payload.telemetry as StageTelemetryContext;
+    outcome.telemetry = payload.telemetry;
   }
   if (payload.backwardLoop) {
     outcome.backwardLoop = {

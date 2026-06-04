@@ -73,7 +73,7 @@ export const goalsStage: StageModule = {
       };
     }
 
-    let feedbackHistory: string[] = [];
+    const feedbackHistory: string[] = [];
     let gateRounds = 0;
     let gateWaitTimeSeconds = 0;
     const gateRoundDetails: GateRoundDetail[] = [];

@@ -16,7 +16,7 @@ test("stage_return captures structured payloads", async () => {
       status: "PASS",
       filesWritten: ["foo.md"],
       summary: "ok",
-    } as never,
+    },
     undefined,
     undefined,
     {} as never,

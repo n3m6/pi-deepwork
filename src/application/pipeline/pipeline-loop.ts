@@ -66,7 +66,7 @@ export async function runPipeline(options: {
 
   try {
     while (run.nextStage !== "done") {
-      const stageName = run.nextStage as StageName;
+      const stageName = run.nextStage;
       const stage = STAGES[stageName];
       services.progress.setStage(`deepwork/${stageName}`, `phase ${run.state.currentPhase}`);
 

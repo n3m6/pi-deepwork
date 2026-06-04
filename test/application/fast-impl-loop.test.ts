@@ -25,7 +25,7 @@ function textResult(text: string): DispatchResult {
 async function stageReturnResult(request: DispatchRequest, payload: Record<string, unknown>): Promise<DispatchResult> {
   const tool = request.customTools?.find((t) => t.name === "stage_return");
   if (!tool) return { text: "", messages: [], customToolCalls: [] };
-  const result = await tool.execute("tool-1", payload as never, undefined, undefined, {} as never);
+  const result = await tool.execute("tool-1", payload, undefined, undefined, {} as never);
   return { text: "", messages: [], customToolCalls: [{ name: "stage_return", result }] };
 }
 

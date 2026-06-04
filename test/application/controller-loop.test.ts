@@ -59,12 +59,12 @@ test("runPipeline emits run.started and run.completed telemetry on a trivial run
   // Characterization: pin the exact summary strings for lifecycle events
   const startedEvent = events.find((e: TelemetryEvent) => e.event_type === "run.started");
   assert.ok(startedEvent, "run.started event missing");
-  assert.equal(startedEvent!.summary, `Pipeline started. Route: ${harness.state.route}.`);
+  assert.equal(startedEvent.summary, `Pipeline started. Route: ${harness.state.route}.`);
 
   const completedEvent = events.find((e: TelemetryEvent) => e.event_type === "run.completed");
   assert.ok(completedEvent, "run.completed event missing");
-  assert.equal(completedEvent!.summary, `Pipeline completed. Route: ${harness.state.route}.`);
-  assert.equal(completedEvent!.status, "PASS");
+  assert.equal(completedEvent.summary, `Pipeline completed. Route: ${harness.state.route}.`);
+  assert.equal(completedEvent.status, "PASS");
 
   const stageStartedEvents = events.filter((e: TelemetryEvent) => e.event_type === "stage.started");
   assert.ok(stageStartedEvents.length > 0, "No stage.started events");

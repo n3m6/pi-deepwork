@@ -340,7 +340,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "stage.started",
         status: "RUNNING",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: `Stage ${event.stage} started. Route: ${event.route}.`,
@@ -356,7 +356,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: resolvedEventType,
         status: event.outcome.status,
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.outcome.summary,
@@ -365,7 +365,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
           started_at: event.startedAt,
           ended_at: event.endedAt,
         },
-        ...(event.outcome.telemetry ? { context: event.outcome.telemetry as Record<string, unknown> } : {}),
+        ...(event.outcome.telemetry ? { context: event.outcome.telemetry } : {}),
       };
     }
     case "stage.failed":
@@ -373,7 +373,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "stage.failed",
         status: "FAIL",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -385,7 +385,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "stage.skipped",
         status: "SKIP",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -395,7 +395,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "stage.retried",
         status: "RETRY",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -406,7 +406,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "gate.presented",
         status: "RUNNING",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -416,7 +416,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "gate.approved",
         status: "PASS",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -426,7 +426,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "gate.rejected",
         status: "FAIL",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.summary,
@@ -436,7 +436,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "backward_loop.requested",
         status: "FAIL",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: event.request.summary,
@@ -450,7 +450,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "backward_loop.decided",
         status: "PASS",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: `Looping back to ${event.targetStage}.`,
@@ -464,7 +464,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "backward_loop.deferred",
         status: "PASS",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: `Deferred remediation to replan for phase ${event.phase}.`,
@@ -478,7 +478,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "backward_loop.reset",
         status: "PASS",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: `Archived and deleted stale artifacts for ${event.targetStage}.`,
@@ -489,7 +489,7 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
         event_type: "backward_loop.failed",
         status: "FAIL",
         route: event.route,
-        stage: event.stage as StageName,
+        stage: event.stage,
         phase: event.phase,
         stage_instance: event.stageInstance,
         summary: `Backward-loop cap (${event.maxLoops}) reached; stopping the run.`,
@@ -544,10 +544,11 @@ function aggregateChildCalls(events: TelemetryEvent[]): string[] {
 function aggregateReviewRounds(events: TelemetryEvent[]): string[] {
   return events
     .filter((event) => Boolean(event.stage) && typeof event.context?.review_rounds === "number")
-    .map(
-      (event) =>
-        `| ${event.stage ?? "—"} | ${String(event.context?.review_type ?? "reviewer")} | ${String(event.context?.review_rounds ?? 0)} |`,
-    );
+    .map((event) => {
+      const reviewType = typeof event.context?.review_type === "string" ? event.context.review_type : "reviewer";
+      const reviewRounds = typeof event.context?.review_rounds === "number" ? event.context.review_rounds : 0;
+      return `| ${event.stage ?? "—"} | ${reviewType} | ${reviewRounds} |`;
+    });
 }
 
 function aggregateGateRows(events: TelemetryEvent[]): string[] {
