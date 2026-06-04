@@ -13,6 +13,11 @@ import { MarkdownAgentCatalog } from "./infrastructure/pi/agent-catalog.js";
 import { DefaultGateManager, determineInteractionMode } from "./infrastructure/pi/human-gate.js";
 import { UiProgressReporter } from "./infrastructure/pi/progress-reporter.js";
 import { PiSessionDispatcher } from "./infrastructure/pi/session-dispatcher.js";
+import {
+  DEEPWORK_PROGRESS_CUSTOM_TYPE,
+  DEEPWORK_PROGRESS_RENDERER,
+  LiveUiTelemetrySink,
+} from "./infrastructure/pi/live-ui-telemetry-sink.js";
 import { JsonlTelemetrySink } from "./infrastructure/telemetry/jsonl-telemetry-sink.js";
 import { TimestampIdGenerator } from "./infrastructure/system/id-generator.js";
 import { SystemClock } from "./infrastructure/system/clock.js";
@@ -21,6 +26,9 @@ import { runPipeline } from "./application/pipeline/run-pipeline.js";
 import type { PipelineServices } from "./application/port/index.js";
 
 export default function (pi: ExtensionAPI): void {
+  // Register the transcript breadcrumb renderer once at extension load time.
+  pi.registerMessageRenderer(DEEPWORK_PROGRESS_CUSTOM_TYPE, DEEPWORK_PROGRESS_RENDERER);
+
   pi.registerCommand("deepwork", {
     description: "Run the deterministic QRSPI deepwork pipeline.",
     handler: async (args, ctx) => {
@@ -60,7 +68,8 @@ export default function (pi: ExtensionAPI): void {
       const artifactRepo = FileSystemArtifactRepository.fromPaths(artifacts);
       const versionControl = new GitVersionControl(pi, ctx.cwd, runId);
       const buildTool = new NpmBuildTool(pi);
-      const telemetrySink = JsonlTelemetrySink.create(artifacts, runId, clock);
+      const jsonlSink = JsonlTelemetrySink.create(artifacts, runId, clock);
+      const telemetrySink = new LiveUiTelemetrySink(jsonlSink, pi, ctx);
       const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
 
       const services: PipelineServices = {
