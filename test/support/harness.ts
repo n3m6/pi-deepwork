@@ -5,28 +5,24 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
+import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 import {
   createStageReturnTool,
   normalizeStageReturn,
   type StageReturnPayload,
-} from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/stage-return-tool.js";
 
-import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
-import {
-  ensureRunDirectories,
-  getRunArtifacts,
-  type RunArtifacts,
-} from "../../src/infrastructure/fs/artifact-repository.js";
-import { createRunId } from "../../src/infrastructure/system/id-generator.js";
+import { loadAgentDefinitions } from "../../src/infra/pi/agent-catalog.js";
+import { ensureRunDirectories, getRunArtifacts, type RunArtifacts } from "../../src/infra/fs/artifact-repository.js";
+import { createRunId } from "../../src/infra/system/id-generator.js";
 import { Run } from "../../src/domain/run/index.js";
-import { SystemClock } from "../../src/infrastructure/system/clock.js";
-import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
-import { FileSystemRunStateRepository } from "../../src/infrastructure/fs/state-repository.js";
-import { GitVersionControl } from "../../src/infrastructure/git/version-control.js";
-import { NpmBuildTool } from "../../src/infrastructure/npm/build-tool.js";
-import { JsonlTelemetrySink } from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
+import { SystemClock } from "../../src/infra/system/clock.js";
+import { FileSystemArtifactRepository } from "../../src/infra/fs/artifact-repository.js";
+import { FileSystemRunStateRepository } from "../../src/infra/fs/state-repository.js";
+import { GitVersionControl } from "../../src/infra/git/version-control.js";
+import { NpmBuildTool } from "../../src/infra/npm/build-tool.js";
+import { JsonlTelemetrySink } from "../../src/infra/telemetry/jsonl-telemetry-sink.js";
 import type {
   DispatchRequest,
   CustomToolResult,

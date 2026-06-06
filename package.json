@@ -34,7 +34,7 @@
   "scripts": {
     "test": "node --import tsx --test --test-concurrency=1 \"test/*.test.ts\" \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint --max-warnings=0 src/domain src/application src/infrastructure test",
+    "lint": "eslint --max-warnings=0 src/domain src/application src/infra test",
     "format": "prettier --write src/ test/",
     "format:check": "prettier --check src/ test/",
     "verify": "npm run typecheck && npm run lint && npm run format:check && npm test"
@@ -68,5 +68,6 @@
     "typebox": "1.1.39",
     "typescript": "6.0.3",
     "typescript-eslint": "8.60.1"
-  }
+  },
+  "packageManager": "npm@11.4.2"
 }

@@ -1,4 +1,4 @@
-import type { AgentSession, SessionFactory } from "../../src/infrastructure/pi/session-dispatcher.js";
+import type { AgentSession, SessionFactory } from "../../src/infra/pi/session-dispatcher.js";
 import type { DispatchRequest } from "../../src/application/port/index.js";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { Model } from "@earendil-works/pi-ai";

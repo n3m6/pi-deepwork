@@ -4,7 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { WorktreeManager, type TaskWorktree } from "../../src/infrastructure/git/version-control.js";
+import { WorktreeManager, type TaskWorktree } from "../../src/infra/git/version-control.js";
 
 test("prepare creates missing run branch from HEAD before adding task worktree", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-worktree-"));

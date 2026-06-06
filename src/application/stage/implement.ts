@@ -2,7 +2,7 @@ import {
   parseAffectedArtifact,
   parseMarkdownSections,
   parseTaskSpecMetadata,
-} from "../../infrastructure/codec/markdown-codec.js";
+} from "../../infra/codec/markdown-codec.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import { buildWaves } from "../../domain/stage/wave-planner.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime, TaskWorktreeHandle } from "../port/index.js";

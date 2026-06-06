@@ -1,4 +1,4 @@
-import { parseKeyValueLines } from "../../infrastructure/codec/markdown-codec.js";
+import { parseKeyValueLines } from "../../infra/codec/markdown-codec.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import { dispatchLeaf, readArtifact, writeArtifact } from "./utils.js";

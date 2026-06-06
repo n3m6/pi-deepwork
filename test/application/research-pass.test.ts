@@ -4,7 +4,7 @@ import { writeFile } from "node:fs/promises";
 
 import { runResearchPassSubstage } from "../../src/application/stage/research-pass.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
-import type { RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import type { RunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];

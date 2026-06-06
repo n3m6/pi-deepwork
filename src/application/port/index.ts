@@ -4,8 +4,8 @@
  *
  * This file is SDK-free. All SDK types are replaced with opaque local types.
  * Infrastructure adapters cast at the session boundary — see:
- *   src/infrastructure/pi/session-dispatcher.ts
- *   src/infrastructure/pi/human-gate.ts
+ *   src/infra/pi/session-dispatcher.ts
+ *   src/infra/pi/human-gate.ts
  */
 
 // ---------------------------------------------------------------------------

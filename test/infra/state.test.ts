@@ -4,9 +4,9 @@ import { mkdtemp, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { loadState, saveState } from "../../src/infrastructure/fs/state-repository.js";
-import { createRunId } from "../../src/infrastructure/system/id-generator.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
+import { loadState, saveState } from "../../src/infra/fs/state-repository.js";
+import { createRunId } from "../../src/infra/system/id-generator.js";
 import { Run } from "../../src/domain/run/index.js";
 
 test("createRunId formats deterministic qrspi ids", () => {

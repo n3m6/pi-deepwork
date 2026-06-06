@@ -1,7 +1,7 @@
 /**
  * Boundary guard:
  *  - domain/ and application/ must not import from node:* or @earendil-works/*
- *  - domain/ must not import from infrastructure/ (caught by ESLint as errors;
+ *  - domain/ must not import from infra/ (caught by ESLint as errors;
  *    application/ violations are tracked as eslint-disable comments — technical debt)
  *
  * Zero-dependency check. Scans TS source files for forbidden import patterns.
@@ -25,7 +25,7 @@ const DOMAIN_APP_FORBIDDEN_PATTERNS = [
 ];
 
 /** Domain must never import from infrastructure at all. */
-const DOMAIN_ONLY_FORBIDDEN = [/from\s+["'][^"']*infrastructure\//];
+const DOMAIN_ONLY_FORBIDDEN = [/from\s+["'][^"']*infra\//];
 
 async function collectTsFiles(dir: string): Promise<string[]> {
   const entries = await readdir(dir, { withFileTypes: true });
@@ -72,13 +72,13 @@ test("domain layer has no node:* or @earendil-works/* imports", async () => {
   );
 });
 
-test("domain layer has no infrastructure/ imports", async () => {
+test("domain layer has no infra/ imports", async () => {
   const domainDir = path.join(ROOT, "domain");
   const violations = await findViolations(domainDir, DOMAIN_ONLY_FORBIDDEN);
   assert.deepEqual(
     violations,
     [],
-    `Domain layer must not import from infrastructure/:\n${violations.map((v) => `  ${v.file}:${v.line}: ${v.text}`).join("\n")}`,
+    `Domain layer must not import from infra/:\n${violations.map((v) => `  ${v.file}:${v.line}: ${v.text}`).join("\n")}`,
   );
 });
 

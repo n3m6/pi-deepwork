@@ -4,11 +4,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
-import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
+import { loadAgentDefinitions } from "../../src/infra/pi/agent-catalog.js";
+import { FileSystemArtifactRepository } from "../../src/infra/fs/artifact-repository.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
+import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 import { Run } from "../../src/domain/run/index.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
 import type {

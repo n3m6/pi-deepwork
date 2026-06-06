@@ -10,12 +10,12 @@ import type {
   DispatchResult,
   Dispatcher,
 } from "../../src/application/port/index.js";
-import type { RunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import type { RunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import {
   createStageReturnTool,
   normalizeStageReturn,
   type StageReturnPayload,
-} from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import { implementStage } from "../../src/application/stage/implement.js";
 

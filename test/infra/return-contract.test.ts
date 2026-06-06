@@ -5,7 +5,7 @@ import {
   createStageReturnTool,
   normalizeStageReturn,
   type StageReturnPayload,
-} from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/stage-return-tool.js";
 
 test("stage_return captures structured payloads", async () => {
   const sink: StageReturnPayload[] = [];

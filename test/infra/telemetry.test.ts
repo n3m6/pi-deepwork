@@ -4,13 +4,13 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { Run } from "../../src/domain/run/index.js";
 import {
   TelemetryRecorder,
   renderMetricsSummary,
   renderRunLog,
-} from "../../src/infrastructure/telemetry/jsonl-telemetry-sink.js";
+} from "../../src/infra/telemetry/jsonl-telemetry-sink.js";
 
 test("telemetry recorder appends jsonl and renders summaries", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-telemetry-"));

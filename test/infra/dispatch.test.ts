@@ -12,7 +12,7 @@ import {
   instrumentCustomTools,
   existingPaths,
   waitForPromptCompletion,
-} from "../../src/infrastructure/pi/session-dispatcher.js";
+} from "../../src/infra/pi/session-dispatcher.js";
 import { makeFakeModelRegistry, makeSessionFactory, FakeSession } from "../support/fake-session.js";
 import type { CustomTool, DispatchRequest } from "../../src/application/port/index.js";
 
@@ -283,7 +283,7 @@ test("dispatchChain substitutes {previous} in subsequent prompts", async () => {
   const capturedPrompts: string[] = [];
   const factory = async (
     request: DispatchRequest,
-  ): Promise<import("../../src/infrastructure/pi/session-dispatcher.js").AgentSession> => {
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
     capturedPrompts.push(request.prompt);
     return new FakeSession({ kind: "agent_end" }, `response-to: ${request.prompt}`);
   };
@@ -304,7 +304,7 @@ test("dispatchParallel runs all requests and returns results in order", async ()
   const registry = makeFakeModelRegistry([], []);
   const factory = async (
     request: DispatchRequest,
-  ): Promise<import("../../src/infrastructure/pi/session-dispatcher.js").AgentSession> => {
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
     return new FakeSession({ kind: "agent_end" }, `answer-${request.prompt}`);
   };
   const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never);

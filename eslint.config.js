@@ -52,7 +52,7 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex: "infrastructure/",
+              regex: "infra/",
               message: "Domain layer must not depend on infrastructure. Use domain types only.",
             },
             {
@@ -75,25 +75,26 @@ export default tseslint.config(
         {
           patterns: [
             {
-              regex: "infrastructure/git/",
+              regex: "infra/git/",
               message: "Application layer should use the VersionControl port, not the git adapter directly.",
             },
             {
-              regex: "infrastructure/fs/",
+              regex: "infra/fs/",
               message:
                 "Application layer should use the RunStateRepository/ArtifactRepository ports, not fs adapters directly.",
             },
             {
-              regex: "infrastructure/pi/(human-gate|stage-return-tool|session-dispatcher|progress-reporter)",
+              regex: "infra/pi/(human-gate|stage-return-tool|session-dispatcher|progress-reporter)",
               message: "Application layer should use ports (GateManager, PipelineServices), not pi adapters directly.",
             },
             {
-              regex: "infrastructure/telemetry/",
+              regex: "infra/telemetry/",
               message: "Application layer should use the TelemetrySink port, not the telemetry adapter directly.",
             },
             {
               regex: "@earendil-works/",
-              message: "Application layer must not depend on the pi SDK. Use ports defined in application/port/index.ts.",
+              message:
+                "Application layer must not depend on the pi SDK. Use ports defined in application/port/index.ts.",
             },
           ],
         },

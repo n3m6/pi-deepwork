@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
-import { getRunArtifacts, ensureRunDirectories } from "../../src/infrastructure/fs/artifact-repository.js";
+import { FileSystemArtifactRepository } from "../../src/infra/fs/artifact-repository.js";
+import { getRunArtifacts, ensureRunDirectories } from "../../src/infra/fs/artifact-repository.js";
 import { Run } from "../../src/domain/run/index.js";
 import { runCodeReviewSubstage } from "../../src/application/stage/code-review.js";
 import type {

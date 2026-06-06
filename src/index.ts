@@ -1,26 +1,22 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import {
-  FileSystemArtifactRepository,
-  ensureRunDirectories,
-  getRunArtifacts,
-} from "./infrastructure/fs/artifact-repository.js";
-import { FileSystemRunStateRepository } from "./infrastructure/fs/state-repository.js";
-import { resumeOrInferState } from "./infrastructure/fs/state-reconstruction.js";
-import { GitVersionControl } from "./infrastructure/git/version-control.js";
-import { NpmBuildTool } from "./infrastructure/npm/build-tool.js";
-import { MarkdownAgentCatalog } from "./infrastructure/pi/agent-catalog.js";
-import { DefaultGateManager, determineInteractionMode } from "./infrastructure/pi/human-gate.js";
-import { UiProgressReporter } from "./infrastructure/pi/progress-reporter.js";
-import { PiSessionDispatcher } from "./infrastructure/pi/session-dispatcher.js";
+import { FileSystemArtifactRepository, ensureRunDirectories, getRunArtifacts } from "./infra/fs/artifact-repository.js";
+import { FileSystemRunStateRepository } from "./infra/fs/state-repository.js";
+import { resumeOrInferState } from "./infra/fs/state-reconstruction.js";
+import { GitVersionControl } from "./infra/git/version-control.js";
+import { NpmBuildTool } from "./infra/npm/build-tool.js";
+import { MarkdownAgentCatalog } from "./infra/pi/agent-catalog.js";
+import { DefaultGateManager, determineInteractionMode } from "./infra/pi/human-gate.js";
+import { UiProgressReporter } from "./infra/pi/progress-reporter.js";
+import { PiSessionDispatcher } from "./infra/pi/session-dispatcher.js";
 import {
   DEEPWORK_PROGRESS_CUSTOM_TYPE,
   DEEPWORK_PROGRESS_RENDERER,
   LiveUiTelemetrySink,
-} from "./infrastructure/pi/live-ui-telemetry-sink.js";
-import { JsonlTelemetrySink } from "./infrastructure/telemetry/jsonl-telemetry-sink.js";
-import { TimestampIdGenerator } from "./infrastructure/system/id-generator.js";
-import { SystemClock } from "./infrastructure/system/clock.js";
+} from "./infra/pi/live-ui-telemetry-sink.js";
+import { JsonlTelemetrySink } from "./infra/telemetry/jsonl-telemetry-sink.js";
+import { TimestampIdGenerator } from "./infra/system/id-generator.js";
+import { SystemClock } from "./infra/system/clock.js";
 import { Run } from "./domain/run/index.js";
 import { runPipeline } from "./application/pipeline/run-pipeline.js";
 import type { PipelineServices } from "./application/port/index.js";

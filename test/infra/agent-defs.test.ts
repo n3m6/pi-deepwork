@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { isOrchestrator, loadAgentDefinitions } from "../../src/infrastructure/pi/agent-catalog.js";
+import { isOrchestrator, loadAgentDefinitions } from "../../src/infra/pi/agent-catalog.js";
 
 test("loadAgentDefinitions returns retained markdown leaf agents only", async () => {
   const definitions = await loadAgentDefinitions();

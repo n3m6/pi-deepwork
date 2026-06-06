@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { FileSystemArtifactRepository } from "../../src/infrastructure/fs/artifact-repository.js";
+import { FileSystemArtifactRepository } from "../../src/infra/fs/artifact-repository.js";
 import { renderAcceptanceRepairContext } from "../../src/application/stage/acceptance-feedback.js";
 import { runFastImplCodeSubstage } from "../../src/application/stage/fast-impl-code.js";
 import { runFastImplTestSubstage } from "../../src/application/stage/fast-impl-test.js";
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { Run } from "../../src/domain/run/index.js";
 import type {
   CustomToolResult,
@@ -20,7 +20,7 @@ import {
   createStageReturnTool,
   normalizeStageReturn,
   type StageReturnPayload,
-} from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 import os from "node:os";
 import { mkdtemp } from "node:fs/promises";

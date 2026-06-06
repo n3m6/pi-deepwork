@@ -4,9 +4,9 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { resumeOrInferState } from "../../src/infrastructure/fs/state-reconstruction.js";
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
-import { saveState } from "../../src/infrastructure/fs/state-repository.js";
+import { resumeOrInferState } from "../../src/infra/fs/state-reconstruction.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
+import { saveState } from "../../src/infra/fs/state-repository.js";
 import { Run } from "../../src/domain/run/index.js";
 
 test("resumeOrInferState prefers persisted state.json", async () => {

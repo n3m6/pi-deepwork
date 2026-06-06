@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { resetArtifactsForBackwardLoop } from "../../src/infrastructure/fs/artifact-repository.js";
-import { ensureRunDirectories, getRunArtifacts } from "../../src/infrastructure/fs/artifact-repository.js";
+import { resetArtifactsForBackwardLoop } from "../../src/infra/fs/artifact-repository.js";
+import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 
 test("resetArtifactsForBackwardLoop archives and deletes stale plan artifacts", async () => {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-loop-"));

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { CheckpointManager } from "../../src/infrastructure/git/version-control.js";
+import { CheckpointManager } from "../../src/infra/git/version-control.js";
 
 test("createRunBranch initializes an unborn repository with an empty run commit", async () => {
   const calls: string[][] = [];

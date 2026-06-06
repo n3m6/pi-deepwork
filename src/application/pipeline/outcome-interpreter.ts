@@ -6,7 +6,7 @@
  * adapter (infrastructure layer with fs access).
  */
 
-import { parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
+import { parseTotalPhases } from "../../infra/codec/markdown-codec.js";
 import { Run, MAX_ACCEPT_FIX_ATTEMPTS, MAX_VERIFY_FIX_ATTEMPTS } from "../../domain/run/index.js";
 import { isImplementationRepairableAcceptFailure } from "../../domain/stage/fix-routing-policy.js";
 import { nextStageFor } from "../../domain/stage/transition-policy.js";

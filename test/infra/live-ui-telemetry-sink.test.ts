@@ -10,7 +10,7 @@ import {
   LiveUiTelemetrySink,
   DEEPWORK_PROGRESS_CUSTOM_TYPE,
   type InitializableTelemetrySink,
-} from "../../src/infrastructure/pi/live-ui-telemetry-sink.js";
+} from "../../src/infra/pi/live-ui-telemetry-sink.js";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 
 // ---------------------------------------------------------------------------

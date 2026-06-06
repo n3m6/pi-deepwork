@@ -1,4 +1,4 @@
-import { normalizeNewlines } from "../../infrastructure/codec/markdown-codec.js";
+import { normalizeNewlines } from "../../infra/codec/markdown-codec.js";
 import { MAX_QUESTIONS_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { LeafAgentDefinition, StageRuntime } from "../port/index.js";
 import {

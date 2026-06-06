@@ -6,8 +6,8 @@ import {
   DefaultGateManager,
   determineInteractionMode,
   parseExplicitRunOptions,
-} from "../../src/infrastructure/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 
 test("parseExplicitRunOptions reads mode failure and run-id flags", () => {
   const options = parseExplicitRunOptions("resume run-id:qrspi-20260601-123456 mode:automated failure:best-effort");

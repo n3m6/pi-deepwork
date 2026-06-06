@@ -3,7 +3,7 @@ import {
   parseMarkdownSections,
   parseReviewStatus,
   requireMarkdownSection,
-} from "../../infrastructure/codec/markdown-codec.js";
+} from "../../infra/codec/markdown-codec.js";
 import type {
   ArtifactId,
   DispatchRequest,

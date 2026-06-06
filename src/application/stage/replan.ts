@@ -1,4 +1,4 @@
-import { parseMarkdownSections } from "../../infrastructure/codec/markdown-codec.js";
+import { parseMarkdownSections } from "../../infra/codec/markdown-codec.js";
 import { MAX_REPLAN_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import type { ArtifactId, BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {

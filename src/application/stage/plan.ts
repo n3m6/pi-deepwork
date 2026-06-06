@@ -1,4 +1,4 @@
-import { parseMarkdownSections, parseTotalPhases } from "../../infrastructure/codec/markdown-codec.js";
+import { parseMarkdownSections, parseTotalPhases } from "../../infra/codec/markdown-codec.js";
 import { MAX_PLAN_REVIEW_ROUNDS, MAX_PLAN_TASK_REVIEW_ROUNDS } from "../../domain/run/index.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime } from "../port/index.js";

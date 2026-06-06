@@ -5,8 +5,8 @@ import type {
   GateOption,
   InteractionMode,
 } from "../../src/application/port/index.js";
-import { createAskHumanTool } from "../../src/infrastructure/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infrastructure/pi/stage-return-tool.js";
+import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
+import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 
 export type ScriptedGateAnswer =
   | { method: "choose"; value: GateChoice | undefined }

@@ -19,7 +19,7 @@ import {
   createStageReturnTool,
   normalizeStageReturn,
   type StageReturnPayload,
-} from "../../src/infrastructure/pi/stage-return-tool.js";
+} from "../../src/infra/pi/stage-return-tool.js";
 import { TestHarness } from "../support/harness.js";
 
 const harnesses: TestHarness[] = [];
