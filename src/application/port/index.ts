@@ -232,6 +232,10 @@ export interface DispatchRequest {
   tools?: string[];
   customTools?: CustomTool[];
   timeoutMs?: number;
+  /** UI-only correlation key for the activity presenter. Not recorded in telemetry. */
+  correlationId?: string;
+  /** Human-readable label for the activity board and activity box. Not recorded in telemetry. */
+  activityLabel?: string;
 }
 
 export interface DispatchCustomToolCall {
@@ -253,7 +257,7 @@ export interface Dispatcher {
   dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]>;
   dispatchGenericCoding(
     prompt: string,
-    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal; correlationId?: string; activityLabel?: string },
   ): Promise<StageOutcome>;
 }
 

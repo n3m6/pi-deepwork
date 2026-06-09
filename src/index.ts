@@ -14,6 +14,7 @@ import {
   DEEPWORK_PROGRESS_RENDERER,
   LiveUiTelemetrySink,
 } from "./infra/pi/live-ui-telemetry-sink.js";
+import { LiveActivityPresenter } from "./infra/pi/live-activity-presenter.js";
 import { JsonlTelemetrySink } from "./infra/telemetry/jsonl-telemetry-sink.js";
 import { TimestampIdGenerator } from "./infra/system/id-generator.js";
 import { SystemClock } from "./infra/system/clock.js";
@@ -36,7 +37,11 @@ export default function (pi: ExtensionAPI): void {
 
       const agentCatalog = await MarkdownAgentCatalog.load();
       const agentDefinitions = agentCatalog.all();
-      const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model);
+
+      // Construct the presenter once; shared by the sink and dispatcher.
+      const presenter = ctx.hasUI ? new LiveActivityPresenter(ctx) : undefined;
+
+      const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model, undefined, presenter);
       const gates = new DefaultGateManager(ctx, {
         interactionMode: interaction.interactionMode,
         failurePolicy: interaction.failurePolicy,
@@ -65,7 +70,7 @@ export default function (pi: ExtensionAPI): void {
       const versionControl = new GitVersionControl(pi, ctx.cwd, runId);
       const buildTool = new NpmBuildTool(pi);
       const jsonlSink = JsonlTelemetrySink.create(artifacts, runId, clock);
-      const telemetrySink = new LiveUiTelemetrySink(jsonlSink, pi, ctx);
+      const telemetrySink = new LiveUiTelemetrySink(jsonlSink, pi, ctx, presenter);
       const stateRepo = new FileSystemRunStateRepository(artifacts.stateFile);
 
       const services: PipelineServices = {
@@ -84,14 +89,19 @@ export default function (pi: ExtensionAPI): void {
       };
 
       await telemetrySink.initialize();
+      presenter?.start();
 
-      const finalState = await runPipeline({
-        services,
-        state: initialRun.toSnapshot(),
-        workspaceRoot: ctx.cwd,
-        isResumed: !!resumedState,
-      });
-      ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");
+      try {
+        const finalState = await runPipeline({
+          services,
+          state: initialRun.toSnapshot(),
+          workspaceRoot: ctx.cwd,
+          isResumed: !!resumedState,
+        });
+        ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");
+      } finally {
+        presenter?.stop();
+      }
     },
   });
 }

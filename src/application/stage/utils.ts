@@ -39,6 +39,7 @@ export async function dispatchLeaf(
     childAgent: agentName,
     ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
   });
+  const correlationId = options?.taskId !== undefined ? `${options.taskId}-${agentName}` : agentName;
   const result = await runtime.services.dispatcher.dispatch({
     target,
     prompt,
@@ -47,6 +48,8 @@ export async function dispatchLeaf(
     tools: options?.tools ?? readOnlyTools(target.tools),
     ...(options?.customTools ? { customTools: options.customTools } : {}),
     ...(options?.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+    correlationId,
+    activityLabel: options?.taskId !== undefined ? `${options.taskId}/${agentName}` : agentName,
   });
   await runtime.services.telemetrySink.record({
     type: "dispatch.completed",
@@ -82,10 +85,13 @@ export async function dispatchGenericCoding(
     childAgent: "generic-coding",
     ...(options?.taskId !== undefined ? { taskId: options.taskId } : {}),
   });
+  const genericLabel = options?.taskId !== undefined ? `${options.taskId}/generic` : "generic";
   const outcome = await runtime.services.dispatcher.dispatchGenericCoding(prompt, {
     cwd: options?.cwd ?? runtime.workspaceRoot,
     ...(options?.tools ? { tools: options.tools } : {}),
     ...(runtime.services.eventContext.signal ? { signal: runtime.services.eventContext.signal } : {}),
+    correlationId: genericLabel,
+    activityLabel: genericLabel,
   });
   await runtime.services.telemetrySink.record({
     type: "dispatch.completed",

@@ -6,12 +6,14 @@ import { Run } from "../../src/domain/run/index.js";
 import type { RunState, TelemetryEvent } from "../../src/application/port/index.js";
 import {
   breadcrumbFor,
-  renderWidgetLines,
+  isMilestoneEvent,
   LiveUiTelemetrySink,
   DEEPWORK_PROGRESS_CUSTOM_TYPE,
   type InitializableTelemetrySink,
 } from "../../src/infra/pi/live-ui-telemetry-sink.js";
+import { renderDashboardLines } from "../../src/infra/pi/widget-render.js";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { ActivityPresenter, SessionActivity } from "../../src/infra/pi/session-activity.js";
 
 // ---------------------------------------------------------------------------
 // Test doubles
@@ -130,6 +132,38 @@ function createFakePi(): { pi: ExtensionAPI; spy: PiSpy } {
   } as unknown as ExtensionAPI;
 
   return { pi, spy };
+}
+
+class StubActivityPresenter implements ActivityPresenter {
+  readonly domainEvents: import("../../src/domain/event/index.js").DomainEvent[] = [];
+  readonly runStateRefreshes: import("../../src/application/port/index.js").RunState[] = [];
+  readonly sessionStarts: Array<{ correlationId: string; label: string }> = [];
+  readonly sessionActivities: Array<{ correlationId: string; activity: SessionActivity }> = [];
+  readonly sessionEnds: string[] = [];
+  started = false;
+  stopped = false;
+
+  onDomainEvent(event: import("../../src/domain/event/index.js").DomainEvent): void {
+    this.domainEvents.push(event);
+  }
+  onRunStateRefresh(state: import("../../src/application/port/index.js").RunState): void {
+    this.runStateRefreshes.push(state);
+  }
+  onSessionStart(correlationId: string, label: string): void {
+    this.sessionStarts.push({ correlationId, label });
+  }
+  onSessionActivity(correlationId: string, activity: SessionActivity): void {
+    this.sessionActivities.push({ correlationId, activity });
+  }
+  onSessionEnd(correlationId: string): void {
+    this.sessionEnds.push(correlationId);
+  }
+  start(): void {
+    this.started = true;
+  }
+  stop(): void {
+    this.stopped = true;
+  }
 }
 
 function makeFullRunState(overrides?: Partial<RunState>): RunState {
@@ -281,16 +315,16 @@ test("breadcrumbFor returns undefined for backward_loop.requested (silent)", () 
 });
 
 // ---------------------------------------------------------------------------
-// renderWidgetLines — pure helper tests
+// renderDashboardLines — pure helper tests (moved to widget-render.ts)
 // ---------------------------------------------------------------------------
 
-test("renderWidgetLines returns starting line when no state", () => {
-  const lines = renderWidgetLines({});
+test("renderDashboardLines returns starting line when no state", () => {
+  const lines = renderDashboardLines({}, new Map());
   assert.equal(lines.length, 1);
   assert.match(lines[0] ?? "", /starting/);
 });
 
-test("renderWidgetLines full route: no skipped stages, shows ✓ for completed, ▶ for current", () => {
+test("renderDashboardLines full route: no skipped stages, shows ✓ for completed, ▶ for current", () => {
   const state = makeFullRunState({
     route: "full",
     stagesCompleted: ["goals", "research"],
@@ -303,12 +337,13 @@ test("renderWidgetLines full route: no skipped stages, shows ✓ for completed, 
     verifyFixAttempts: 2,
   });
 
-  const lines = renderWidgetLines(
+  const lines = renderDashboardLines(
     { state, currentStage: "design", stageStartedAt: Date.now() - 30_000, runStartedAt: Date.now() - 120_000 },
+    new Map(),
     Date.now(),
   );
 
-  assert.equal(lines.length, 6);
+  assert.equal(lines.length, 5);
   // Header contains run ID and route
   assert.match(lines[0] ?? "", /qrspi-20260601-000000/);
   assert.match(lines[0] ?? "", /full/);
@@ -333,7 +368,7 @@ test("renderWidgetLines full route: no skipped stages, shows ✓ for completed, 
   assert.match(lines[4] ?? "", /last: research/);
 });
 
-test("renderWidgetLines quick-fix route: design and structure show -", () => {
+test("renderDashboardLines quick-fix route: design and structure show -", () => {
   const state = makeFullRunState({
     route: "quick-fix",
     stagesCompleted: ["goals", "research"],
@@ -343,7 +378,7 @@ test("renderWidgetLines quick-fix route: design and structure show -", () => {
     nextStage: "plan",
   });
 
-  const lines = renderWidgetLines({ state, currentStage: "plan" }, Date.now());
+  const lines = renderDashboardLines({ state, currentStage: "plan" }, new Map(), Date.now());
   const stageRow = lines[1] ?? "";
 
   assert.match(stageRow, /design-/);
@@ -351,7 +386,7 @@ test("renderWidgetLines quick-fix route: design and structure show -", () => {
   assert.match(stageRow, /plan▶/);
 });
 
-test("renderWidgetLines marks a re-executed completed stage as current (▶ wins over ✓)", () => {
+test("renderDashboardLines marks a re-executed completed stage as current (▶ wins over ✓)", () => {
   // Verify-fix/accept-fix loops route back to "implement", which stays in
   // stagesCompleted via appendUniqueStage. The active stage must still render ▶.
   const state = makeFullRunState({
@@ -364,7 +399,7 @@ test("renderWidgetLines marks a re-executed completed stage as current (▶ wins
     verifyFixAttempts: 1,
   });
 
-  const lines = renderWidgetLines({ state, currentStage: "implement" }, Date.now());
+  const lines = renderDashboardLines({ state, currentStage: "implement" }, new Map(), Date.now());
   const stageRow = lines[1] ?? "";
 
   assert.match(stageRow, /implement▶/);
@@ -374,26 +409,133 @@ test("renderWidgetLines marks a re-executed completed stage as current (▶ wins
   assert.match(stageRow, /plan✓/);
 });
 
-test("renderWidgetLines shows last summary when available", () => {
+test("renderDashboardLines shows last summary when available", () => {
   const state = makeFullRunState({
     lastCompletedStage: "goals",
     nextStage: "research",
     stagesCompleted: ["goals"],
   });
 
-  const lines = renderWidgetLines({ state, lastSummary: "Goals captured and approved. Route: full." });
+  const lines = renderDashboardLines({ state, lastSummary: "Goals captured and approved. Route: full." }, new Map());
   assert.match(lines[4] ?? "", /Goals captured/);
 });
 
-test("renderWidgetLines elapsed timer uses fixed nowMs", () => {
+test("renderDashboardLines elapsed timer uses fixed nowMs", () => {
   const started = 1_000_000;
   const now = started + 90_000; // 1m30s
 
   const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
-  const lines = renderWidgetLines({ state, runStartedAt: started, stageStartedAt: started + 60_000 }, now);
+  const lines = renderDashboardLines(
+    { state, runStartedAt: started, stageStartedAt: started + 60_000 },
+    new Map(),
+    now,
+  );
 
   assert.match(lines[0] ?? "", /01:30/); // run elapsed
   assert.match(lines[2] ?? "", /00:30/); // stage running
+});
+
+// ---------------------------------------------------------------------------
+// isMilestoneEvent — filter tests
+// ---------------------------------------------------------------------------
+
+test("isMilestoneEvent returns true for run lifecycle events", () => {
+  assert.ok(isMilestoneEvent({ type: "run.started", runId: "r1", route: "full" }));
+  assert.ok(isMilestoneEvent({ type: "run.resumed", runId: "r1", route: "full" }));
+  assert.ok(isMilestoneEvent({ type: "run.completed", runId: "r1", route: "full", status: "PASS" }));
+  assert.ok(isMilestoneEvent({ type: "run.aborted", runId: "r1", route: "full", error: "boom" }));
+});
+
+test("isMilestoneEvent returns true for terminal stage outcomes (completed/failed/skipped) but not stage.started", () => {
+  assert.ok(
+    isMilestoneEvent({
+      type: "stage.completed",
+      stage: "goals",
+      phase: 1,
+      stageInstance: 1,
+      route: "full",
+      outcome: { status: "PASS", filesWritten: [], summary: "done" },
+      startedAt: "2026-06-01T00:00:00Z",
+      endedAt: "2026-06-01T00:00:05Z",
+    }),
+  );
+  assert.ok(
+    isMilestoneEvent({
+      type: "stage.failed",
+      stage: "plan",
+      phase: 1,
+      stageInstance: 1,
+      route: "full",
+      summary: "failed",
+    }),
+  );
+  // stage.skipped (e.g. design/structure on the quick-fix route) must also be a
+  // permanent transcript milestone, consistent with completed and failed.
+  assert.ok(
+    isMilestoneEvent({
+      type: "stage.skipped",
+      stage: "design",
+      phase: 1,
+      stageInstance: 1,
+      route: "quick-fix",
+      summary: "skipped on quick-fix route",
+    }),
+  );
+  assert.equal(
+    isMilestoneEvent({ type: "stage.started", stage: "goals", phase: 1, stageInstance: 1, route: "full" }),
+    false,
+  );
+});
+
+test("isMilestoneEvent returns true for gate events", () => {
+  assert.ok(
+    isMilestoneEvent({
+      type: "gate.presented",
+      stage: "goals",
+      phase: 1,
+      stageInstance: 1,
+      route: "full",
+      summary: "x",
+    }),
+  );
+  assert.ok(
+    isMilestoneEvent({
+      type: "gate.approved",
+      stage: "goals",
+      phase: 1,
+      stageInstance: 1,
+      route: "full",
+      summary: "approved",
+    }),
+  );
+  assert.ok(
+    isMilestoneEvent({
+      type: "gate.rejected",
+      stage: "goals",
+      phase: 1,
+      stageInstance: 1,
+      route: "full",
+      summary: "rejected",
+    }),
+  );
+});
+
+test("isMilestoneEvent returns false for dispatch events", () => {
+  assert.equal(
+    isMilestoneEvent({ type: "dispatch.started", stage: "goals", phase: 1, route: "full", childAgent: "x" }),
+    false,
+  );
+  assert.equal(
+    isMilestoneEvent({
+      type: "dispatch.completed",
+      stage: "goals",
+      phase: 1,
+      route: "full",
+      childAgent: "x",
+      status: "PASS",
+    }),
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -491,19 +633,20 @@ test("LiveUiTelemetrySink with hasUI:true sends breadcrumbs for milestone events
   assert.equal(ui.notifyCalls[0]?.level, "info");
 });
 
-test("LiveUiTelemetrySink stage.started produces a breadcrumb and refreshes widget", async () => {
+test("LiveUiTelemetrySink stage.started does not produce a transcript milestone (strip only)", async () => {
   const inner = new StubTelemetrySink();
-  const { ctx, ui } = createFakeCtx(true);
+  const { ctx } = createFakeCtx(true);
   const { pi, spy } = createFakePi();
-  const sink = new LiveUiTelemetrySink(inner, pi, ctx);
+  const presenter = new StubActivityPresenter();
+  const sink = new LiveUiTelemetrySink(inner, pi, ctx, presenter);
 
   await sink.record({ type: "stage.started", stage: "goals", phase: 1, stageInstance: 1, route: "full" });
 
-  assert.equal(spy.sentMessages.length, 1);
-  assert.match(spy.sentMessages[0]?.content ?? "", /goals/);
-  assert.equal(ui.notifyCalls.length, 0);
-  // Widget should still be refreshed
-  assert.equal(ui.widgetCalls.length, 1);
+  // stage.started is strip-only, not a transcript milestone
+  assert.equal(spy.sentMessages.length, 0);
+  // but the presenter does receive the event
+  assert.equal(presenter.domainEvents.length, 1);
+  assert.equal(presenter.domainEvents[0]?.type, "stage.started");
 });
 
 test("LiveUiTelemetrySink gate.presented triggers warning notification", async () => {
@@ -544,27 +687,27 @@ test("LiveUiTelemetrySink stage.failed triggers error notification", async () =>
   assert.equal(ui.notifyCalls[0]?.level, "error");
 });
 
-test("LiveUiTelemetrySink widget is refreshed after regenerateRunLog when hasUI:true", async () => {
+test("LiveUiTelemetrySink regenerateRunLog notifies presenter when hasUI:true", async () => {
   const inner = new StubTelemetrySink();
-  const { ctx, ui } = createFakeCtx(true);
+  const { ctx } = createFakeCtx(true);
   const { pi } = createFakePi();
-  const sink = new LiveUiTelemetrySink(inner, pi, ctx);
+  const presenter = new StubActivityPresenter();
+  const sink = new LiveUiTelemetrySink(inner, pi, ctx, presenter);
   const state = makeFullRunState({ stagesCompleted: ["goals"], lastCompletedStage: "goals" });
 
   await sink.regenerateRunLog(state);
 
-  assert.ok(ui.widgetCalls.length > 0);
-  const lastWidget = ui.widgetCalls.at(-1);
-  assert.ok(lastWidget);
-  // Header line should contain the run ID
-  assert.match(lastWidget[0] ?? "", /qrspi-20260601-000000/);
+  // Presenter should receive the run state for widget refresh
+  assert.equal(presenter.runStateRefreshes.length, 1);
+  assert.equal(presenter.runStateRefreshes[0]?.runId, state.runId);
 });
 
-test("LiveUiTelemetrySink full event sequence produces correct breadcrumbs", async () => {
+test("LiveUiTelemetrySink full event sequence produces milestone transcript entries only", async () => {
   const inner = new StubTelemetrySink();
   const { ctx, ui } = createFakeCtx(true);
   const { pi, spy } = createFakePi();
-  const sink = new LiveUiTelemetrySink(inner, pi, ctx);
+  const presenter = new StubActivityPresenter();
+  const sink = new LiveUiTelemetrySink(inner, pi, ctx, presenter);
 
   const events: DomainEvent[] = [
     { type: "run.started", runId: "r1", route: "full" },
@@ -603,21 +746,24 @@ test("LiveUiTelemetrySink full event sequence produces correct breadcrumbs", asy
     await sink.record(event);
   }
 
-  // stage.started now produces a breadcrumb — 6 events produce breadcrumbs
-  assert.equal(spy.sentMessages.length, 6);
+  // stage.started is strip-only (not a milestone) — 5 transcript messages
+  assert.equal(spy.sentMessages.length, 5);
 
   const contents = spy.sentMessages.map((m) => m.content);
   assert.match(contents[0] ?? "", /Deepwork started/);
-  assert.match(contents[1] ?? "", /starting goals/);
-  assert.match(contents[2] ?? "", /OK goals/);
-  assert.match(contents[3] ?? "", /loop back to plan/);
-  assert.match(contents[4] ?? "", /approval needed at design/);
-  assert.match(contents[5] ?? "", /Deepwork PASS/);
+  // stage.started does NOT appear in transcript; index 1 is now stage.completed
+  assert.match(contents[1] ?? "", /OK goals/);
+  assert.match(contents[2] ?? "", /loop back to plan/);
+  assert.match(contents[3] ?? "", /approval needed at design/);
+  assert.match(contents[4] ?? "", /Deepwork PASS/);
 
   // gate.presented triggers warning notify
   const warningNotify = ui.notifyCalls.find((n) => n.level === "warning");
   assert.ok(warningNotify);
   assert.match(warningNotify.message, /approval needed/);
+
+  // All 6 events reach the presenter
+  assert.equal(presenter.domainEvents.length, 6);
 });
 
 test("breadcrumbFor returns undefined for dispatch.started (widget-only)", () => {
@@ -643,17 +789,16 @@ test("breadcrumbFor returns undefined for dispatch.completed (widget-only)", () 
   assert.equal(crumb, undefined);
 });
 
-test("applyEventToView tracks currentActivity from dispatch.started and clears on stage.completed", async () => {
+test("LiveUiTelemetrySink forwards dispatch events to presenter (activity tracking moved to presenter)", async () => {
   const inner = new StubTelemetrySink();
-  const { ctx, ui } = createFakeCtx(true);
+  const { ctx } = createFakeCtx(true);
   const { pi } = createFakePi();
-  const sink = new LiveUiTelemetrySink(inner, pi, ctx);
+  const presenter = new StubActivityPresenter();
+  const sink = new LiveUiTelemetrySink(inner, pi, ctx, presenter);
 
-  // Seed view.state so the 6-line widget is rendered.
   const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
   await sink.regenerateRunLog(state);
 
-  // Stage starts, then a dispatch begins — widget activity line should show the agent name.
   await sink.record({ type: "stage.started", stage: "goals", phase: 1, stageInstance: 1, route: "full" });
   await sink.record({
     type: "dispatch.started",
@@ -662,11 +807,6 @@ test("applyEventToView tracks currentActivity from dispatch.started and clears o
     route: "full",
     childAgent: "qrspi-goals-synthesizer",
   });
-
-  const linesAfterDispatch = ui.widgetCalls.at(-1) ?? [];
-  assert.ok(linesAfterDispatch.some((l) => l.includes("dispatching qrspi-goals-synthesizer")));
-
-  // Stage completion clears the activity line.
   await sink.record({
     type: "stage.completed",
     stage: "goals",
@@ -677,21 +817,12 @@ test("applyEventToView tracks currentActivity from dispatch.started and clears o
     startedAt: "2026-06-01T00:00:00Z",
     endedAt: "2026-06-01T00:00:05Z",
   });
-  const linesAfterCompletion = ui.widgetCalls.at(-1) ?? [];
-  assert.ok(linesAfterCompletion.some((l) => l.includes("activity: —")));
-  assert.ok(ui.widgetCalls.length > 0);
-});
 
-test("renderWidgetLines shows activity line as — when currentActivity absent", () => {
-  const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
-  const lines = renderWidgetLines({ state });
-  assert.equal(lines.length, 6);
-  assert.match(lines[5] ?? "", /activity: —/);
-});
+  // All domain events forwarded to presenter
+  assert.equal(presenter.domainEvents.length, 3);
+  assert.equal(presenter.domainEvents[1]?.type, "dispatch.started");
+  assert.equal(presenter.domainEvents[2]?.type, "stage.completed");
 
-test("renderWidgetLines shows activity line content when currentActivity is set", () => {
-  const state = makeFullRunState({ nextStage: "goals", stagesCompleted: [] });
-  const lines = renderWidgetLines({ state, currentActivity: "dispatching qrspi-goals-synthesizer" });
-  assert.equal(lines.length, 6);
-  assert.match(lines[5] ?? "", /activity: dispatching qrspi-goals-synthesizer/);
+  // run state refresh also forwarded
+  assert.equal(presenter.runStateRefreshes.length, 1);
 });

@@ -6,6 +6,7 @@ import {
   SessionManager,
   createAgentSession,
   getAgentDir,
+  type AgentSessionEvent,
   type AgentToolResult,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -19,6 +20,8 @@ import type {
   LeafAgentDefinition,
   StageOutcome,
 } from "../../application/port/index.js";
+import type { ActivityPresenter } from "./session-activity.js";
+import { ActivityReporter } from "./session-activity.js";
 import { createStageReturnTool, normalizeStageReturn, type StageReturnPayload } from "./stage-return-tool.js";
 
 const DEFAULT_GENERIC_MAX_TURNS = 40;
@@ -27,7 +30,7 @@ const DEFAULT_GENERIC_TIMEOUT_MS = 600_000;
 type DispatchEndReason = NonNullable<DispatchResult["endReason"]>;
 
 export interface AgentSession {
-  subscribe(handler: (event: { type: string }) => void): () => void;
+  subscribe(handler: (event: AgentSessionEvent) => void): () => void;
   abort(): Promise<void>;
   prompt(text: string, options: { source: string }): Promise<void>;
   dispose(): void;
@@ -50,6 +53,7 @@ export class PiSessionDispatcher implements Dispatcher {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK Model generic; Phase 7 will wrap with opaque ModelHandle
     private readonly currentModel?: Model<any>,
     sessionFactory?: SessionFactory,
+    private readonly presenter?: ActivityPresenter,
   ) {
     this.sessionFactory = sessionFactory ?? this.buildDefaultSessionFactory();
   }
@@ -112,6 +116,16 @@ export class PiSessionDispatcher implements Dispatcher {
     const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? target.modelName : undefined);
     const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
 
+    // Attach live-activity reporter if a presenter is configured
+    const correlationId = request.correlationId ?? request.target.name;
+    const activityLabel = request.activityLabel ?? request.target.name;
+    const reporter = this.presenter ? new ActivityReporter(correlationId, this.presenter) : undefined;
+
+    if (reporter && this.presenter) {
+      this.presenter.onSessionStart(correlationId, activityLabel);
+      reporter.attach(session);
+    }
+
     try {
       const endReason = await waitForPromptCompletion(
         session,
@@ -136,6 +150,8 @@ export class PiSessionDispatcher implements Dispatcher {
         errorMessage: error instanceof Error ? error.message : String(error),
       };
     } finally {
+      reporter?.detach();
+      this.presenter?.onSessionEnd(correlationId);
       session.dispose();
     }
   }
@@ -156,7 +172,7 @@ export class PiSessionDispatcher implements Dispatcher {
 
   async dispatchGenericCoding(
     prompt: string,
-    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal; correlationId?: string; activityLabel?: string },
   ): Promise<StageOutcome> {
     const stageReturns: StageReturnPayload[] = [];
     const result = await this.dispatch({
@@ -169,6 +185,8 @@ export class PiSessionDispatcher implements Dispatcher {
       prompt,
       cwd: options?.cwd ?? "",
       ...(options?.signal ? { signal: options.signal } : {}),
+      ...(options?.correlationId ? { correlationId: options.correlationId } : {}),
+      ...(options?.activityLabel ? { activityLabel: options.activityLabel } : {}),
       customTools: [createStageReturnTool(stageReturns)],
     });
     return normalizeStageReturn(result);

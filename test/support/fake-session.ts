@@ -1,7 +1,7 @@
+import type { AgentSessionEvent, ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { Model } from "@earendil-works/pi-ai";
 import type { AgentSession, SessionFactory } from "../../src/infra/pi/session-dispatcher.js";
 import type { DispatchRequest } from "../../src/application/port/index.js";
-import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
 
 export type FakeSessionBehavior =
   | { kind: "agent_end"; text?: string }
@@ -12,7 +12,7 @@ export type FakeSessionBehavior =
 
 export class FakeSession implements AgentSession {
   readonly messages: unknown[];
-  private handlers: Array<(event: { type: string }) => void> = [];
+  private handlers: Array<(event: AgentSessionEvent) => void> = [];
   private _aborted = false;
   private promptResolve: (() => void) | undefined;
 
@@ -23,7 +23,7 @@ export class FakeSession implements AgentSession {
     this.messages = text ? [{ role: "assistant", content: text }] : [];
   }
 
-  subscribe(handler: (event: { type: string }) => void): () => void {
+  subscribe(handler: (event: AgentSessionEvent) => void): () => void {
     this.handlers.push(handler);
     return () => {
       this.handlers = this.handlers.filter((h) => h !== handler);
@@ -53,7 +53,7 @@ export class FakeSession implements AgentSession {
         return;
       case "agent_end":
         for (const handler of this.handlers) {
-          handler({ type: "agent_end" });
+          handler({ type: "agent_end", messages: [], willRetry: false });
         }
         return;
       case "stage_return":
