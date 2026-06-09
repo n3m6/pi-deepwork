@@ -10,7 +10,10 @@ import type {
   GateOption,
   InteractionMode,
 } from "../../application/port/index.js";
-import { createGoalsReturnTool as buildGoalsReturnTool } from "./stage-return-tool.js";
+import {
+  createGoalsReturnTool as buildGoalsReturnTool,
+  createInterviewReturnTool as buildInterviewReturnTool,
+} from "./stage-return-tool.js";
 
 export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   const options: ExplicitRunOptions = {};
@@ -100,6 +103,10 @@ export class DefaultGateManager implements GateManager {
 
   createGoalsReturnTool(): CustomTool {
     return buildGoalsReturnTool();
+  }
+
+  createInterviewReturnTool(): CustomTool {
+    return buildInterviewReturnTool();
   }
 }
 

@@ -102,7 +102,7 @@ export class PiSessionDispatcher implements Dispatcher {
     // Cast opaque CustomTool[] to SDK ToolDefinition[] at the infrastructure boundary
     const sdkTools = (request.customTools ?? []) as unknown as ToolDefinition[];
     const customTools = instrumentCustomTools(sdkTools, customToolCalls, (toolName) => {
-      if (toolName === "stage_return" || toolName === "goals_return") {
+      if (toolName === "stage_return" || toolName === "goals_return" || toolName === "interview_return") {
         resolveStageReturn?.();
       }
     });

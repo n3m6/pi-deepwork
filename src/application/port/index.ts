@@ -62,6 +62,8 @@ export type {
   VerifyStatus,
 } from "../../domain/value/index.js";
 
+export type { InterviewEntry, InterviewEntrySource } from "../../domain/goals/interview-policy.js";
+
 import type {
   BackwardLoopClassification,
   BackwardLoopRequest,
@@ -72,6 +74,8 @@ import type {
   RunState,
   StageOutcome,
 } from "../../domain/value/index.js";
+
+import type { InterviewEntry, InterviewEntrySource } from "../../domain/goals/interview-policy.js";
 
 import type { DomainEvent } from "../../domain/event/index.js";
 import type { Run } from "../../domain/run/index.js";
@@ -275,6 +279,7 @@ export interface GateManager {
   confirm(title: string, message: string): Promise<boolean>;
   createAskHumanTool(): CustomTool;
   createGoalsReturnTool(): CustomTool;
+  createInterviewReturnTool(): CustomTool;
 }
 
 // ---------------------------------------------------------------------------
@@ -309,6 +314,39 @@ export function readGoalsReturn(result: DispatchResult): GoalsReturnPayload | un
       ? { testGlobs: (value.testGlobs as unknown[]).filter((x): x is string => typeof x === "string") }
       : {}),
   };
+}
+
+/**
+ * Reads the interview_return tool call recorded in a dispatch result.
+ * Returns the array of interview entries, or undefined if the agent did not call the tool.
+ */
+export function readInterviewReturn(result: DispatchResult): InterviewEntry[] | undefined {
+  const call = result.customToolCalls.find((c) => c.name === "interview_return");
+  if (!call?.result.details) {
+    return undefined;
+  }
+  const value = call.result.details as Record<string, unknown>;
+  if (!Array.isArray(value.entries)) {
+    return undefined;
+  }
+  return (value.entries as unknown[])
+    .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+    .map((item) => ({
+      branch: typeof item.branch === "string" ? item.branch : "",
+      source: normalizeInterviewSource(item.source),
+      content: typeof item.content === "string" ? item.content : "",
+    }))
+    .filter((entry) => entry.branch !== "" && entry.content !== "");
+}
+
+function normalizeInterviewSource(value: unknown): InterviewEntrySource {
+  return value === "user-answer" ||
+    value === "repo-finding" ||
+    value === "user-confirmed-finding" ||
+    value === "automation-default" ||
+    value === "automation-fallback"
+    ? value
+    : "automation-fallback";
 }
 
 export interface ProgressReporter {

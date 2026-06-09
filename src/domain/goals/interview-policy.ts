@@ -1,4 +1,4 @@
-// Goals interview policy — question set and task-inference heuristic.
+// Goals interview policy — question set, interview entry types, and task-inference heuristic.
 // No node:* or pi imports.
 
 export interface InterviewQuestion {
@@ -6,6 +6,31 @@ export interface InterviewQuestion {
   title: string;
   question: string;
   required: boolean;
+}
+
+export type InterviewEntrySource =
+  | "user-answer"
+  | "repo-finding"
+  | "user-confirmed-finding"
+  | "automation-default"
+  | "automation-fallback";
+
+export interface InterviewEntry {
+  branch: string;
+  source: InterviewEntrySource;
+  content: string;
+}
+
+/**
+ * Returns the required questions that have no resolved entry yet.
+ * A branch is considered unresolved when no entry exists for it or its source
+ * is `automation-fallback` or `automation-default` (no genuine user input).
+ */
+export function unresolvedRequiredBranches(entries: InterviewEntry[]): InterviewQuestion[] {
+  return QUESTION_SET.filter((q) => q.required).filter((q) => {
+    const entry = entries.find((e) => e.branch === q.branch);
+    return !entry || entry.source === "automation-fallback" || entry.source === "automation-default";
+  });
 }
 
 export const QUESTION_SET: InterviewQuestion[] = [

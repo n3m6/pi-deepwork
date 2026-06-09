@@ -21,7 +21,7 @@ The codebase follows a hexagonal (ports and adapters) architecture:
 - `src/application/stage/` — deterministic stage implementations and sub-stages.
 - `src/application/workflow/` — multi-step workflow helpers (e.g. review gate, simple file task).
 - `src/infra/` — adapters implementing the application ports: `fs/` (artifact repo, state), `git/` (version control), `pi/` (dispatcher, human gate, session), `npm/` (build tool), `codec/` (markdown anti-corruption), `telemetry/` (JSONL sink), `system/` (IDs).
-- `agents/` contains the 35 retained markdown leaf prompts. Do not reintroduce deleted orchestrator prompts.
+- `agents/` contains the 36 retained markdown leaf prompts. Do not reintroduce deleted orchestrator prompts.
 - `docs/agent-inventory.md` is the cutover inventory for deleted vs retained agents.
 - `test/` contains TypeScript unit and scenario coverage. `test/support/harness.ts` provides the mocked runtime harness.
 
@@ -65,7 +65,7 @@ When changing stage ordering, resume behavior, or telemetry schema, update the r
 
 ## Agent inventory
 
-- Expected retained markdown agent count: **35**.
+- Expected retained markdown agent count: **36**.
 - The deleted orchestrator/sub-orchestrator prompts were replaced by code in `src/application/stage/`.
 - The generic coding worker is not a bundled markdown agent; it is dispatched programmatically through the `Dispatcher` port (`PiSessionDispatcher` in `src/infra/pi/session-dispatcher.ts`).
 

@@ -8,7 +8,7 @@ import { loadAgentDefinitions } from "../../src/infra/pi/agent-catalog.js";
 import { FileSystemArtifactRepository } from "../../src/infra/fs/artifact-repository.js";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
+import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 import { Run } from "../../src/domain/run/index.js";
 import { goalsStage } from "../../src/application/stage/goals.js";
 import type {
@@ -245,6 +245,9 @@ function automatedGates(): GateManager {
     createGoalsReturnTool() {
       return createGoalsReturnTool();
     },
+    createInterviewReturnTool() {
+      return createInterviewReturnTool();
+    },
   };
 }
 
@@ -255,3 +258,161 @@ function noopProgress(): ProgressReporter {
     clear() {},
   };
 }
+
+// ---------------------------------------------------------------------------
+// Helpers for interactive interview tests
+// ---------------------------------------------------------------------------
+
+function interactiveGates(failurePolicy: "fail-closed" | "best-effort" = "fail-closed"): GateManager {
+  return {
+    interactionMode: "interactive",
+    failurePolicy,
+    async askText() {
+      return undefined;
+    },
+    async choose() {
+      return undefined;
+    },
+    async confirm() {
+      return true;
+    },
+    createAskHumanTool() {
+      return createAskHumanTool(this);
+    },
+    createGoalsReturnTool() {
+      return createGoalsReturnTool();
+    },
+    createInterviewReturnTool() {
+      return createInterviewReturnTool();
+    },
+  };
+}
+
+async function invokeInterviewReturn(
+  request: DispatchRequest,
+  branches: Array<{ branch: string; source: "user-answer" | "automation-fallback"; content: string }>,
+): Promise<DispatchResult> {
+  const calls: Array<{ name: string; result: CustomToolResult }> = [];
+  const tool = request.customTools?.find((c) => c.name === "interview_return");
+  if (tool) {
+    const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+    const result = await callTool.execute("tool-1", { entries: branches }, undefined, undefined, {});
+    calls.push({ name: "interview_return", result });
+  }
+  return { text: "", messages: [], customToolCalls: calls };
+}
+
+/** Dispatcher that handles interviewer + synthesizer + reviewer for interactive tests. */
+class InteractiveGoalsDispatcher implements Dispatcher {
+  readonly dispatched: string[] = [];
+
+  constructor(
+    private readonly interviewBranches: Array<{
+      branch: string;
+      source: "user-answer" | "automation-fallback";
+      content: string;
+    }> = [
+      { branch: "constraints", source: "user-answer", content: "No external dependencies." },
+      { branch: "non-goals", source: "user-answer", content: "Database integration is out of scope." },
+      { branch: "acceptance-criteria", source: "user-answer", content: "GET /health returns 200." },
+      { branch: "testing-expectations", source: "user-answer", content: "Add unit tests for the endpoint." },
+    ],
+  ) {}
+
+  async dispatch(request: DispatchRequest): Promise<DispatchResult> {
+    this.dispatched.push(request.target.name);
+    switch (request.target.name) {
+      case "qrspi-goals-interviewer":
+        return invokeInterviewReturn(request, this.interviewBranches);
+      case "qrspi-goals-synthesizer":
+        return invokeGoalsReturn(request, "full");
+      case "qrspi-goals-reviewer":
+        return textResult("### Status — PASS\n\n### Summary\nPass.");
+      default:
+        return textResult("");
+    }
+  }
+
+  async dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    return Promise.all(requests.map((r) => this.dispatch(r)));
+  }
+
+  async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    const results: DispatchResult[] = [];
+    for (const r of requests) results.push(await this.dispatch(r));
+    return results;
+  }
+
+  async dispatchGenericCoding() {
+    return { status: "FAIL" as const, filesWritten: [], summary: "not used" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Interactive interview tests
+// ---------------------------------------------------------------------------
+
+test("interactive mode dispatches the interviewer when branches remain unresolved", async () => {
+  await withWorkspace(async ({ runtime }) => {
+    const dispatcher = new InteractiveGoalsDispatcher();
+    const outcome = await goalsStage.run({
+      ...runtime,
+      services: {
+        ...runtime.services,
+        dispatcher,
+        gates: interactiveGates("best-effort"),
+      },
+    });
+
+    assert.ok(
+      dispatcher.dispatched.includes("qrspi-goals-interviewer"),
+      "expected qrspi-goals-interviewer to be dispatched",
+    );
+    assert.ok(
+      dispatcher.dispatched.includes("qrspi-goals-synthesizer"),
+      "expected qrspi-goals-synthesizer to be dispatched",
+    );
+    assert.equal(outcome.status, "PASS");
+  });
+});
+
+test("interactive mode skips the interviewer when all branches are pre-resolved", async () => {
+  // A fully-specified task that satisfies every inferFromTask heuristic.
+  const fullySpecifiedTask =
+    "Build an express server. It must expose /health. Tests must verify the endpoint. Out of scope: database. Acceptance: GET /health returns 200.";
+
+  await withWorkspace(async ({ runtime }) => {
+    const dispatcher = new InteractiveGoalsDispatcher();
+    const outcome = await goalsStage.run({
+      ...runtime,
+      state: { ...runtime.state, userTask: fullySpecifiedTask },
+      services: {
+        ...runtime.services,
+        dispatcher,
+        gates: interactiveGates("best-effort"),
+      },
+    });
+
+    assert.ok(
+      !dispatcher.dispatched.includes("qrspi-goals-interviewer"),
+      "qrspi-goals-interviewer should not be dispatched when task fully resolves all branches",
+    );
+    assert.equal(outcome.status, "PASS");
+  });
+});
+
+test("interactive fail-closed returns FAIL when interviewer does not call interview_return", async () => {
+  await withWorkspace(async ({ runtime }) => {
+    const outcome = await goalsStage.run({
+      ...runtime,
+      services: {
+        ...runtime.services,
+        dispatcher: new NoToolDispatcher(),
+        gates: interactiveGates("fail-closed"),
+      },
+    });
+
+    assert.equal(outcome.status, "FAIL");
+    assert.match(outcome.summary, /interview_return/);
+  });
+});

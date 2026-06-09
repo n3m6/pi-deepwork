@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
+import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 import {
   createStageReturnTool,
   normalizeStageReturn,
@@ -219,6 +219,8 @@ class MockDispatcher implements Dispatcher {
 
   private async handleLeaf(request: DispatchRequest): Promise<DispatchResult> {
     switch (request.target.name) {
+      case "qrspi-goals-interviewer":
+        return withInterviewReturn(request);
       case "qrspi-goals-synthesizer":
         return withGoalsReturn(request, this.options.route);
       case "qrspi-goals-reviewer":
@@ -423,6 +425,10 @@ class StaticGateManager implements GateManager {
   createGoalsReturnTool() {
     return createGoalsReturnTool();
   }
+
+  createInterviewReturnTool() {
+    return createInterviewReturnTool();
+  }
 }
 
 class NoopProgressReporter implements ProgressReporter {
@@ -577,6 +583,30 @@ async function withGoalsReturn(request: DispatchRequest, route: "full" | "quick-
       {},
     );
     calls.push({ name: "goals_return", result });
+  }
+  return { text: "", messages: [], customToolCalls: calls };
+}
+
+async function withInterviewReturn(request: DispatchRequest): Promise<DispatchResult> {
+  const calls: Array<{ name: string; result: CustomToolResult }> = [];
+  const tool = request.customTools?.find((candidate) => candidate.name === "interview_return");
+  if (tool) {
+    const callTool = tool as unknown as { execute(...args: unknown[]): Promise<CustomToolResult> };
+    const result = await callTool.execute(
+      "tool-1",
+      {
+        entries: [
+          { branch: "constraints", source: "user-answer", content: "No external dependencies." },
+          { branch: "non-goals", source: "user-answer", content: "Database integration is out of scope." },
+          { branch: "acceptance-criteria", source: "user-answer", content: "The endpoint returns 200 OK." },
+          { branch: "testing-expectations", source: "user-answer", content: "Add a unit test for the endpoint." },
+        ],
+      },
+      undefined,
+      undefined,
+      {},
+    );
+    calls.push({ name: "interview_return", result });
   }
   return { text: "", messages: [], customToolCalls: calls };
 }

@@ -1,9 +1,9 @@
-import { QUESTION_SET, inferFromTask } from "../../domain/goals/interview-policy.js";
-import { MAX_GOALS_REVIEW_ROUNDS } from "../../domain/run/index.js";
+import { QUESTION_SET, inferFromTask, unresolvedRequiredBranches } from "../../domain/goals/interview-policy.js";
+import { MAX_GOALS_REVIEW_ROUNDS, MAX_TRANSIENT_DISPATCH_RETRIES } from "../../domain/run/index.js";
 import { parseSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import { runAgentReviewLoop } from "../workflow/agent-review-loop.js";
-import type { DispatchResult, GoalsReturnPayload } from "../port/index.js";
-import { readGoalsReturn } from "../port/index.js";
+import type { DispatchResult, GoalsReturnPayload, InterviewEntry } from "../port/index.js";
+import { readGoalsReturn, readInterviewReturn } from "../port/index.js";
 import type { GateRoundDetail, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {
   artifactRelPath,
@@ -15,12 +15,6 @@ import {
   subStageContext,
   writeArtifact,
 } from "./utils.js";
-
-interface InterviewEntry {
-  branch: string;
-  source: "user-answer" | "repo-finding" | "user-confirmed-finding" | "automation-fallback";
-  content: string;
-}
 
 export const goalsStage: StageModule = {
   stage: "goals",
@@ -350,51 +344,141 @@ async function collectInterview(
   runtime: StageRuntime,
   userTask: string,
 ): Promise<{ entries: InterviewEntry[] } | { failure: string }> {
-  const entries: InterviewEntry[] = [
-    {
-      branch: "user-task",
-      source: "user-answer",
-      content: userTask,
-    },
-  ];
-
+  // Seed the user-task entry, then A1 pre-pass: inferFromTask over QUESTION_SET.
+  const entries: InterviewEntry[] = [{ branch: "user-task", source: "user-answer", content: userTask }];
   for (const question of QUESTION_SET) {
     const inferred = inferFromTask(userTask, question.branch);
     if (inferred) {
+      entries.push({ branch: question.branch, source: "user-answer", content: inferred });
+    }
+  }
+
+  const unresolved = unresolvedRequiredBranches(entries);
+
+  // All required branches resolved by the pre-pass — done immediately.
+  if (unresolved.length === 0) {
+    return { entries };
+  }
+
+  // Automated mode: apply defaults in code; no agent dispatch.
+  if (runtime.services.gates.interactionMode !== "interactive") {
+    for (const question of unresolved) {
+      if (runtime.services.gates.failurePolicy === "fail-closed" && question.required) {
+        return { failure: `Goals interview could not resolve the required branch "${question.branch}".` };
+      }
       entries.push({
         branch: question.branch,
-        source: "user-answer",
-        content: inferred,
+        source: "automation-fallback",
+        content: "Unresolved; proceed conservatively.",
       });
-      continue;
     }
+    return { entries };
+  }
 
-    if (runtime.services.gates.interactionMode === "interactive") {
-      const answer = await runtime.services.gates.askText(question.title, question.question);
-      if (answer?.trim()) {
-        entries.push({
-          branch: question.branch,
-          source: "user-answer",
-          content: answer.trim(),
-        });
-        continue;
-      }
-    }
+  // Interactive mode: dispatch the interviewer agent to resolve remaining branches.
+  const alreadyResolved = entries.filter((e) => e.branch !== "user-task");
+  const prompt = buildInterviewerPrompt(runtime, userTask, alreadyResolved, unresolved);
 
-    if (runtime.services.gates.failurePolicy === "fail-closed" && question.required) {
-      return {
-        failure: `Goals interview could not resolve the required branch "${question.branch}".`,
-      };
-    }
-
-    entries.push({
-      branch: question.branch,
-      source: "automation-fallback",
-      content: "Unresolved; proceed conservatively.",
+  let interviewResult = await dispatchLeaf(runtime, "qrspi-goals-interviewer", prompt, {
+    customTools: [runtime.services.gates.createAskHumanTool(), runtime.services.gates.createInterviewReturnTool()],
+  });
+  for (
+    let attempt = 1;
+    attempt <= MAX_TRANSIENT_DISPATCH_RETRIES && isTransientDispatchFailure(interviewResult);
+    attempt++
+  ) {
+    interviewResult = await dispatchLeaf(runtime, "qrspi-goals-interviewer", prompt, {
+      customTools: [runtime.services.gates.createAskHumanTool(), runtime.services.gates.createInterviewReturnTool()],
     });
   }
 
-  return { entries };
+  const dispatchFailure = dispatchFailureSummary(interviewResult, "Goals interview failed");
+  if (dispatchFailure) {
+    if (runtime.services.gates.failurePolicy === "fail-closed") {
+      return { failure: dispatchFailure };
+    }
+    // best-effort: fill remaining required branches with fallbacks
+    for (const question of unresolved) {
+      entries.push({
+        branch: question.branch,
+        source: "automation-fallback",
+        content: "Unresolved; proceed conservatively.",
+      });
+    }
+    return { entries };
+  }
+
+  const agentEntries = readInterviewReturn(interviewResult);
+  if (!agentEntries) {
+    if (runtime.services.gates.failurePolicy === "fail-closed") {
+      return { failure: "Goals interview did not call interview_return." };
+    }
+    for (const question of unresolved) {
+      entries.push({
+        branch: question.branch,
+        source: "automation-fallback",
+        content: "Unresolved; proceed conservatively.",
+      });
+    }
+    return { entries };
+  }
+
+  // Merge: pre-pass entries take precedence; agent entries fill unresolved branches.
+  const merged = [...entries];
+  for (const agentEntry of agentEntries) {
+    if (!merged.some((e) => e.branch === agentEntry.branch)) {
+      merged.push(agentEntry);
+    }
+  }
+
+  // Final fail-closed check: any required branch still unresolved?
+  const finalUnresolved = unresolvedRequiredBranches(merged);
+  if (runtime.services.gates.failurePolicy === "fail-closed" && finalUnresolved.length > 0) {
+    return {
+      failure: `Interview could not resolve required branch(es): ${finalUnresolved.map((q) => q.branch).join(", ")}.`,
+    };
+  }
+
+  return { entries: merged };
+}
+
+function buildInterviewerPrompt(
+  runtime: StageRuntime,
+  userTask: string,
+  resolvedEntries: InterviewEntry[],
+  unresolvedBranches: ReturnType<typeof unresolvedRequiredBranches>,
+): string {
+  const lines: string[] = [
+    "=== RUN ID ===",
+    runtime.state.runId,
+    "",
+    "=== USER TASK ===",
+    userTask,
+    "",
+    "=== INTERACTION MODE ===",
+    runtime.services.gates.interactionMode,
+    "",
+    "=== FAILURE POLICY ===",
+    runtime.services.gates.failurePolicy,
+    "",
+  ];
+
+  if (resolvedEntries.length > 0) {
+    lines.push(
+      "=== ALREADY RESOLVED BRANCHES ===",
+      "These branches were pre-resolved from the task text. Do not re-ask about them.",
+      renderInterviewRecord(resolvedEntries),
+      "",
+    );
+  }
+
+  lines.push(
+    "=== UNRESOLVED BRANCHES ===",
+    "These required branches need to be resolved via repo exploration and user questions:",
+    ...unresolvedBranches.map((q) => `- ${q.branch}: ${q.question}`),
+  );
+
+  return lines.join("\n");
 }
 
 function goalsDispatchFailureOutcome(

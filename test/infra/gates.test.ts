@@ -7,7 +7,7 @@ import {
   determineInteractionMode,
   parseExplicitRunOptions,
 } from "../../src/infra/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
+import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 
 test("parseExplicitRunOptions reads mode failure and run-id flags", () => {
   const options = parseExplicitRunOptions("resume run-id:qrspi-20260601-123456 mode:automated failure:best-effort");
@@ -40,6 +40,9 @@ test("ask_human returns no answer when the gate manager cannot prompt", async ()
     },
     createGoalsReturnTool() {
       return createGoalsReturnTool();
+    },
+    createInterviewReturnTool() {
+      return createInterviewReturnTool();
     },
   });
 

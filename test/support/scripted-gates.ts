@@ -6,7 +6,7 @@ import type {
   InteractionMode,
 } from "../../src/application/port/index.js";
 import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
-import { createGoalsReturnTool } from "../../src/infra/pi/stage-return-tool.js";
+import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
 
 export type ScriptedGateAnswer =
   | { method: "choose"; value: GateChoice | undefined }
@@ -73,6 +73,10 @@ export class ScriptedGateManager implements GateManager {
 
   createGoalsReturnTool() {
     return createGoalsReturnTool();
+  }
+
+  createInterviewReturnTool() {
+    return createInterviewReturnTool();
   }
 }
 

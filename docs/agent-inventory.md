@@ -1,6 +1,6 @@
 # QRSPI Agent Inventory
 
-This inventory tracks the deterministic TypeScript migration. Orchestration logic was moved from markdown agents into `src/application/stage/`; the 35 markdown leaf prompts in `agents/` remain as prompt payloads dispatched by the runtime.
+This inventory tracks the deterministic TypeScript migration. Orchestration logic was moved from markdown agents into `src/application/stage/`; the 36 markdown leaf prompts in `agents/` remain as prompt payloads dispatched by the runtime.
 
 - `Delete` means the agent carried orchestration logic (`tools: subagent`) that is now implemented in TypeScript.
 - `Keep` means the file remains a markdown prompt payload dispatched by the runtime.
@@ -25,6 +25,7 @@ This inventory tracks the deterministic TypeScript migration. Orchestration logi
 | `qrspi-fast-impl-test` | Stage 6 | TDD inner-loop orchestrator | Delete | `src/application/stage/fast-impl-test.ts` |
 | `qrspi-fast-impl-verify` | Stage 6 | TDD inner-loop orchestrator | Delete | `src/application/stage/fast-impl-verify.ts` |
 | `qrspi-goals` | Stage 1 | Stage orchestrator | Delete | `src/application/stage/goals.ts` |
+| `qrspi-goals-interviewer` | Stage 1 | Adaptive interview leaf (new, not a reintroduced orchestrator) | Keep | Markdown prompt |
 | `qrspi-goals-reviewer` | Stage 1 | Goals review leaf | Keep | Markdown prompt |
 | `qrspi-goals-synthesizer` | Stage 1 | Goals synthesis leaf | Keep | Markdown prompt |
 | `qrspi-implement` | Stage 6 | Stage orchestrator | Delete | `src/application/stage/implement.ts` |
@@ -67,4 +68,4 @@ This inventory tracks the deterministic TypeScript migration. Orchestration logi
 Totals:
 
 - Delete: 20
-- Keep: 35
+- Keep: 36

@@ -6,7 +6,7 @@ import { isOrchestrator, loadAgentDefinitions } from "../../src/infra/pi/agent-c
 test("loadAgentDefinitions returns retained markdown leaf agents only", async () => {
   const definitions = await loadAgentDefinitions();
 
-  assert.equal(definitions.size, 35);
+  assert.equal(definitions.size, 36);
   assert.ok(definitions.has("qrspi-goals-synthesizer"));
   assert.ok(definitions.has("qrspi-reporter"));
   assert.ok(!definitions.has("qrspi-goals"));

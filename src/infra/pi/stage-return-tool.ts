@@ -6,6 +6,7 @@ import type {
   BackwardLoopClassification,
   DispatchResult,
   GoalsReturnPayload,
+  InterviewEntry,
   StageOutcome,
   StageStatus,
 } from "../../application/port/index.js";
@@ -199,6 +200,71 @@ export function createGoalsReturnTool(): ToolDefinition<typeof goalsReturnSchema
 
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+
+// ---------------------------------------------------------------------------
+// Interview return tool — structured delivery of the assembled interview record
+// ---------------------------------------------------------------------------
+
+const INTERVIEW_SOURCES = [
+  "user-answer",
+  "repo-finding",
+  "user-confirmed-finding",
+  "automation-default",
+  "automation-fallback",
+] as const;
+
+const interviewReturnSchema = Type.Object({
+  entries: Type.Array(
+    Type.Object({
+      branch: Type.String({ description: "Coverage branch name (e.g. constraints)." }),
+      source: StringEnum(INTERVIEW_SOURCES, { description: "How this branch was resolved." }),
+      content: Type.String({ description: "Resolved content verbatim, or None specified." }),
+    }),
+    { description: "One entry per resolved coverage branch." },
+  ),
+});
+
+export function createInterviewReturnTool(): ToolDefinition<
+  typeof interviewReturnSchema,
+  { entries: InterviewEntry[] }
+> {
+  return defineTool({
+    name: "interview_return",
+    label: "Interview Return",
+    description:
+      "Submit the assembled interview record. Call this exactly once when all coverage branches are resolved.",
+    promptSnippet: "Submit the complete interview record.",
+    parameters: interviewReturnSchema,
+    // eslint-disable-next-line @typescript-eslint/require-await -- SDK interface requires async signature
+    async execute(
+      _toolCallId,
+      params,
+      _signal,
+      _onUpdate,
+      _ctx,
+    ): Promise<AgentToolResult<{ entries: InterviewEntry[] }>> {
+      const entries: InterviewEntry[] = (Array.isArray(params.entries) ? params.entries : []).map((entry) => ({
+        branch: isString(entry.branch) ? entry.branch : "",
+        source: normalizeInterviewSource(entry.source),
+        content: isString(entry.content) ? entry.content : "",
+      }));
+      return {
+        content: [{ type: "text", text: "Recorded interview record." }],
+        details: { entries },
+      };
+    },
+  });
+}
+
+function normalizeInterviewSource(value: unknown): InterviewEntry["source"] {
+  return value === "user-answer" ||
+    value === "repo-finding" ||
+    value === "user-confirmed-finding" ||
+    value === "automation-default" ||
+    value === "automation-fallback"
+    ? value
+    : "automation-fallback";
 }
 
 function missingStageReturnSummary(reason: NonNullable<DispatchResult["endReason"]>): string {
