@@ -33,6 +33,7 @@ test("researchers receive the full question contract and pipeline exclusions", a
 
   assert.equal(result.status, "PASS");
   assert.equal(dispatcher.codebasePrompts.length, 1);
+  assert.deepEqual(dispatcher.codebaseTimeouts, [600_000]);
   assert.match(dispatcher.codebasePrompts[0] ?? "", /\*\*Answer shape\*\*: A bounded inventory/);
   assert.match(dispatcher.codebasePrompts[0] ?? "", /Treat `\.pipeline\/`, `\.git\/`, `node_modules\/`/);
 });
@@ -154,6 +155,7 @@ test("research synthesis can recover an inline summary artifact", async () => {
 
 class RecordingResearchDispatcher implements Dispatcher {
   readonly codebasePrompts: string[] = [];
+  readonly codebaseTimeouts: Array<number | undefined> = [];
   readonly webTimeouts: Array<number | undefined> = [];
   readonly synthesizerTimeouts: Array<number | undefined> = [];
   readonly reviewerTimeouts: Array<number | undefined> = [];
@@ -175,6 +177,7 @@ class RecordingResearchDispatcher implements Dispatcher {
     switch (request.target.name) {
       case "qrspi-codebase-researcher":
         this.codebasePrompts.push(request.prompt);
+        this.codebaseTimeouts.push(request.timeoutMs);
         return textResult(
           "## Findings for Q1\n\n### Summary\nNo project markdown files exist outside ignored metadata.\n",
         );

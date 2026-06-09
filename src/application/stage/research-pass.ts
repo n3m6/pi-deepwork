@@ -282,6 +282,9 @@ async function writeQuestionResearch(
       runtime,
       "qrspi-codebase-researcher",
       buildResearcherPrompt(question, reviewFeedback),
+      {
+        timeoutMs: RESEARCH_AGENT_TIMEOUT_MS,
+      },
     );
     const codebaseFailure = dispatchFailureSummary(
       codebase,

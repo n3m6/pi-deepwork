@@ -15,6 +15,8 @@ export interface GitOperationResult {
   warning?: string;
 }
 
+const CHECKPOINT_PATHS = [".", ":(exclude).pipeline", ":(exclude).pipeline/**"];
+
 export class CheckpointManager {
   constructor(
     private readonly pi: Pick<ExtensionAPI, "exec">,
@@ -45,7 +47,7 @@ export class CheckpointManager {
     action: "complete" | "skipped" | "failed",
     signal?: AbortSignal,
   ): Promise<GitOperationResult> {
-    const status = await this.execGit(["status", "--short"], signal);
+    const status = await this.execGit(["status", "--short", "--", ...CHECKPOINT_PATHS], signal);
     if (!status.ok) {
       return status;
     }
@@ -53,7 +55,7 @@ export class CheckpointManager {
       return { ok: true, warning: "git worktree already clean" };
     }
 
-    const add = await this.execGit(["add", "-A"], signal);
+    const add = await this.execGit(["add", "-A", "--", ...CHECKPOINT_PATHS], signal);
     if (!add.ok) {
       return add;
     }
