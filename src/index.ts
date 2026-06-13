@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { FileSystemArtifactRepository, ensureRunDirectories, getRunArtifacts } from "./infra/fs/artifact-repository.js";
@@ -17,12 +19,15 @@ import {
 import { LiveActivityPresenter } from "./infra/pi/live-activity-presenter.js";
 import { ConfiguredModelPolicy } from "./infra/pi/model-policy.js";
 import { loadModelConfig, resolveProfile } from "./infra/config/model-config.js";
+import { CassetteWriter, CASSETTE_SCHEMA_VERSION, type CassetteMeta } from "./infra/replay/cassette.js";
+import { RecordingDispatcher, type WorkspaceCapture } from "./infra/replay/recording-dispatcher.js";
+import { RecordingGateManager } from "./infra/replay/recording-gate.js";
 import { JsonlTelemetrySink } from "./infra/telemetry/jsonl-telemetry-sink.js";
 import { TimestampIdGenerator } from "./infra/system/id-generator.js";
 import { SystemClock } from "./infra/system/clock.js";
 import { Run } from "./domain/run/index.js";
 import { runPipeline } from "./application/pipeline/run-pipeline.js";
-import type { PipelineServices } from "./application/port/index.js";
+import type { Dispatcher, GateManager, PipelineServices } from "./application/port/index.js";
 
 export default function (pi: ExtensionAPI): void {
   // Register the transcript breadcrumb renderer once at extension load time.
@@ -48,8 +53,14 @@ export default function (pi: ExtensionAPI): void {
       const activeProfile = resolveProfile(modelConfig, activeProfileName);
       const modelPolicy = new ConfiguredModelPolicy(activeProfile);
 
-      const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model, undefined, presenter, modelPolicy);
-      const gates = new DefaultGateManager(ctx, {
+      let dispatcher: Dispatcher = new PiSessionDispatcher(
+        ctx.modelRegistry,
+        ctx.model,
+        undefined,
+        presenter,
+        modelPolicy,
+      );
+      let gates: GateManager = new DefaultGateManager(ctx, {
         interactionMode: interaction.interactionMode,
         failurePolicy: interaction.failurePolicy,
         reviewDepth: interaction.reviewDepth,
@@ -64,6 +75,52 @@ export default function (pi: ExtensionAPI): void {
       });
       const artifacts = getRunArtifacts(ctx.cwd, runId);
       await ensureRunDirectories(artifacts);
+
+      // Env-gated recording: set DEEPWORK_RECORD=<dir> or DEEPWORK_RECORD=1 (→ <runDir>/cassette/)
+      const recordEnv = process.env["DEEPWORK_RECORD"];
+      let cassetteWriter: CassetteWriter | undefined;
+      if (recordEnv) {
+        cassetteWriter = new CassetteWriter();
+        const capture: WorkspaceCapture = {
+          async snapshot(cwd: string): Promise<string> {
+            await pi.exec("git", ["-C", cwd, "add", "-A"], { cwd, timeout: 30_000 });
+            const result = await pi.exec("git", ["-C", cwd, "write-tree"], { cwd, timeout: 30_000 });
+            await pi.exec("git", ["-C", cwd, "reset"], { cwd, timeout: 30_000 });
+            return result.stdout.trim();
+          },
+          async diff(
+            cwd: string,
+            handle: string,
+          ): Promise<{ files: Array<{ path: string; content: string }>; patch: string }> {
+            if (!handle) return { files: [], patch: "" };
+            const { readFile } = await import("node:fs/promises");
+            await pi.exec("git", ["-C", cwd, "add", "-A"], { cwd, timeout: 30_000 });
+            const nameResult = await pi.exec(
+              "git",
+              ["-C", cwd, "diff", "--cached", handle, "--name-only", "--diff-filter=AM"],
+              { cwd, timeout: 30_000 },
+            );
+            const patchResult = await pi.exec("git", ["-C", cwd, "diff", "--cached", handle], { cwd, timeout: 30_000 });
+            await pi.exec("git", ["-C", cwd, "reset"], { cwd, timeout: 30_000 });
+            const relPaths = nameResult.stdout
+              .split("\n")
+              .map((l) => l.trim())
+              .filter(Boolean);
+            const files: Array<{ path: string; content: string }> = [];
+            for (const relPath of relPaths) {
+              try {
+                const content = await readFile(`${cwd}/${relPath}`, "utf8");
+                files.push({ path: relPath, content });
+              } catch {
+                /* unreadable — skip */
+              }
+            }
+            return { files, patch: patchResult.stdout };
+          },
+        };
+        dispatcher = new RecordingDispatcher(dispatcher, cassetteWriter, ctx.cwd, runId, capture);
+        gates = new RecordingGateManager(gates, cassetteWriter);
+      }
 
       const initialRun = resumedState
         ? Run.rehydrate(resumedState)
@@ -99,8 +156,9 @@ export default function (pi: ExtensionAPI): void {
       await telemetrySink.initialize();
       presenter?.start();
 
+      let finalState: Awaited<ReturnType<typeof runPipeline>> | undefined;
       try {
-        const finalState = await runPipeline({
+        finalState = await runPipeline({
           services,
           state: initialRun.toSnapshot(),
           workspaceRoot: ctx.cwd,
@@ -109,6 +167,22 @@ export default function (pi: ExtensionAPI): void {
         ctx.ui.notify(`Deepwork run ${runId} finished at stage ${finalState.lastCompletedStage}.`, "info");
       } finally {
         presenter?.stop();
+        if (cassetteWriter) {
+          const cassetteDir = recordEnv === "1" ? path.join(artifacts.runDir, "cassette") : (recordEnv ?? "cassette");
+          const meta: CassetteMeta = {
+            schemaVersion: CASSETTE_SCHEMA_VERSION,
+            runId,
+            route: finalState?.route ?? "unknown",
+            interactionMode: interaction.interactionMode,
+            failurePolicy: interaction.failurePolicy,
+            userTask: userTask ?? "",
+            reviewDepth: interaction.reviewDepth,
+            ...(interaction.explicit.modelProfile !== undefined
+              ? { modelProfile: interaction.explicit.modelProfile }
+              : {}),
+          };
+          await cassetteWriter.flush(cassetteDir, meta);
+        }
       }
     },
   });

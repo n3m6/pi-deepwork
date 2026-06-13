@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1",
+  "runId": "qrspi-20260601-000001",
+  "route": "full",
+  "interactionMode": "automated",
+  "failurePolicy": "best-effort",
+  "userTask": "Implement a deterministic deepwork pipeline.",
+  "reviewDepth": "thorough",
+  "lastCompletedStage": "report"
+}

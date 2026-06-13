@@ -173,7 +173,7 @@ export class TestHarness {
   }
 }
 
-class MockDispatcher implements Dispatcher {
+export class MockDispatcher implements Dispatcher {
   constructor(
     private readonly artifacts: RunArtifacts,
     private readonly options: Required<
@@ -542,7 +542,7 @@ function createFakeCommandContext(workspaceRoot: string, _pi: Pick<ExtensionAPI,
   };
 }
 
-async function writeFixtureWorkspace(workspaceRoot: string, runId: string): Promise<void> {
+export async function writeFixtureWorkspace(workspaceRoot: string, runId: string): Promise<void> {
   await mkdir(path.join(workspaceRoot, "src"), { recursive: true });
   await mkdir(path.join(workspaceRoot, "test"), { recursive: true });
   await writeFile(
