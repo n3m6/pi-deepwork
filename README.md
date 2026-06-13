@@ -6,8 +6,8 @@ The runtime is intentionally zero-build: pi loads `src/index.ts` directly from t
 
 ## What changed
 
-- The top-level `/deepwork` orchestration now lives in `src/controller.ts` and `src/stages/*.ts`.
-- Only the 35 markdown leaf agents remain in `agents/`.
+- The top-level `/deepwork` orchestration is implemented in TypeScript using a hexagonal (ports and adapters) architecture under `src/domain/`, `src/application/`, and `src/infra/`.
+- Only the 36 markdown leaf agents remain in `agents/`; the deleted orchestrator prompts were replaced by code in `src/application/stage/`.
 - Pipeline recovery state is persisted in `.pipeline/qrspi-<run-id>/state.json`.
 - Telemetry is written to `.pipeline/qrspi-<run-id>/telemetry/events.jsonl`, with derived `run-log.md` and `metrics-summary.md`.
 
@@ -113,13 +113,18 @@ Multi-phase work repeats the `Implement → Accept → Replan` loop until all ph
 
 ## Repository Layout
 
-- `src/index.ts` registers the `/deepwork` command.
-- `src/controller.ts` owns run lifecycle, stage transitions, telemetry, and resume.
-- `src/stages/` contains deterministic stage implementations and stage-local helpers.
-- `src/dispatch.ts` launches nested pi sessions and reads typed `stage_return` payloads.
-- `src/state.ts`, `src/resume.ts`, `src/telemetry.ts`, `src/checkpoint.ts`, and `src/worktrees.ts` implement the runtime mechanisms.
-- `agents/` contains the remaining markdown leaf prompts dispatched by the controller.
+The codebase follows a hexagonal (ports and adapters) architecture:
+
+- `src/index.ts` registers the `/deepwork` command and wires the composition root.
+- `src/domain/` holds pure value types, the `Run` state aggregate, stage transition policies, and domain events (no infrastructure imports).
+- `src/application/port/index.ts` declares all shared port types and interfaces.
+- `src/application/pipeline/` contains the pipeline loop, stage runner, and outcome interpreter.
+- `src/application/stage/` contains the deterministic stage implementations and sub-stages.
+- `src/application/workflow/` contains multi-step workflow helpers (e.g. the agent review loop).
+- `src/infra/` contains the adapters implementing the application ports: `fs/` (artifacts, state, resume), `git/` (version control, worktrees), `pi/` (session dispatcher, human gate, telemetry UI), `npm/` (build tool), `codec/` (markdown parsing), `telemetry/` (JSONL sink), and `system/` (clock, IDs).
+- `agents/` contains the 36 markdown leaf prompts dispatched by the runtime.
 - `docs/agent-inventory.md` records which legacy markdown agents were deleted versus retained.
+- `docs/mental-model.md` is a deeper architectural walkthrough.
 - `test/` contains TypeScript unit and scenario tests. `npm run verify` is the local gate.
 
 ## Local Development
@@ -136,11 +141,13 @@ Run the verification gate:
 npm run verify
 ```
 
-This runs:
+This runs, in order:
 
 ```text
 tsc --noEmit
-node --import tsx --test test/*.test.ts
+eslint --max-warnings=0 src/domain src/application src/infra test
+prettier --check src/ test/
+node --import tsx --test --test-concurrency=1 "test/*.test.ts" "test/**/*.test.ts"
 ```
 
 ## Notes

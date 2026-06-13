@@ -6,7 +6,7 @@
 Goals → Research → Design → Structure → Plan → Implement → Accept → Replan → Verify → Report
 ```
 
-The key design idea (called out in `AGENTS.md`) is that the *orchestration is code, not prompts*. The control flow — which stage runs next, when to loop back, when to stop — lives in TypeScript state machines. Only the "leaf" work (synthesizing goals, reviewing a design, writing a task spec, etc.) is delegated to LLM agents driven by the 35 markdown prompts in `agents/`.
+The key design idea (called out in `AGENTS.md`) is that the *orchestration is code, not prompts*. The control flow — which stage runs next, when to loop back, when to stop — lives in TypeScript state machines. Only the "leaf" work (synthesizing goals, reviewing a design, writing a task spec, etc.) is delegated to LLM agents driven by the 36 markdown prompts in `agents/`.
 
 The codebase uses **hexagonal architecture** (ports & adapters):
 - `src/domain/` — pure logic, no I/O (state machine, transition rules, policies)
@@ -19,7 +19,7 @@ The codebase uses **hexagonal architecture** (ports & adapters):
 
 At extension load it registers a transcript renderer and the command itself:
 
-```24:30:src/index.ts
+```25:31:src/index.ts
 export default function (pi: ExtensionAPI): void {
   // Register the transcript breadcrumb renderer once at extension load time.
   pi.registerMessageRenderer(DEEPWORK_PROGRESS_CUSTOM_TYPE, DEEPWORK_PROGRESS_RENDERER);
@@ -37,7 +37,7 @@ When `/deepwork ...` is invoked, the handler is the **composition root** — it 
 
 3. **Resume or start fresh.** `resumeOrInferState` tries to recover prior state; the run is either rehydrated or started fresh:
 
-```55:62:src/index.ts
+```60:67:src/index.ts
       const initialRun = resumedState
         ? Run.rehydrate(resumedState)
         : Run.start({
@@ -164,10 +164,10 @@ Each stage is a `StageModule` with a `run(runtime)` method returning a `StageOut
 There are two dispatch flavors:
 - **Leaf agents** — one of the 35 markdown prompts, loaded by `MarkdownAgentCatalog`. The dispatcher creates an isolated pi agent session, applies the leaf's system prompt (`replace` or `append` mode), tool allowlist, model, and max-turns, then runs the prompt:
 
-```157:175:src/infra/pi/session-dispatcher.ts
+```173:184:src/infra/pi/session-dispatcher.ts
   async dispatchGenericCoding(
     prompt: string,
-    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal },
+    options?: { cwd?: string; tools?: string[]; signal?: AbortSignal; correlationId?: string; activityLabel?: string },
   ): Promise<StageOutcome> {
     const stageReturns: StageReturnPayload[] = [];
     const result = await this.dispatch({
@@ -241,7 +241,7 @@ There's also a fully **deterministic fast path**: if Goals detected a "simple ex
 
 `determineInteractionMode` (`human-gate.ts`) picks the mode:
 
-```42:43:src/infra/pi/human-gate.ts
+```45:46:src/infra/pi/human-gate.ts
   const interactionMode = explicit.mode ?? (hasReplyCapability(ctx) ? "interactive" : "automated");
   const failurePolicy = explicit.failurePolicy ?? (interactionMode === "interactive" ? "fail-closed" : "best-effort");
 ```
@@ -258,9 +258,9 @@ The `DefaultGateManager` also exposes an `ask_human` custom tool, so leaf agents
 - **Telemetry**: every event (`run.started`, `stage.started/completed/failed`, `gate.*`, `backward_loop.*`, `task.*`, `review.round.*`) is appended as JSONL to `.pipeline/qrspi-<run-id>/telemetry/events.jsonl`, with derived `run-log.md` and `metrics-summary.md` regenerated alongside. `LiveUiTelemetrySink` wraps the JSONL sink to also stream breadcrumbs into the pi transcript.
 - `.pipeline/` is scratch and must never be committed.
 
-## 9. The 35 leaf agents
+## 9. The 36 leaf agents
 
-The `agents/` directory holds exactly 35 `qrspi-*.md` prompts (the expected count enforced in `AGENTS.md`), loaded by `MarkdownAgentCatalog`. They are pure leaves — synthesizers, reviewers, writers, checkers — never orchestrators. They map onto the pipeline stages, e.g.:
+The `agents/` directory holds exactly 36 `qrspi-*.md` prompts (the expected count enforced in `AGENTS.md`), loaded by `MarkdownAgentCatalog`. They are pure leaves — synthesizers, reviewers, writers, checkers — never orchestrators. They map onto the pipeline stages, e.g.:
 - Goals: `qrspi-goals-synthesizer`, `qrspi-goals-reviewer`
 - Research: `qrspi-codebase-researcher`, `qrspi-web-researcher`, `qrspi-research-synthesizer`, `qrspi-research-reviewer`
 - Design/Structure/Plan: `qrspi-design-synthesizer`/`-reviewer`, `qrspi-structure-mapper`/`-reviewer`, `qrspi-plan-writer`/`-reviewer`, `qrspi-task-spec-writer`/`-reviewer`
