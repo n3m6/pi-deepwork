@@ -4,6 +4,7 @@ import { writeFile } from "node:fs/promises";
 
 import { runResearchPassSubstage } from "../../src/application/stage/research-pass.js";
 import type { DispatchRequest, DispatchResult, Dispatcher } from "../../src/application/port/index.js";
+import type { DomainEvent } from "../../src/domain/event/index.js";
 import type { RunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { TestHarness } from "../support/harness.js";
 
@@ -152,6 +153,90 @@ test("research synthesis can recover an inline summary artifact", async () => {
 
   assert.equal(result.status, "PASS");
 });
+
+test("research review fast mode caps to 2 rounds — both FAIL produce unclean-cap with reviewRounds:2", async () => {
+  const harness = await TestHarness.create({ reviewDepth: "fast" });
+  harnesses.push(harness);
+
+  const questionsMarkdown = renderQuestionsMarkdown();
+  await writeFile(harness.artifacts.researchQuestionsFile, questionsMarkdown, "utf8");
+
+  const recordedEvents: DomainEvent[] = [];
+  const capturingTelemetry = {
+    record: async (event: DomainEvent) => {
+      recordedEvents.push(event);
+    },
+    regenerateRunLog: async () => {},
+    regenerateMetrics: async () => {},
+    readEvents: async () => [],
+  };
+
+  const result = await runResearchPassSubstage(
+    {
+      ...harness.runtime(),
+      services: {
+        ...harness.services,
+        telemetrySink: capturingTelemetry,
+        dispatcher: new AlwaysFailResearchDispatcher(harness.artifacts),
+      },
+    },
+    questionsMarkdown,
+  );
+
+  assert.equal(result.status, "FAIL");
+  assert.equal(result.reviewRounds, 2, "fast mode caps review to 2 rounds");
+
+  const roundStarted = recordedEvents.filter(
+    (e): e is Extract<DomainEvent, { type: "review.round.started" }> => e.type === "review.round.started",
+  );
+  const roundCompleted = recordedEvents.filter(
+    (e): e is Extract<DomainEvent, { type: "review.round.completed" }> => e.type === "review.round.completed",
+  );
+
+  assert.equal(roundStarted.length, 2, "exactly 2 review rounds started");
+  assert.equal(roundCompleted.length, 2, "exactly 2 review rounds completed");
+
+  for (const event of [...roundStarted, ...roundCompleted]) {
+    assert.equal(event.maxRounds, 2, "maxRounds should reflect the effective clamped cap");
+  }
+});
+
+class AlwaysFailResearchDispatcher implements Dispatcher {
+  constructor(private readonly artifacts: RunArtifacts) {}
+
+  async dispatch(request: DispatchRequest): Promise<DispatchResult> {
+    switch (request.target.name) {
+      case "qrspi-codebase-researcher":
+        return textResult("## Findings for Q1\n\n### Summary\nFindings.\n");
+      case "qrspi-research-synthesizer": {
+        await writeFile(
+          this.artifacts.researchSummaryFile,
+          "# Research Summary\n\n## Overview\nSynthesized findings.\n",
+          "utf8",
+        );
+        return textResult("### Status — PASS\n### Summary — Synthesized.");
+      }
+      case "qrspi-research-reviewer":
+        return textResult("### Status — FAIL\n\n### Summary\nFail — needs revision.");
+      default:
+        return textResult("### Status — PASS\n\n### Summary\nPass.");
+    }
+  }
+
+  async dispatchParallel(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    return Promise.all(requests.map((r) => this.dispatch(r)));
+  }
+
+  async dispatchChain(requests: DispatchRequest[]): Promise<DispatchResult[]> {
+    const results: DispatchResult[] = [];
+    for (const r of requests) results.push(await this.dispatch(r));
+    return results;
+  }
+
+  async dispatchGenericCoding() {
+    return { status: "PASS" as const, filesWritten: [], summary: "" };
+  }
+}
 
 class RecordingResearchDispatcher implements Dispatcher {
   readonly codebasePrompts: string[] = [];

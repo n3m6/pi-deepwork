@@ -34,6 +34,7 @@ import type {
   InteractionMode,
   PipelineServices,
   ProgressReporter,
+  ReviewDepth,
   RunState,
   StageOutcome,
   StageRuntime,
@@ -58,6 +59,7 @@ export interface HarnessOptions {
     | "LOOP_GOALS";
   interactionMode?: InteractionMode;
   failurePolicy?: FailurePolicy;
+  reviewDepth?: ReviewDepth;
 }
 
 export class TestHarness {
@@ -101,7 +103,11 @@ export class TestHarness {
 
     const agentDefinitions = await loadAgentDefinitions();
     const pi = createExecOnlyPi(workspaceRoot);
-    const gates = new StaticGateManager(options.interactionMode ?? "automated", options.failurePolicy ?? "best-effort");
+    const gates = new StaticGateManager(
+      options.interactionMode ?? "automated",
+      options.failurePolicy ?? "best-effort",
+      options.reviewDepth ?? "thorough",
+    );
     const dispatcher = new MockDispatcher(artifacts, {
       route: options.route ?? "full",
       totalPhases: options.totalPhases ?? (options.route === "quick-fix" ? 1 : 2),
@@ -401,6 +407,7 @@ class StaticGateManager implements GateManager {
   constructor(
     readonly interactionMode: InteractionMode,
     readonly failurePolicy: FailurePolicy,
+    readonly reviewDepth: ReviewDepth = "thorough",
   ) {}
 
   async askText(): Promise<string | undefined> {

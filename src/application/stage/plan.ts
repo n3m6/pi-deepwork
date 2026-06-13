@@ -1,5 +1,5 @@
 import { parseMarkdownSections, parseTotalPhases } from "../../infra/codec/markdown-codec.js";
-import { MAX_PLAN_REVIEW_ROUNDS, MAX_PLAN_TASK_REVIEW_ROUNDS } from "../../domain/run/index.js";
+import { MAX_PLAN_REVIEW_ROUNDS, MAX_PLAN_TASK_REVIEW_ROUNDS, effectiveReviewRounds } from "../../domain/run/index.js";
 import { detectSimpleExactFileTask } from "../workflow/simple-exact-file-workflow.js";
 import type { ArtifactId, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {
@@ -49,14 +49,15 @@ export const planStage: StageModule = {
     let reviewRound = 1;
     let latestPlanWriterOutput = "";
     const planCtx = subStageContext(runtime);
-    while (reviewRound <= MAX_PLAN_REVIEW_ROUNDS) {
+    const planMaxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, MAX_PLAN_REVIEW_ROUNDS);
+    while (reviewRound <= planMaxRounds) {
       await runtime.services.telemetrySink.record({
         type: "review.round.started",
         stage: "plan",
         phase: planCtx.phase,
         route: planCtx.route,
         reviewRound,
-        maxRounds: MAX_PLAN_REVIEW_ROUNDS,
+        maxRounds: planMaxRounds,
       });
 
       latestPlanWriterOutput = await runPlanWriter(runtime, {
@@ -91,7 +92,7 @@ export const planStage: StageModule = {
         phase: planCtx.phase,
         route: planCtx.route,
         reviewRound,
-        maxRounds: MAX_PLAN_REVIEW_ROUNDS,
+        maxRounds: planMaxRounds,
         status: planRoundStatus,
       });
 
@@ -159,7 +160,7 @@ export const planStage: StageModule = {
         };
       }
 
-      if (reviewRound === MAX_PLAN_REVIEW_ROUNDS) {
+      if (reviewRound === planMaxRounds) {
         return {
           status: "FAIL",
           filesWritten,
@@ -345,6 +346,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
   const outlineFiles = await repo.listOutlineFiles();
   const written: string[] = [];
   const specCtx = subStageContext(runtime);
+  const taskMaxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, MAX_PLAN_TASK_REVIEW_ROUNDS);
 
   for (const outlineFile of outlineFiles) {
     const taskNumber = outlineFile.match(/task-(\d+)\.outline/i)?.[1];
@@ -354,14 +356,14 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
 
     let reviewRound = 1;
     let reviewFeedback = "";
-    while (reviewRound <= MAX_PLAN_TASK_REVIEW_ROUNDS) {
+    while (reviewRound <= taskMaxRounds) {
       await runtime.services.telemetrySink.record({
         type: "review.round.started",
         stage: "plan",
         phase: specCtx.phase,
         route: specCtx.route,
         reviewRound,
-        maxRounds: MAX_PLAN_TASK_REVIEW_ROUNDS,
+        maxRounds: taskMaxRounds,
       });
       const writer = await dispatchLeaf(
         runtime,
@@ -450,7 +452,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
         phase: specCtx.phase,
         route: specCtx.route,
         reviewRound,
-        maxRounds: MAX_PLAN_TASK_REVIEW_ROUNDS,
+        maxRounds: taskMaxRounds,
         status: specRoundStatus,
       });
 
@@ -458,7 +460,7 @@ async function writeTaskSpecs(runtime: StageRuntime, agentsGuidance: string): Pr
         break;
       }
 
-      if (reviewRound === MAX_PLAN_TASK_REVIEW_ROUNDS) {
+      if (reviewRound === taskMaxRounds) {
         return {
           status: "FAIL",
           filesWritten: written,

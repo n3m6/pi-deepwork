@@ -4,6 +4,7 @@ import type {
   GateManager,
   GateOption,
   InteractionMode,
+  ReviewDepth,
 } from "../../src/application/port/index.js";
 import { createAskHumanTool } from "../../src/infra/pi/human-gate.js";
 import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
@@ -22,6 +23,7 @@ export interface ScriptedGateCall {
 export class ScriptedGateManager implements GateManager {
   readonly interactionMode: InteractionMode;
   readonly failurePolicy: FailurePolicy;
+  readonly reviewDepth: ReviewDepth;
   readonly calls: ScriptedGateCall[] = [];
   private queue: ScriptedGateAnswer[];
 
@@ -29,11 +31,13 @@ export class ScriptedGateManager implements GateManager {
     options: {
       interactionMode?: InteractionMode;
       failurePolicy?: FailurePolicy;
+      reviewDepth?: ReviewDepth;
     },
     answers: ScriptedGateAnswer[],
   ) {
     this.interactionMode = options.interactionMode ?? "interactive";
     this.failurePolicy = options.failurePolicy ?? "best-effort";
+    this.reviewDepth = options.reviewDepth ?? "thorough";
     this.queue = [...answers];
   }
 

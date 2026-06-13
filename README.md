@@ -45,6 +45,7 @@ Optional flags:
 
 - `mode:interactive` or `mode:automated`
 - `failure:fail-closed` or `failure:best-effort`
+- `review:thorough` or `review:fast`
 
 ## Command Reference
 
@@ -76,6 +77,19 @@ Controls what happens when a stage cannot converge within its review loop cap, o
 | `failure:best-effort` | Unresolved review caps are auto-approved as `PARTIAL`. Missing answers proceed with conservative defaults. |
 
 **Default**: `fail-closed` in interactive mode, `best-effort` in automated mode.
+
+### `review:` — Review Loop Depth
+
+Controls the maximum number of rounds each multi-stage review loop may run before hitting its cap.
+
+| Value | Behavior |
+|-------|----------|
+| `review:thorough` | Each stage uses its full review-round budget (up to 5 rounds for goals/plan, 3 for others). |
+| `review:fast` | Every review loop is capped to **2 rounds** — one initial review, one rewrite-on-fail, one re-review, then stop. Non-review retry loops (implementation retries, fix attempts) are unaffected. |
+
+**Default**: `thorough`.
+
+> **Recommended pairing**: `review:fast failure:best-effort`. If a review still fails after the 2-round cap, it produces an `unclean-cap` FAIL. Under `failure:best-effort` this is automatically softened to `PARTIAL` and the run proceeds rather than stopping. Without `failure:best-effort` in interactive mode, the cap hit instead triggers a human gate where you can approve, retry, or abort.
 
 ### `run-id:` — Resume a Prior Run
 

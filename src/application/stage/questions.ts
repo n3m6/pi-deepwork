@@ -1,5 +1,5 @@
 import { normalizeNewlines } from "../../infra/codec/markdown-codec.js";
-import { MAX_QUESTIONS_REVIEW_ROUNDS } from "../../domain/run/index.js";
+import { MAX_QUESTIONS_REVIEW_ROUNDS, effectiveReviewRounds } from "../../domain/run/index.js";
 import type { LeafAgentDefinition, StageRuntime } from "../port/index.js";
 import {
   dispatchFailureSummary,
@@ -32,14 +32,15 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
   let feedback = "";
   const ctx = subStageContext(runtime);
   const questionsStage = ctx.stage ?? "research";
-  while (reviewRound <= MAX_QUESTIONS_REVIEW_ROUNDS) {
+  const questionsMaxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, MAX_QUESTIONS_REVIEW_ROUNDS);
+  while (reviewRound <= questionsMaxRounds) {
     await runtime.services.telemetrySink.record({
       type: "review.round.started",
       stage: questionsStage,
       phase: ctx.phase,
       route: ctx.route,
       reviewRound,
-      maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+      maxRounds: questionsMaxRounds,
     });
     const generatorTarget = createFastQuestionTarget(runtime, "qrspi-question-generator");
     const signal = runtime.services.eventContext.signal;
@@ -88,7 +89,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         phase: ctx.phase,
         route: ctx.route,
         reviewRound,
-        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        maxRounds: questionsMaxRounds,
         status: "FAIL",
       });
       return {
@@ -175,7 +176,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         phase: ctx.phase,
         route: ctx.route,
         reviewRound,
-        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        maxRounds: questionsMaxRounds,
         status: "FAIL",
       });
       return {
@@ -197,7 +198,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
         phase: ctx.phase,
         route: ctx.route,
         reviewRound,
-        maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+        maxRounds: questionsMaxRounds,
         status: "FAIL",
       });
       return {
@@ -222,7 +223,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
       phase: ctx.phase,
       route: ctx.route,
       reviewRound,
-      maxRounds: MAX_QUESTIONS_REVIEW_ROUNDS,
+      maxRounds: questionsMaxRounds,
       status: questionsRoundStatus,
     });
 
@@ -243,7 +244,7 @@ export async function runQuestionsSubstage(runtime: StageRuntime): Promise<Quest
     status: "FAIL",
     questionsMarkdown: await readArtifact(runtime, { kind: "questions" }),
     filesWritten,
-    reviewRounds: 3,
+    reviewRounds: questionsMaxRounds,
   };
 }
 

@@ -45,6 +45,7 @@ export default function (pi: ExtensionAPI): void {
       const gates = new DefaultGateManager(ctx, {
         interactionMode: interaction.interactionMode,
         failurePolicy: interaction.failurePolicy,
+        reviewDepth: interaction.reviewDepth,
       });
       const progress = new UiProgressReporter(ctx);
 
@@ -112,5 +113,6 @@ function stripCommandFlags(args: string): string {
     .replace(/\bfailure(?:_policy)?:((?:fail-closed)|(?:best-effort))\b/gi, "")
     .replace(/\brun-id:(qrspi-[0-9]{8}-[0-9]{6})\b/gi, "")
     .replace(/\bresume\b/gi, "")
+    .replace(/\breview:(thorough|fast)\b/gi, "")
     .trim();
 }

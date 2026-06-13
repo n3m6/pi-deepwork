@@ -52,6 +52,7 @@ export type {
   NextStage,
   PhaseHistoryEntry,
   ResumeSource,
+  ReviewDepth,
   ReviewState,
   Route,
   RunState,
@@ -71,6 +72,7 @@ import type {
   Route,
   InteractionMode,
   FailurePolicy,
+  ReviewDepth,
   RunState,
   StageOutcome,
 } from "../../domain/value/index.js";
@@ -278,6 +280,7 @@ export interface GateOption {
 export interface GateManager {
   readonly interactionMode: InteractionMode;
   readonly failurePolicy: FailurePolicy;
+  readonly reviewDepth?: ReviewDepth;
   askText(title: string, question: string, placeholder?: string): Promise<string | undefined>;
   choose(title: string, options: GateOption[], message?: string): Promise<GateChoice | undefined>;
   confirm(title: string, message: string): Promise<boolean>;

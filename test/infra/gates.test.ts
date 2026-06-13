@@ -16,10 +16,30 @@ test("parseExplicitRunOptions reads mode failure and run-id flags", () => {
   assert.equal(options.resumeRunId, "qrspi-20260601-123456");
 });
 
+test("parseExplicitRunOptions parses review:fast", () => {
+  const options = parseExplicitRunOptions("some task review:fast failure:best-effort");
+  assert.equal(options.reviewDepth, "fast");
+});
+
+test("parseExplicitRunOptions defaults reviewDepth to undefined (thorough by convention)", () => {
+  const options = parseExplicitRunOptions("some task failure:best-effort");
+  assert.equal(options.reviewDepth, undefined);
+});
+
 test("determineInteractionMode defaults to automated without UI", () => {
   const result = determineInteractionMode({ hasUI: false } as never, "ship it");
   assert.equal(result.interactionMode, "automated");
   assert.equal(result.failurePolicy, "best-effort");
+});
+
+test("determineInteractionMode parses review:fast and surfaces reviewDepth", () => {
+  const result = determineInteractionMode({ hasUI: false } as never, "some task review:fast");
+  assert.equal(result.reviewDepth, "fast");
+});
+
+test("determineInteractionMode defaults reviewDepth to thorough when flag absent", () => {
+  const result = determineInteractionMode({ hasUI: false } as never, "some task");
+  assert.equal(result.reviewDepth, "thorough");
 });
 
 test("ask_human returns no answer when the gate manager cannot prompt", async () => {

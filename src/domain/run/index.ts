@@ -6,6 +6,7 @@ import type {
   InteractionMode,
   NextStage,
   PhaseHistoryEntry,
+  ReviewDepth,
   Route,
   RunState,
   StageName,
@@ -27,6 +28,18 @@ export const MAX_RESEARCH_REVIEW_ROUNDS = 3;
 export const MAX_QUESTIONS_REVIEW_ROUNDS = 3;
 export const MAX_REPLAN_REVIEW_ROUNDS = 3;
 export const MAX_ACCEPTANCE_ROUNDS = 3;
+
+/** Fast review mode caps every review loop to this many rounds (one correction cycle). */
+export const FAST_REVIEW_ROUNDS = 2;
+
+/**
+ * Returns the effective number of review rounds for a loop.
+ * In fast mode the cap is clamped to FAST_REVIEW_ROUNDS; in thorough mode the
+ * stage-specific thoroughMax is used unchanged.
+ */
+export function effectiveReviewRounds(reviewDepth: ReviewDepth | undefined, thoroughMax: number): number {
+  return reviewDepth === "fast" ? Math.min(thoroughMax, FAST_REVIEW_ROUNDS) : thoroughMax;
+}
 
 export interface StartRunOptions {
   runId: string;

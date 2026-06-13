@@ -1,5 +1,5 @@
 import { isPipelineArtifact, isTestFile } from "../../domain/stage/boundary-policy.js";
-import { MAX_ACCEPTANCE_ROUNDS } from "../../domain/run/index.js";
+import { MAX_ACCEPTANCE_ROUNDS, effectiveReviewRounds } from "../../domain/run/index.js";
 import type { ArtifactId, DispatchRequest, StageOutcome, StageRuntime, VersionControl } from "../port/index.js";
 import {
   artifactRelPath,
@@ -40,7 +40,7 @@ export async function runAcceptanceTesterSubstage(runtime: StageRuntime): Promis
   let plannerReviewCycles = 0;
   const reviewArtifacts: string[] = [];
   const acceptCtx = subStageContext(runtime);
-  const ACCEPTANCE_PLANNER_MAX_CYCLES = 3;
+  const ACCEPTANCE_PLANNER_MAX_CYCLES = effectiveReviewRounds(runtime.services.gates.reviewDepth, 3);
   while (plannerReviewCycles < ACCEPTANCE_PLANNER_MAX_CYCLES) {
     plannerReviewCycles += 1;
     await runtime.services.telemetrySink.record({

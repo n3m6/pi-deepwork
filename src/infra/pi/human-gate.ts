@@ -9,6 +9,7 @@ import type {
   GateManager,
   GateOption,
   InteractionMode,
+  ReviewDepth,
 } from "../../application/port/index.js";
 import {
   createGoalsReturnTool as buildGoalsReturnTool,
@@ -20,6 +21,7 @@ export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   const mode = args.match(/\bmode:(interactive|automated)\b/i)?.[1]?.toLowerCase();
   const failure = args.match(/\bfailure(?:_policy)?:((?:fail-closed)|(?:best-effort))\b/i)?.[1]?.toLowerCase();
   const resumeRunId = args.match(/\brun-id:(qrspi-[0-9]{8}-[0-9]{6})\b/i)?.[1];
+  const review = args.match(/\breview:(thorough|fast)\b/i)?.[1]?.toLowerCase();
 
   if (mode === "interactive" || mode === "automated") {
     options.mode = mode;
@@ -30,6 +32,9 @@ export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   if (resumeRunId) {
     options.resumeRunId = resumeRunId;
   }
+  if (review === "thorough" || review === "fast") {
+    options.reviewDepth = review;
+  }
   return options;
 }
 
@@ -39,15 +44,18 @@ export function determineInteractionMode(
 ): {
   interactionMode: InteractionMode;
   failurePolicy: FailurePolicy;
+  reviewDepth: ReviewDepth;
   explicit: ExplicitRunOptions;
 } {
   const explicit = parseExplicitRunOptions(args);
   const interactionMode = explicit.mode ?? (hasReplyCapability(ctx) ? "interactive" : "automated");
   const failurePolicy = explicit.failurePolicy ?? (interactionMode === "interactive" ? "fail-closed" : "best-effort");
+  const reviewDepth = explicit.reviewDepth ?? "thorough";
 
   return {
     interactionMode,
     failurePolicy,
+    reviewDepth,
     explicit,
   };
 }
@@ -55,13 +63,15 @@ export function determineInteractionMode(
 export class DefaultGateManager implements GateManager {
   readonly interactionMode: InteractionMode;
   readonly failurePolicy: FailurePolicy;
+  readonly reviewDepth: ReviewDepth;
 
   constructor(
     private readonly ctx: ExtensionCommandContext,
-    options: { interactionMode: InteractionMode; failurePolicy: FailurePolicy },
+    options: { interactionMode: InteractionMode; failurePolicy: FailurePolicy; reviewDepth?: ReviewDepth },
   ) {
     this.interactionMode = options.interactionMode;
     this.failurePolicy = options.failurePolicy;
+    this.reviewDepth = options.reviewDepth ?? "thorough";
   }
 
   async askText(title: string, question: string, placeholder?: string): Promise<string | undefined> {

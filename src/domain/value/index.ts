@@ -3,6 +3,7 @@
 export type Route = "full" | "quick-fix" | "unknown";
 export type InteractionMode = "interactive" | "automated";
 export type FailurePolicy = "fail-closed" | "best-effort";
+export type ReviewDepth = "thorough" | "fast";
 export type ResumeSource = "fresh" | "resume" | "artifacts";
 export type ReviewState = "clean" | "unclean-cap" | "stable-cap";
 export type StageStatus = "PASS" | "FAIL" | "PARTIAL" | "SKIP";
@@ -115,4 +116,5 @@ export interface ExplicitRunOptions {
   mode?: InteractionMode;
   failurePolicy?: FailurePolicy;
   resumeRunId?: string;
+  reviewDepth?: ReviewDepth;
 }

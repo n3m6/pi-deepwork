@@ -6,7 +6,7 @@
  * and status aggregation.
  */
 
-import { MAX_TRANSIENT_DISPATCH_RETRIES } from "../../domain/run/index.js";
+import { MAX_TRANSIENT_DISPATCH_RETRIES, effectiveReviewRounds } from "../../domain/run/index.js";
 import { parseReviewStatus, subStageContext, writeArtifact, artifactRelPath } from "../stage/utils.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
 
@@ -55,15 +55,16 @@ export async function runAgentReviewLoop(
   const ctx = subStageContext(runtime);
   const stage = ctx.stage ?? (config.stageName as import("../port/index.js").StageName);
   const maxTransientRetries = config.maxTransientRetries ?? MAX_TRANSIENT_DISPATCH_RETRIES;
+  const maxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, config.maxRounds);
 
-  for (let round = 1; round <= config.maxRounds; round++) {
+  for (let round = 1; round <= maxRounds; round++) {
     await runtime.services.telemetrySink.record({
       type: "review.round.started",
       stage,
       phase: ctx.phase,
       route: ctx.route,
       reviewRound: round,
-      maxRounds: config.maxRounds,
+      maxRounds,
     });
 
     // Attempt the review, retrying on transient failures up to maxTransientRetries times.
@@ -81,7 +82,7 @@ export async function runAgentReviewLoop(
         phase: ctx.phase,
         route: ctx.route,
         reviewRound: round,
-        maxRounds: config.maxRounds,
+        maxRounds,
         status: "FAIL",
       });
       return {
@@ -107,7 +108,7 @@ export async function runAgentReviewLoop(
       phase: ctx.phase,
       route: ctx.route,
       reviewRound: round,
-      maxRounds: config.maxRounds,
+      maxRounds,
       status: roundStatus,
     });
 
@@ -115,7 +116,7 @@ export async function runAgentReviewLoop(
       return { status: "PASS", reviewRounds: round, filesWritten };
     }
 
-    if (round === config.maxRounds) {
+    if (round === maxRounds) {
       return { status: "FAIL", reviewRounds: round, filesWritten };
     }
 
@@ -139,5 +140,5 @@ export async function runAgentReviewLoop(
     }
   }
 
-  return { status: "FAIL", reviewRounds: config.maxRounds, filesWritten };
+  return { status: "FAIL", reviewRounds: maxRounds, filesWritten };
 }

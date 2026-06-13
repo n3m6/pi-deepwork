@@ -1,4 +1,4 @@
-import { MAX_RESEARCH_REVIEW_ROUNDS } from "../../domain/run/index.js";
+import { MAX_RESEARCH_REVIEW_ROUNDS, effectiveReviewRounds } from "../../domain/run/index.js";
 import type { ArtifactId, StageRuntime } from "../port/index.js";
 import {
   dispatchFailureSummary,
@@ -91,14 +91,15 @@ export async function runResearchPassSubstage(
 
   let reviewRounds = 1;
   const researchCtx = subStageContext(runtime);
-  while (reviewRounds <= MAX_RESEARCH_REVIEW_ROUNDS) {
+  const researchMaxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, MAX_RESEARCH_REVIEW_ROUNDS);
+  while (reviewRounds <= researchMaxRounds) {
     await runtime.services.telemetrySink.record({
       type: "review.round.started",
       stage: "research",
       phase: researchCtx.phase,
       route: researchCtx.route,
       reviewRound: reviewRounds,
-      maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+      maxRounds: researchMaxRounds,
     });
     const questionArtifacts = await readQuestionArtifacts(runtime, questions);
     const review = await dispatchLeaf(
@@ -129,7 +130,7 @@ export async function runResearchPassSubstage(
         phase: researchCtx.phase,
         route: researchCtx.route,
         reviewRound: reviewRounds,
-        maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+        maxRounds: researchMaxRounds,
         status: "FAIL",
       });
       return {
@@ -155,7 +156,7 @@ export async function runResearchPassSubstage(
       phase: researchCtx.phase,
       route: researchCtx.route,
       reviewRound: reviewRounds,
-      maxRounds: MAX_RESEARCH_REVIEW_ROUNDS,
+      maxRounds: researchMaxRounds,
       status: researchRoundStatus,
     });
 
@@ -171,7 +172,7 @@ export async function runResearchPassSubstage(
       };
     }
 
-    if (reviewRounds === MAX_RESEARCH_REVIEW_ROUNDS) {
+    if (reviewRounds === researchMaxRounds) {
       return {
         status: "FAIL",
         filesWritten,

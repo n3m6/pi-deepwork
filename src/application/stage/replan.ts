@@ -1,5 +1,5 @@
 import { parseMarkdownSections } from "../../infra/codec/markdown-codec.js";
-import { MAX_REPLAN_REVIEW_ROUNDS } from "../../domain/run/index.js";
+import { MAX_REPLAN_REVIEW_ROUNDS, effectiveReviewRounds } from "../../domain/run/index.js";
 import type { ArtifactId, BackwardLoopClassification, StageModule, StageOutcome, StageRuntime } from "../port/index.js";
 import {
   artifactRelPath,
@@ -19,14 +19,15 @@ export const replanStage: StageModule = {
 
     let reviewRound = 1;
     const replanCtx = subStageContext(runtime);
-    while (reviewRound <= MAX_REPLAN_REVIEW_ROUNDS) {
+    const replanMaxRounds = effectiveReviewRounds(runtime.services.gates.reviewDepth, MAX_REPLAN_REVIEW_ROUNDS);
+    while (reviewRound <= replanMaxRounds) {
       await runtime.services.telemetrySink.record({
         type: "review.round.started",
         stage: "replan",
         phase: replanCtx.phase,
         route: replanCtx.route,
         reviewRound,
-        maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+        maxRounds: replanMaxRounds,
       });
       const writer = await dispatchLeaf(
         runtime,
@@ -88,7 +89,7 @@ export const replanStage: StageModule = {
           phase: replanCtx.phase,
           route: replanCtx.route,
           reviewRound,
-          maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+          maxRounds: replanMaxRounds,
           status: "FAIL",
         });
         return {
@@ -159,7 +160,7 @@ export const replanStage: StageModule = {
         phase: replanCtx.phase,
         route: replanCtx.route,
         reviewRound,
-        maxRounds: MAX_REPLAN_REVIEW_ROUNDS,
+        maxRounds: replanMaxRounds,
         status: replanRoundStatus,
       });
 
@@ -176,7 +177,7 @@ export const replanStage: StageModule = {
         };
       }
 
-      if (reviewRound === MAX_REPLAN_REVIEW_ROUNDS) {
+      if (reviewRound === replanMaxRounds) {
         return {
           status: "FAIL",
           phase,
@@ -198,7 +199,7 @@ export const replanStage: StageModule = {
       filesWritten: [],
       summary: "Replan review did not converge.",
       telemetry: {
-        review_rounds: 3,
+        review_rounds: replanMaxRounds,
         terminal_review_state: "unclean-cap",
       },
     };
