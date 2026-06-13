@@ -15,6 +15,8 @@ import {
   LiveUiTelemetrySink,
 } from "./infra/pi/live-ui-telemetry-sink.js";
 import { LiveActivityPresenter } from "./infra/pi/live-activity-presenter.js";
+import { ConfiguredModelPolicy } from "./infra/pi/model-policy.js";
+import { loadModelConfig, resolveProfile } from "./infra/config/model-config.js";
 import { JsonlTelemetrySink } from "./infra/telemetry/jsonl-telemetry-sink.js";
 import { TimestampIdGenerator } from "./infra/system/id-generator.js";
 import { SystemClock } from "./infra/system/clock.js";
@@ -41,7 +43,12 @@ export default function (pi: ExtensionAPI): void {
       // Construct the presenter once; shared by the sink and dispatcher.
       const presenter = ctx.hasUI ? new LiveActivityPresenter(ctx) : undefined;
 
-      const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model, undefined, presenter);
+      const modelConfig = await loadModelConfig(ctx.cwd, (msg) => ctx.ui.notify(msg, "warning"));
+      const activeProfileName = interaction.explicit.modelProfile ?? modelConfig.profile;
+      const activeProfile = resolveProfile(modelConfig, activeProfileName);
+      const modelPolicy = new ConfiguredModelPolicy(activeProfile);
+
+      const dispatcher = new PiSessionDispatcher(ctx.modelRegistry, ctx.model, undefined, presenter, modelPolicy);
       const gates = new DefaultGateManager(ctx, {
         interactionMode: interaction.interactionMode,
         failurePolicy: interaction.failurePolicy,
@@ -107,12 +114,13 @@ export default function (pi: ExtensionAPI): void {
   });
 }
 
-function stripCommandFlags(args: string): string {
+export function stripCommandFlags(args: string): string {
   return args
     .replace(/\bmode:(interactive|automated)\b/gi, "")
     .replace(/\bfailure(?:_policy)?:((?:fail-closed)|(?:best-effort))\b/gi, "")
     .replace(/\brun-id:(qrspi-[0-9]{8}-[0-9]{6})\b/gi, "")
     .replace(/\bresume\b/gi, "")
     .replace(/\breview:(thorough|fast)\b/gi, "")
+    .replace(/\bmodels:[a-z0-9-]+\b/gi, "")
     .trim();
 }

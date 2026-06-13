@@ -46,6 +46,7 @@ Optional flags:
 - `mode:interactive` or `mode:automated`
 - `failure:fail-closed` or `failure:best-effort`
 - `review:thorough` or `review:fast`
+- `models:<profile>` — selects a named model profile from `.deepwork/models.json`
 
 ## Command Reference
 
@@ -90,6 +91,21 @@ Controls the maximum number of rounds each multi-stage review loop may run befor
 **Default**: `thorough`.
 
 > **Recommended pairing**: `review:fast failure:best-effort`. If a review still fails after the 2-round cap, it produces an `unclean-cap` FAIL. Under `failure:best-effort` this is automatically softened to `PARTIAL` and the run proceeds rather than stopping. Without `failure:best-effort` in interactive mode, the cap hit instead triggers a human gate where you can approve, retry, or abort.
+
+### `models:` — Model Profile
+
+Selects a named model profile defined in `.deepwork/models.json` (see [Model Routing](#model-routing) below).
+
+| Value | Behavior |
+|-------|----------|
+| `models:<name>` | Activates the named profile, overriding the file's `profile` default. |
+
+**Default**: The `profile` field in `.deepwork/models.json`, or the user's current pi model for all tiers if the file is absent.
+
+```text
+/deepwork my task models:cheap
+/deepwork my task models:max review:thorough
+```
 
 ### `run-id:` — Resume a Prior Run
 
@@ -163,6 +179,48 @@ eslint --max-warnings=0 src/domain src/application src/infra test
 prettier --check src/ test/
 node --import tsx --test --test-concurrency=1 "test/*.test.ts" "test/**/*.test.ts"
 ```
+
+## Model Routing
+
+The pipeline routes each agent dispatch to one of four tiers, and each tier can be mapped to a different model and thinking level via a project config file.
+
+### Tiers
+
+| Tier | Agents | Purpose |
+|------|--------|---------|
+| `architect` | `goals-synthesizer`, `goals-interviewer`, `research-synthesizer`, `design-synthesizer`, `structure-mapper`, `plan-writer`, `task-spec-writer`, `replan-writer` | Frontier synthesis work; errors here cascade downstream. |
+| `coding` | `generic-coding` (the programmatic implementation worker) | Agentic code writing, test writing, and verification. High tool-use volume. |
+| `review` | `goals-reviewer`, `research-reviewer`, `design-reviewer`, `structure-reviewer`, `plan-reviewer`, `task-spec-reviewer`, `replan-reviewer`, all `review-*` and `review-accept-*` agents, `integration-checker`, `backward-loop-detector`, `verifier` | Read-only adversarial critique. High fan-out per task (up to 10 reviewers). |
+| `utility` | `question-generator`, `question-leakage-reviewer`, `question-quality-reviewer`, `codebase-researcher`, `web-researcher`, `coverage-planner`, `baseline-checker`, `reporter` | Cheap mechanical work: extraction, search, formatting. |
+
+### `.deepwork/models.json`
+
+Create `.deepwork/models.json` in your workspace root (this directory is committable project config, unlike `.pipeline/` which is scratch state):
+
+```json
+{
+  "profile": "balanced",
+  "profiles": {
+    "balanced": {
+      "architect": { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
+      "coding":    { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
+      "review":    { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" },
+      "utility":   { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" }
+    }
+  }
+}
+```
+
+See `.deepwork/models.example.json` for a full example with `balanced`, `cheap`, and `max` profiles.
+
+### Precedence
+
+1. `models:<flag>` overrides the file's `profile` field.
+2. Within the active profile, tier binding → pi default model (if tier is absent).
+3. `thinking` in the tier binding overrides the agent frontmatter's `thinking:`; if both are absent, `high` is used.
+4. If `.deepwork/models.json` is missing entirely, all agents use the pi session model.
+
+Any tier can be omitted from a profile; omitted tiers fall back to the pi default model.
 
 ## Notes
 

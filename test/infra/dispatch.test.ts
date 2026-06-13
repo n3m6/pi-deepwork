@@ -300,6 +300,205 @@ test("dispatchChain substitutes {previous} in subsequent prompts", async () => {
   assert.match(capturedPrompts[2] ?? "", /third after response-to: second after/);
 });
 
+// ---------------------------------------------------------------------------
+// ModelPolicy integration
+// ---------------------------------------------------------------------------
+
+test("PiSessionDispatcher uses modelPolicy to resolve modelName from registry", async () => {
+  const registry = makeFakeModelRegistry(
+    [
+      { id: "arch-model", provider: "x" },
+      { id: "default-model", provider: "x" },
+    ],
+    [{ id: "default-model", provider: "x" }],
+  );
+  let capturedModelId: string | undefined;
+  const factory = async (
+    _req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    model: { id: string } | undefined,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedModelId = model?.id;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({ modelName: "arch-model" }),
+  };
+
+  const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never, undefined, policy);
+  await dispatcher.dispatch(makeRequest());
+
+  assert.equal(capturedModelId, "arch-model");
+});
+
+test("PiSessionDispatcher falls back to pi default model when policy returns undefined modelName", async () => {
+  const defaultModel = { id: "default-model", provider: "x" };
+  const registry = makeFakeModelRegistry([defaultModel], [defaultModel]);
+  let capturedModelId: string | undefined;
+  const factory = async (
+    _req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    model: { id: string } | undefined,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedModelId = model?.id;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({}),
+  };
+
+  const dispatcher = new PiSessionDispatcher(
+    registry as never,
+    defaultModel as never,
+    factory as never,
+    undefined,
+    policy,
+  );
+  await dispatcher.dispatch(makeRequest());
+
+  assert.equal(capturedModelId, "default-model");
+});
+
+test("PiSessionDispatcher forwards thinkingLevel override from policy into effective request", async () => {
+  const registry = makeFakeModelRegistry([], []);
+  let capturedThinkingLevel: string | undefined;
+  const factory = async (
+    req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    _model: unknown,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedThinkingLevel = req.target.thinkingLevel;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({ thinkingLevel: "low" }),
+  };
+
+  const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never, undefined, policy);
+  await dispatcher.dispatch(makeRequest());
+
+  assert.equal(capturedThinkingLevel, "low");
+});
+
+test("PiSessionDispatcher preserves original thinkingLevel when policy returns undefined thinkingLevel", async () => {
+  const registry = makeFakeModelRegistry([], []);
+  let capturedThinkingLevel: string | undefined;
+  const factory = async (
+    req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    _model: unknown,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedThinkingLevel = req.target.thinkingLevel;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({}),
+  };
+
+  const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never, undefined, policy);
+  const req = makeRequest({
+    target: { ...makeLeafTarget(), thinkingLevel: "xhigh" },
+  });
+  await dispatcher.dispatch(req);
+
+  assert.equal(capturedThinkingLevel, "xhigh");
+});
+
+test("PiSessionDispatcher falls back to leaf frontmatter model when policy returns no modelName", async () => {
+  const frontmatterModel = { id: "frontmatter-model", provider: "x" };
+  const defaultModel = { id: "default-model", provider: "x" };
+  const registry = makeFakeModelRegistry([frontmatterModel, defaultModel], [defaultModel]);
+  let capturedModelId: string | undefined;
+  const factory = async (
+    _req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    model: { id: string } | undefined,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedModelId = model?.id;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({}),
+  };
+
+  const dispatcher = new PiSessionDispatcher(
+    registry as never,
+    defaultModel as never,
+    factory as never,
+    undefined,
+    policy,
+  );
+  await dispatcher.dispatch(makeRequest({ target: { ...makeLeafTarget(), modelName: "frontmatter-model" } }));
+
+  assert.equal(capturedModelId, "frontmatter-model");
+});
+
+test("PiSessionDispatcher policy modelName takes precedence over leaf frontmatter model", async () => {
+  const registry = makeFakeModelRegistry(
+    [
+      { id: "frontmatter-model", provider: "x" },
+      { id: "profile-model", provider: "x" },
+    ],
+    [],
+  );
+  let capturedModelId: string | undefined;
+  const factory = async (
+    _req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    model: { id: string } | undefined,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedModelId = model?.id;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const policy: import("../../src/application/port/index.js").ModelPolicy = {
+    resolve: () => ({ modelName: "profile-model" }),
+  };
+
+  const dispatcher = new PiSessionDispatcher(registry as never, undefined, factory as never, undefined, policy);
+  await dispatcher.dispatch(makeRequest({ target: { ...makeLeafTarget(), modelName: "frontmatter-model" } }));
+
+  assert.equal(capturedModelId, "profile-model");
+});
+
+test("PiSessionDispatcher works without a modelPolicy (backward-compatible)", async () => {
+  const { dispatcher } = makeDispatcher({ kind: "agent_end" }, "result");
+  const result = await dispatcher.dispatch(makeRequest());
+  assert.equal(result.endReason, "agent_end");
+});
+
+test("PiSessionDispatcher honors leaf frontmatter model with no modelPolicy", async () => {
+  const frontmatterModel = { id: "frontmatter-model", provider: "x" };
+  const defaultModel = { id: "default-model", provider: "x" };
+  const registry = makeFakeModelRegistry([frontmatterModel, defaultModel], [defaultModel]);
+  let capturedModelId: string | undefined;
+  const factory = async (
+    _req: DispatchRequest,
+    _tools: import("@earendil-works/pi-coding-agent").ToolDefinition[],
+    _allowlist: string[],
+    model: { id: string } | undefined,
+  ): Promise<import("../../src/infra/pi/session-dispatcher.js").AgentSession> => {
+    capturedModelId = model?.id;
+    return new FakeSession({ kind: "agent_end" }, "done");
+  };
+
+  const dispatcher = new PiSessionDispatcher(registry as never, defaultModel as never, factory as never);
+  await dispatcher.dispatch(makeRequest({ target: { ...makeLeafTarget(), modelName: "frontmatter-model" } }));
+
+  assert.equal(capturedModelId, "frontmatter-model");
+});
+
 test("dispatchParallel runs all requests and returns results in order", async () => {
   const registry = makeFakeModelRegistry([], []);
   const factory = async (

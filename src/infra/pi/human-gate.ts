@@ -22,6 +22,7 @@ export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   const failure = args.match(/\bfailure(?:_policy)?:((?:fail-closed)|(?:best-effort))\b/i)?.[1]?.toLowerCase();
   const resumeRunId = args.match(/\brun-id:(qrspi-[0-9]{8}-[0-9]{6})\b/i)?.[1];
   const review = args.match(/\breview:(thorough|fast)\b/i)?.[1]?.toLowerCase();
+  const modelProfile = args.match(/\bmodels:([a-z0-9-]+)\b/i)?.[1]?.toLowerCase();
 
   if (mode === "interactive" || mode === "automated") {
     options.mode = mode;
@@ -34,6 +35,9 @@ export function parseExplicitRunOptions(args: string): ExplicitRunOptions {
   }
   if (review === "thorough" || review === "fast") {
     options.reviewDepth = review;
+  }
+  if (modelProfile) {
+    options.modelProfile = modelProfile;
   }
   return options;
 }

@@ -1,6 +1,7 @@
 // Pure domain value types — no node:* or pi imports allowed.
 
 export type Route = "full" | "quick-fix" | "unknown";
+export type ModelTier = "architect" | "coding" | "review" | "utility";
 export type InteractionMode = "interactive" | "automated";
 export type FailurePolicy = "fail-closed" | "best-effort";
 export type ReviewDepth = "thorough" | "fast";
@@ -117,4 +118,5 @@ export interface ExplicitRunOptions {
   failurePolicy?: FailurePolicy;
   resumeRunId?: string;
   reviewDepth?: ReviewDepth;
+  modelProfile?: string;
 }

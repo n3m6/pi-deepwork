@@ -49,6 +49,7 @@ export type {
   GateRoundDetail,
   InteractionMode,
   FailurePolicy,
+  ModelTier,
   NextStage,
   PhaseHistoryEntry,
   ResumeSource,
@@ -251,6 +252,21 @@ export interface DispatchResult {
   customToolCalls: DispatchCustomToolCall[];
   endReason?: "agent_end" | "stage_return" | "aborted" | "max_turns" | "timeout" | "session_error";
   errorMessage?: string;
+}
+
+// ---------------------------------------------------------------------------
+// ModelPolicy — per-tier model + thinking routing
+// ---------------------------------------------------------------------------
+
+export interface ResolvedModelRouting {
+  /** Model name/id to pass to resolveModel; undefined = fall back to pi default. */
+  modelName?: string;
+  /** Thinking level override; undefined = fall back to target's own thinkingLevel. */
+  thinkingLevel?: ThinkingLevelName;
+}
+
+export interface ModelPolicy {
+  resolve(target: DispatchTarget): ResolvedModelRouting;
 }
 
 export interface Dispatcher {

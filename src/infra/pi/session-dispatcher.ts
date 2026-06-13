@@ -18,6 +18,7 @@ import type {
   DispatchResult,
   Dispatcher,
   LeafAgentDefinition,
+  ModelPolicy,
   StageOutcome,
 } from "../../application/port/index.js";
 import type { ActivityPresenter } from "./session-activity.js";
@@ -54,6 +55,7 @@ export class PiSessionDispatcher implements Dispatcher {
     private readonly currentModel?: Model<any>,
     sessionFactory?: SessionFactory,
     private readonly presenter?: ActivityPresenter,
+    private readonly modelPolicy?: ModelPolicy,
   ) {
     this.sessionFactory = sessionFactory ?? this.buildDefaultSessionFactory();
   }
@@ -113,8 +115,19 @@ export class PiSessionDispatcher implements Dispatcher {
     const target = request.target;
     const isLeaf = target.kind === "leaf";
     const toolAllowlist = mergeToolAllowlist(target.tools, request.tools, customTools);
-    const model = resolveModel(this.modelRegistry, this.currentModel, isLeaf ? target.modelName : undefined);
-    const session = await this.sessionFactory(request, customTools, toolAllowlist, model);
+    const routing = this.modelPolicy?.resolve(target);
+    // Precedence: tier-profile model (from .deepwork/models.json) -> the agent's own
+    // frontmatter model: -> pi session default. The frontmatter fallback keeps agents
+    // honoring their declared model when no profile binding covers their tier.
+    const modelName = routing?.modelName ?? (isLeaf ? target.modelName : undefined);
+    const model = resolveModel(this.modelRegistry, this.currentModel, modelName);
+    // When the policy supplies a thinking override, propagate it into the request
+    // so the session factory (which reads request.target.thinkingLevel) picks it up.
+    const effectiveRequest =
+      routing?.thinkingLevel !== undefined
+        ? { ...request, target: { ...target, thinkingLevel: routing.thinkingLevel } }
+        : request;
+    const session = await this.sessionFactory(effectiveRequest, customTools, toolAllowlist, model);
 
     // Attach live-activity reporter if a presenter is configured
     const correlationId = request.correlationId ?? request.target.name;

@@ -8,6 +8,7 @@ import {
   parseExplicitRunOptions,
 } from "../../src/infra/pi/human-gate.js";
 import { createGoalsReturnTool, createInterviewReturnTool } from "../../src/infra/pi/stage-return-tool.js";
+import { stripCommandFlags } from "../../src/index.js";
 
 test("parseExplicitRunOptions reads mode failure and run-id flags", () => {
   const options = parseExplicitRunOptions("resume run-id:qrspi-20260601-123456 mode:automated failure:best-effort");
@@ -78,6 +79,31 @@ test("ask_human returns no answer when the gate manager cannot prompt", async ()
   );
 
   assert.deepEqual(result.details, {});
+});
+
+test("parseExplicitRunOptions parses models: flag into modelProfile", () => {
+  const options = parseExplicitRunOptions("my task models:balanced");
+  assert.equal(options.modelProfile, "balanced");
+});
+
+test("parseExplicitRunOptions parses models: flag with hyphens", () => {
+  const options = parseExplicitRunOptions("my task models:my-custom-profile");
+  assert.equal(options.modelProfile, "my-custom-profile");
+});
+
+test("parseExplicitRunOptions leaves modelProfile undefined when flag absent", () => {
+  const options = parseExplicitRunOptions("my task mode:automated");
+  assert.equal(options.modelProfile, undefined);
+});
+
+test("stripCommandFlags removes models: flag from task text", () => {
+  const stripped = stripCommandFlags("build a health-check endpoint models:cheap mode:automated");
+  assert.equal(stripped, "build a health-check endpoint");
+});
+
+test("stripCommandFlags leaves task text unchanged when no models: flag", () => {
+  const stripped = stripCommandFlags("build a health-check endpoint");
+  assert.equal(stripped, "build a health-check endpoint");
 });
 
 test("DefaultGateManager choose falls back to confirm when select is unavailable", async () => {
