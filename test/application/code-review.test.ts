@@ -118,7 +118,7 @@ class RecordingDispatcher implements Dispatcher {
 function makeVersionControl(changedFiles: string[], changedLines = 250): VersionControl {
   return {
     createRunBranch: async () => {},
-    checkpoint: async () => {},
+    checkpoint: async () => ({ ok: true, skipped: true }),
     resolveRepoRoot: async () => "/",
     prepareWorktree: async () => ({ branch: "test", worktreeRoot: "/", taskId: "01", phase: 1 }),
     squashMerge: async () => ({ ok: true }),

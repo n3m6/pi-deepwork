@@ -59,7 +59,7 @@ Always close stdin with `< /dev/null`; otherwise `pi` can wait indefinitely in h
 - Recovery state lives in `.pipeline/qrspi-<run-id>/state.json`.
 - Telemetry is appended to `.pipeline/qrspi-<run-id>/telemetry/events.jsonl`.
 - Derived telemetry summaries live beside it as `run-log.md` and `metrics-summary.md`.
-- `.pipeline/` is scratch state and must never be committed.
+- `.pipeline/` is scratch state and must never be committed to **this repository**. When the pipeline runs against a target repo, it commits the active run's `.pipeline/<runId>/` to the `qrspi/<runId>` run branch in that target repo as a per-stage progress trail.
 
 When changing stage ordering, resume behavior, or telemetry schema, update the relevant `src/` modules and expand tests when the change meaningfully alters behavior.
 
@@ -81,6 +81,6 @@ The package advertises `src/index.ts` via `package.json#pi.extensions`, so pi di
 
 ## Operational safety
 
-- Never commit `.pipeline/`.
+- Never commit `.pipeline/` to this repository. The runtime commits `.pipeline/<runId>/` only to the run branch in the target repo.
 - Avoid adding runtime build steps or install-time scripts.
 - Keep `package.json` peer dependencies aligned with pi-hosted runtime packages.

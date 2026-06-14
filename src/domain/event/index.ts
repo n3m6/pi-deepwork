@@ -38,6 +38,7 @@ export type DomainEvent =
   | BackwardLoopDeferred
   | BackwardLoopReset
   | BackwardLoopFailed
+  | CheckpointCreated
   | PhaseStarted
   | ReviewRoundStarted
   | ReviewRoundCompleted
@@ -194,6 +195,14 @@ export interface BackwardLoopFailed {
   route: Route;
   classification: BackwardLoopClassification;
   maxLoops: number;
+}
+
+export interface CheckpointCreated {
+  type: "checkpoint.created";
+  stage: StageName;
+  phase: number;
+  route: Route;
+  summary: string;
 }
 
 // ---------------------------------------------------------------------------

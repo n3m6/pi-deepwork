@@ -475,9 +475,22 @@ export interface TaskWorktreeHandle {
   phase: number;
 }
 
+export interface CheckpointResult {
+  /** Whether the checkpoint operation succeeded (git commands exited 0). */
+  ok: boolean;
+  /** Set when no files were staged and no commit was made. */
+  skipped?: boolean;
+  /** Human-readable reason when skipped or when ok is false. */
+  warning?: string;
+}
+
 export interface VersionControl {
   createRunBranch(runId: string, signal?: AbortSignal): Promise<void>;
-  checkpoint(stage: StageName, action: "complete" | "skipped" | "failed", signal?: AbortSignal): Promise<void>;
+  checkpoint(
+    stage: StageName,
+    action: "complete" | "skipped" | "failed" | "finalized",
+    signal?: AbortSignal,
+  ): Promise<CheckpointResult>;
   resolveRepoRoot(signal?: AbortSignal): Promise<string>;
   prepareWorktree(phase: number, taskId: string, repoRoot: string, signal?: AbortSignal): Promise<TaskWorktreeHandle>;
   squashMerge(

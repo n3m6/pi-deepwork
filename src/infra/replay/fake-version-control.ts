@@ -11,7 +11,7 @@
 
 import path from "node:path";
 
-import type { StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
+import type { CheckpointResult, StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
 
 export class FakeVersionControl implements VersionControl {
   constructor(
@@ -23,8 +23,12 @@ export class FakeVersionControl implements VersionControl {
     return Promise.resolve();
   }
 
-  checkpoint(_stage: StageName, _action: "complete" | "skipped" | "failed", _signal?: AbortSignal): Promise<void> {
-    return Promise.resolve();
+  checkpoint(
+    _stage: StageName,
+    _action: "complete" | "skipped" | "failed" | "finalized",
+    _signal?: AbortSignal,
+  ): Promise<CheckpointResult> {
+    return Promise.resolve({ ok: true, skipped: true });
   }
 
   resolveRepoRoot(_signal?: AbortSignal): Promise<string> {

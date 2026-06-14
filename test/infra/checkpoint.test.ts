@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import { CheckpointManager } from "../../src/infra/git/version-control.js";
 
+const RUN_ID = "qrspi-20260602-000000";
+
 test("createRunBranch initializes an unborn repository with an empty run commit", async () => {
   const calls: string[][] = [];
   const checkpoint = new CheckpointManager(
@@ -16,9 +18,10 @@ test("createRunBranch initializes an unborn repository with an empty run commit"
       },
     },
     "/repo",
+    RUN_ID,
   );
 
-  const result = await checkpoint.createRunBranch("qrspi-20260602-000000");
+  const result = await checkpoint.createRunBranch(RUN_ID);
 
   assert.equal(result.ok, true);
   assert.deepEqual(calls, [
@@ -37,46 +40,86 @@ test("createRunBranch initializes an unborn repository with an empty run commit"
   ]);
 });
 
-test("stageBoundaryCheckpoint ignores pipeline-only scratch changes", async () => {
+test("stageBoundaryCheckpoint commits pipeline artifacts even when no code changed", async () => {
   const calls: string[][] = [];
   const checkpoint = new CheckpointManager(
     {
       async exec(_command, args) {
         calls.push(args);
-        return { stdout: "", stderr: "", code: 0, killed: false };
-      },
-    },
-    "/repo",
-  );
-
-  const result = await checkpoint.stageBoundaryCheckpoint("goals", "complete");
-
-  assert.equal(result.ok, true);
-  assert.equal(result.warning, "git worktree already clean");
-  assert.deepEqual(calls, [["status", "--short", "--", ".", ":(exclude).pipeline", ":(exclude).pipeline/**"]]);
-});
-
-test("stageBoundaryCheckpoint stages non-pipeline changes with exclusions", async () => {
-  const calls: string[][] = [];
-  const checkpoint = new CheckpointManager(
-    {
-      async exec(_command, args) {
-        calls.push(args);
-        if (args[0] === "status") {
-          return { stdout: " M README.md\n", stderr: "", code: 0, killed: false };
+        if (args[0] === "diff" && args.includes("--name-only")) {
+          return { stdout: ".pipeline/qrspi-20260602-000000/goals.md\n", stderr: "", code: 0, killed: false };
         }
         return { stdout: "", stderr: "", code: 0, killed: false };
       },
     },
     "/repo",
+    RUN_ID,
   );
 
   const result = await checkpoint.stageBoundaryCheckpoint("goals", "complete");
 
   assert.equal(result.ok, true);
   assert.deepEqual(calls, [
-    ["status", "--short", "--", ".", ":(exclude).pipeline", ":(exclude).pipeline/**"],
     ["add", "-A", "--", ".", ":(exclude).pipeline", ":(exclude).pipeline/**"],
+    ["add", "-A", "-f", "--", ".pipeline/qrspi-20260602-000000"],
+    ["diff", "--cached", "--name-only"],
     ["-c", "user.name=qrspi", "-c", "user.email=qrspi@example.invalid", "commit", "-m", "qrspi: stage goals complete"],
+  ]);
+});
+
+test("stageBoundaryCheckpoint stages non-pipeline changes together with artifacts", async () => {
+  const calls: string[][] = [];
+  const checkpoint = new CheckpointManager(
+    {
+      async exec(_command, args) {
+        calls.push(args);
+        if (args[0] === "diff" && args.includes("--name-only")) {
+          return {
+            stdout: "README.md\n.pipeline/qrspi-20260602-000000/goals.md\n",
+            stderr: "",
+            code: 0,
+            killed: false,
+          };
+        }
+        return { stdout: "", stderr: "", code: 0, killed: false };
+      },
+    },
+    "/repo",
+    RUN_ID,
+  );
+
+  const result = await checkpoint.stageBoundaryCheckpoint("goals", "complete");
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(calls, [
+    ["add", "-A", "--", ".", ":(exclude).pipeline", ":(exclude).pipeline/**"],
+    ["add", "-A", "-f", "--", ".pipeline/qrspi-20260602-000000"],
+    ["diff", "--cached", "--name-only"],
+    ["-c", "user.name=qrspi", "-c", "user.email=qrspi@example.invalid", "commit", "-m", "qrspi: stage goals complete"],
+  ]);
+});
+
+test("stageBoundaryCheckpoint returns nothing-to-checkpoint when diff is empty", async () => {
+  const calls: string[][] = [];
+  const checkpoint = new CheckpointManager(
+    {
+      async exec(_command, args) {
+        calls.push(args);
+        // diff --cached --name-only returns empty: nothing staged
+        return { stdout: "", stderr: "", code: 0, killed: false };
+      },
+    },
+    "/repo",
+    RUN_ID,
+  );
+
+  const result = await checkpoint.stageBoundaryCheckpoint("goals", "complete");
+
+  assert.equal(result.ok, true);
+  assert.equal(result.warning, "nothing to checkpoint");
+  assert.deepEqual(calls, [
+    ["add", "-A", "--", ".", ":(exclude).pipeline", ":(exclude).pipeline/**"],
+    ["add", "-A", "-f", "--", ".pipeline/qrspi-20260602-000000"],
+    ["diff", "--cached", "--name-only"],
   ]);
 });

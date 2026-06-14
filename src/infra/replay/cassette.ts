@@ -104,14 +104,18 @@ export interface GateCassetteEntry {
 // ---------------------------------------------------------------------------
 
 /**
- * Replaces volatile absolute paths in a prompt string with stable placeholders
- * so that the sha256 key matches across machines and across record/replay mkdtemp dirs.
+ * Replaces volatile absolute paths and wall-clock dates in a prompt string with
+ * stable placeholders so that the sha256 key matches across machines, across
+ * record/replay mkdtemp dirs, and across calendar days.
  *
- * Two volatile segments exist:
+ * Volatile segments normalised:
  *  1. workspaceRoot (the git repo root, a fresh mkdtemp dir each run)
  *  2. The worktree base: path.dirname(workspaceRoot)/.qrspi-worktrees/<runId>
  *     (per worktreeRootPath in src/infra/git/version-control.ts — worktrees are
  *      siblings of the repo root, NOT children)
+ *  3. ISO date stamps of the form YYYY-MM-DD (e.g. `created: 2026-06-14` in
+ *     config.md front-matter) are replaced with <DATE> so cassette keys remain
+ *     stable when replayed on a different calendar day than the recording.
  *
  * Longer/more-specific paths are replaced first to avoid partial substitutions.
  */
@@ -120,6 +124,8 @@ export function normalizePaths(text: string, workspaceRoot: string, runId: strin
   // Replace longer path first
   let result = text.split(worktreeBase).join("<WORKTREES>");
   result = result.split(workspaceRoot).join("<WORKSPACE>");
+  // Replace ISO dates (YYYY-MM-DD) so keys are stable across calendar days
+  result = result.replace(/\d{4}-\d{2}-\d{2}/g, "<DATE>");
   return result;
 }
 

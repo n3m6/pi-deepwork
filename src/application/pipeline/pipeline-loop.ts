@@ -176,9 +176,20 @@ export async function runPipeline(options: {
       const newState = await applyStageTransition(run.toSnapshot(), stage.stage, outcome, services.artifactRepo);
       run = Run.rehydrate(newState);
       await services.stateRepo.save(run);
-      await services.versionControl.checkpoint(stage.stage, "complete", signal);
       await sink.regenerateRunLog(run.toSnapshot());
       await sink.regenerateMetrics(run.toSnapshot());
+      const cpResult = await services.versionControl.checkpoint(stage.stage, "complete", signal);
+      if (!cpResult.skipped) {
+        await sink.record({
+          type: "checkpoint.created",
+          stage: stage.stage,
+          phase: run.state.currentPhase,
+          route: run.state.route,
+          summary: cpResult.ok
+            ? `Checkpoint committed after stage ${stage.stage}.`
+            : `Checkpoint failed after stage ${stage.stage}: ${cpResult.warning ?? "unknown error"}`,
+        });
+      }
     }
 
     await sink.record({
@@ -190,6 +201,23 @@ export async function runPipeline(options: {
 
     await sink.regenerateRunLog(run.toSnapshot());
     await sink.regenerateMetrics(run.toSnapshot());
+    if (run.state.lastCompletedStage !== "none") {
+      // Distinct action ("finalized", not "complete") so this run-finalization commit — which
+      // captures the run.completed event and regenerated run-log/metrics — does not reuse the
+      // last per-stage checkpoint's commit message.
+      const finalCp = await services.versionControl.checkpoint(run.state.lastCompletedStage, "finalized", signal);
+      if (!finalCp.skipped) {
+        await sink.record({
+          type: "checkpoint.created",
+          stage: run.state.lastCompletedStage,
+          phase: run.state.currentPhase,
+          route: run.state.route,
+          summary: finalCp.ok
+            ? "Terminal checkpoint committed."
+            : `Terminal checkpoint failed: ${finalCp.warning ?? "unknown error"}`,
+        });
+      }
+    }
     return run.toSnapshot();
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -201,6 +229,20 @@ export async function runPipeline(options: {
     });
     await sink.regenerateRunLog(run.toSnapshot());
     await sink.regenerateMetrics(run.toSnapshot());
+    if (run.state.lastCompletedStage !== "none") {
+      const abortCp = await services.versionControl.checkpoint(run.state.lastCompletedStage, "failed", signal);
+      if (!abortCp.skipped) {
+        await sink.record({
+          type: "checkpoint.created",
+          stage: run.state.lastCompletedStage,
+          phase: run.state.currentPhase,
+          route: run.state.route,
+          summary: abortCp.ok
+            ? "Abort checkpoint committed."
+            : `Abort checkpoint failed: ${abortCp.warning ?? "unknown error"}`,
+        });
+      }
+    }
     throw error;
   } finally {
     services.progress.clear();

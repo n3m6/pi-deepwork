@@ -9,7 +9,7 @@
  * replay uses FakeVersionControl).
  */
 
-import type { StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
+import type { CheckpointResult, StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
 
 export class StubChangesVersionControl implements VersionControl {
   constructor(private readonly inner: VersionControl) {}
@@ -18,7 +18,11 @@ export class StubChangesVersionControl implements VersionControl {
     return this.inner.createRunBranch(runId, signal);
   }
 
-  checkpoint(stage: StageName, action: "complete" | "skipped" | "failed", signal?: AbortSignal): Promise<void> {
+  checkpoint(
+    stage: StageName,
+    action: "complete" | "skipped" | "failed" | "finalized",
+    signal?: AbortSignal,
+  ): Promise<CheckpointResult> {
     return this.inner.checkpoint(stage, action, signal);
   }
 

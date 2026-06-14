@@ -20,6 +20,7 @@ import type {
   BackwardLoopDeferred,
   BackwardLoopReset,
   BackwardLoopFailed,
+  CheckpointCreated,
   PhaseStarted,
   ReviewRoundStarted,
   ReviewRoundCompleted,
@@ -374,6 +375,8 @@ function domainEventToTelemetryEvent(event: DomainEvent): TelemetryEventPartial 
     case "backward_loop.reset":
     case "backward_loop.failed":
       return mapBackwardLoopEvent(event);
+    case "checkpoint.created":
+      return mapCheckpointEvent(event);
     case "phase.started":
     case "review.round.started":
     case "review.round.completed":
@@ -551,6 +554,17 @@ function mapBackwardLoopEvent(event: BackwardLoopEvent): TelemetryEventPartial {
         context: { classification: event.classification },
       };
   }
+}
+
+function mapCheckpointEvent(event: CheckpointCreated): TelemetryEventPartial {
+  return {
+    event_type: "checkpoint.created",
+    status: "PASS",
+    route: event.route,
+    stage: event.stage,
+    phase: event.phase,
+    summary: event.summary,
+  };
 }
 
 function mapSubStageEvent(event: SubStageEvent): TelemetryEventPartial {

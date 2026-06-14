@@ -228,7 +228,7 @@ Any tier can be omitted from a profile; omitted tiers fall back to the pi defaul
 
 ## Notes
 
-- `.pipeline/` is runtime scratch state and must never be committed.
+- `.pipeline/` is runtime scratch state and must never be committed to the **pi-deepwork** repository itself. When running against a target repo, the pipeline automatically commits the active run's `.pipeline/<runId>/` directory (artifacts, state, and telemetry) to the `qrspi/<runId>` run branch after each stage, creating a staged progress trail. Those commits live only on the run branch in the target repo.
 - The extension expects pi-hosted peers such as `@earendil-works/pi-coding-agent`, `@earendil-works/pi-ai`, and `typebox`.
 - The generic implementation worker is no longer a markdown agent; it is a plain nested coding session launched through the dispatcher.
 

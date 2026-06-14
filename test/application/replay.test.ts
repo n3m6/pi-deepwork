@@ -56,7 +56,11 @@ async function findCassetteDirs(): Promise<Array<{ dir: string; meta: CassetteMe
 }
 
 function eventTypes(events: ReturnType<typeof normalizeEvents>): string[] {
-  return events.map((e) => e.event_type);
+  // checkpoint.created is emitted only when a real git commit happens (semi-live mode).
+  // Pure mode's FakeVersionControl reports skipped, so it never emits one. Exclude it here
+  // so the golden stays a mode-independent orchestration contract; the mapping that writes
+  // these events to events.jsonl is covered directly in test/infra/telemetry.test.ts.
+  return events.map((e) => e.event_type).filter((type) => type !== "checkpoint.created");
 }
 
 // ---------------------------------------------------------------------------

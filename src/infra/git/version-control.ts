@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { ExecResult, ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import type { StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
+import type { CheckpointResult, StageName, TaskWorktreeHandle, VersionControl } from "../../application/port/index.js";
 
 // ---------------------------------------------------------------------------
 // CheckpointManager — creates run branches and stage-boundary commits.
@@ -15,12 +15,13 @@ export interface GitOperationResult {
   warning?: string;
 }
 
-const CHECKPOINT_PATHS = [".", ":(exclude).pipeline", ":(exclude).pipeline/**"];
+const CODE_CHECKPOINT_PATHS = [".", ":(exclude).pipeline", ":(exclude).pipeline/**"];
 
 export class CheckpointManager {
   constructor(
     private readonly pi: Pick<ExtensionAPI, "exec">,
     private readonly workspaceRoot: string,
+    private readonly runId: string,
   ) {}
 
   async createRunBranch(runId: string, signal?: AbortSignal): Promise<GitOperationResult> {
@@ -44,20 +45,29 @@ export class CheckpointManager {
 
   async stageBoundaryCheckpoint(
     stage: StageName,
-    action: "complete" | "skipped" | "failed",
+    action: "complete" | "skipped" | "failed" | "finalized",
     signal?: AbortSignal,
   ): Promise<GitOperationResult> {
-    const status = await this.execGit(["status", "--short", "--", ...CHECKPOINT_PATHS], signal);
-    if (!status.ok) {
-      return status;
-    }
-    if (!status.result?.stdout.trim()) {
-      return { ok: true, warning: "git worktree already clean" };
+    // Stage code changes (excluding all .pipeline/ scratch).
+    const addCode = await this.execGit(["add", "-A", "--", ...CODE_CHECKPOINT_PATHS], signal);
+    if (!addCode.ok) {
+      return addCode;
     }
 
-    const add = await this.execGit(["add", "-A", "--", ...CHECKPOINT_PATHS], signal);
-    if (!add.ok) {
-      return add;
+    // Force-add the active run directory, overriding any .gitignore in the target repo.
+    const runDir = `.pipeline/${this.runId}`;
+    const addArtifacts = await this.execGit(["add", "-A", "-f", "--", runDir], signal);
+    if (!addArtifacts.ok) {
+      return addArtifacts;
+    }
+
+    // Only commit when something was actually staged.
+    const diff = await this.execGit(["diff", "--cached", "--name-only"], signal);
+    if (!diff.ok) {
+      return diff;
+    }
+    if (!diff.result?.stdout.trim()) {
+      return { ok: true, warning: "nothing to checkpoint" };
     }
 
     return this.execGit([...commitIdentityArgs(), "commit", "-m", `qrspi: stage ${stage} ${action}`], signal);
@@ -264,15 +274,26 @@ export class GitVersionControl implements VersionControl {
     private readonly workspaceRoot: string,
     private readonly runId: string,
   ) {
-    this.checkpointMgr = new CheckpointManager(pi, workspaceRoot);
+    this.checkpointMgr = new CheckpointManager(pi, workspaceRoot, runId);
   }
 
   async createRunBranch(runId: string, signal?: AbortSignal): Promise<void> {
     await this.checkpointMgr.createRunBranch(runId, signal);
   }
 
-  async checkpoint(stage: StageName, action: "complete" | "skipped" | "failed", signal?: AbortSignal): Promise<void> {
-    await this.checkpointMgr.stageBoundaryCheckpoint(stage, action, signal);
+  async checkpoint(
+    stage: StageName,
+    action: "complete" | "skipped" | "failed" | "finalized",
+    signal?: AbortSignal,
+  ): Promise<CheckpointResult> {
+    const result = await this.checkpointMgr.stageBoundaryCheckpoint(stage, action, signal);
+    if (!result.ok) {
+      return result.warning !== undefined ? { ok: false, warning: result.warning } : { ok: false };
+    }
+    if (result.warning === "nothing to checkpoint") {
+      return { ok: true, skipped: true, warning: result.warning };
+    }
+    return { ok: true };
   }
 
   async resolveRepoRoot(signal?: AbortSignal): Promise<string> {

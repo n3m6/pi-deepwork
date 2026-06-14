@@ -7,6 +7,7 @@ import path from "node:path";
 import { ensureRunDirectories, getRunArtifacts } from "../../src/infra/fs/artifact-repository.js";
 import { Run } from "../../src/domain/run/index.js";
 import {
+  JsonlTelemetrySink,
   TelemetryRecorder,
   renderMetricsSummary,
   renderRunLog,
@@ -55,6 +56,35 @@ test("telemetry recorder appends jsonl and renders summaries", async () => {
   await recorder.regenerateMetrics(state);
   assert.match(await readFile(artifacts.runLogFile, "utf8"), /Run Overview/);
   assert.match(await readFile(artifacts.metricsFile, "utf8"), /Metrics Summary/);
+});
+
+test("sink maps checkpoint.created domain events into events.jsonl", async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), "pi-deepwork-telemetry-checkpoint-"));
+  const artifacts = getRunArtifacts(workspace, "qrspi-20260601-000002");
+  await ensureRunDirectories(artifacts);
+  const sink = JsonlTelemetrySink.create(artifacts, "qrspi-20260601-000002");
+  await sink.initialize();
+
+  await sink.record({
+    type: "checkpoint.created",
+    stage: "goals",
+    phase: 1,
+    route: "full",
+    summary: "Checkpoint committed after stage goals.",
+  });
+
+  const events = await sink.readEvents();
+  assert.equal(events.length, 1);
+  const [event] = events;
+  assert.equal(event?.event_type, "checkpoint.created");
+  assert.equal(event?.status, "PASS");
+  assert.equal(event?.stage, "goals");
+  assert.equal(event?.phase, 1);
+  assert.equal(event?.route, "full");
+  assert.equal(event?.summary, "Checkpoint committed after stage goals.");
+
+  const persisted = await readFile(artifacts.eventsFile, "utf8");
+  assert.match(persisted, /"event_type":"checkpoint.created"/);
 });
 
 test("metrics summary marks stopped runs as partial", () => {
