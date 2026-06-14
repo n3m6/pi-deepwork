@@ -39,6 +39,10 @@ Resume a prior run:
 
 ```text
 /deepwork resume run-id:qrspi-20260601-120000
+
+## Or
+
+/deepwork resume run-id:qrspi-YYYYMMDD-HHMMSS mode:automated failure:best-effort review:thorough
 ```
 
 Optional flags:
@@ -61,10 +65,10 @@ All flags are space-separated key:value pairs appended to the task description:
 
 Controls whether the pipeline presents human approval gates during execution.
 
-| Value | Behavior |
-|-------|----------|
+| Value              | Behavior                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------- |
 | `mode:interactive` | Stages pause at review gates and ask for feedback. Interview questions prompt the user for missing context. |
-| `mode:automated` | All gates are auto-approved. Required interview answers use conservative fallbacks when unavailable. |
+| `mode:automated`   | All gates are auto-approved. Required interview answers use conservative fallbacks when unavailable.        |
 
 **Default**: If pi has a UI (TUI mode), the pipeline defaults to `interactive`. In headless or non-interactive environments, it defaults to `automated`.
 
@@ -72,9 +76,9 @@ Controls whether the pipeline presents human approval gates during execution.
 
 Controls what happens when a stage cannot converge within its review loop cap, or when a required interview answer is unavailable.
 
-| Value | Behavior |
-|-------|----------|
-| `failure:fail-closed` | The run stops on unresolved review caps or missing required answers. |
+| Value                 | Behavior                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `failure:fail-closed` | The run stops on unresolved review caps or missing required answers.                                       |
 | `failure:best-effort` | Unresolved review caps are auto-approved as `PARTIAL`. Missing answers proceed with conservative defaults. |
 
 **Default**: `fail-closed` in interactive mode, `best-effort` in automated mode.
@@ -83,10 +87,10 @@ Controls what happens when a stage cannot converge within its review loop cap, o
 
 Controls the maximum number of rounds each multi-stage review loop may run before hitting its cap.
 
-| Value | Behavior |
-|-------|----------|
-| `review:thorough` | Each stage uses its full review-round budget (up to 5 rounds for goals/plan, 3 for others). |
-| `review:fast` | Every review loop is capped to **2 rounds** — one initial review, one rewrite-on-fail, one re-review, then stop. Non-review retry loops (implementation retries, fix attempts) are unaffected. |
+| Value             | Behavior                                                                                                                                                                                       |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `review:thorough` | Each stage uses its full review-round budget (up to 5 rounds for goals/plan, 3 for others).                                                                                                    |
+| `review:fast`     | Every review loop is capped to **2 rounds** — one initial review, one rewrite-on-fail, one re-review, then stop. Non-review retry loops (implementation retries, fix attempts) are unaffected. |
 
 **Default**: `thorough`.
 
@@ -96,8 +100,8 @@ Controls the maximum number of rounds each multi-stage review loop may run befor
 
 Selects a named model profile defined in `.deepwork/models.json` (see [Model Routing](#model-routing) below).
 
-| Value | Behavior |
-|-------|----------|
+| Value           | Behavior                                                              |
+| --------------- | --------------------------------------------------------------------- |
 | `models:<name>` | Activates the named profile, overriding the file's `profile` default. |
 
 **Default**: The `profile` field in `.deepwork/models.json`, or the user's current pi model for all tiers if the file is absent.
@@ -186,12 +190,12 @@ The pipeline routes each agent dispatch to one of four tiers, and each tier can 
 
 ### Tiers
 
-| Tier | Agents | Purpose |
-|------|--------|---------|
-| `architect` | `goals-synthesizer`, `goals-interviewer`, `research-synthesizer`, `design-synthesizer`, `structure-mapper`, `plan-writer`, `task-spec-writer`, `replan-writer` | Frontier synthesis work; errors here cascade downstream. |
-| `coding` | `generic-coding` (the programmatic implementation worker) | Agentic code writing, test writing, and verification. High tool-use volume. |
-| `review` | `goals-reviewer`, `research-reviewer`, `design-reviewer`, `structure-reviewer`, `plan-reviewer`, `task-spec-reviewer`, `replan-reviewer`, all `review-*` and `review-accept-*` agents, `integration-checker`, `backward-loop-detector`, `verifier` | Read-only adversarial critique. High fan-out per task (up to 10 reviewers). |
-| `utility` | `question-generator`, `question-leakage-reviewer`, `question-quality-reviewer`, `codebase-researcher`, `web-researcher`, `coverage-planner`, `baseline-checker`, `reporter` | Cheap mechanical work: extraction, search, formatting. |
+| Tier        | Agents                                                                                                                                                                                                                                             | Purpose                                                                     |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `architect` | `goals-synthesizer`, `goals-interviewer`, `research-synthesizer`, `design-synthesizer`, `structure-mapper`, `plan-writer`, `task-spec-writer`, `replan-writer`                                                                                     | Frontier synthesis work; errors here cascade downstream.                    |
+| `coding`    | `generic-coding` (the programmatic implementation worker)                                                                                                                                                                                          | Agentic code writing, test writing, and verification. High tool-use volume. |
+| `review`    | `goals-reviewer`, `research-reviewer`, `design-reviewer`, `structure-reviewer`, `plan-reviewer`, `task-spec-reviewer`, `replan-reviewer`, all `review-*` and `review-accept-*` agents, `integration-checker`, `backward-loop-detector`, `verifier` | Read-only adversarial critique. High fan-out per task (up to 10 reviewers). |
+| `utility`   | `question-generator`, `question-leakage-reviewer`, `question-quality-reviewer`, `codebase-researcher`, `web-researcher`, `coverage-planner`, `baseline-checker`, `reporter`                                                                        | Cheap mechanical work: extraction, search, formatting.                      |
 
 ### `.deepwork/models.json`
 
@@ -203,9 +207,9 @@ Create `.deepwork/models.json` in your workspace root (this directory is committ
   "profiles": {
     "balanced": {
       "architect": { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
-      "coding":    { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
-      "review":    { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" },
-      "utility":   { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" }
+      "coding": { "model": "deepseek/deepseek-v4-pro", "thinking": "high" },
+      "review": { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" },
+      "utility": { "model": "deepseek/deepseek-v4-flash", "thinking": "medium" }
     }
   }
 }
