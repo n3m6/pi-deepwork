@@ -1,4 +1,5 @@
-# pi-deepwork
+# THIS IS TERRIBLE. DON'T RUN THIS (ARCHIVED PROJECT)
+## pi-deepwork
 
 `pi-deepwork` is a deterministic TypeScript extension for [pi](https://github.com/mariozechner/pi-coding-agent). It runs the QRSPI deepwork pipeline in code while still reusing the bundled markdown leaf prompts for specialized synthesis, review, and reporting work.
 
